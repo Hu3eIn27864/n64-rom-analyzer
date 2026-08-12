@@ -1,0 +1,6 @@
+{
+  "name": "N64 ROM Decompiler & C++ Recompiler CLI",
+  "description": "Windows CLI tool for parsing, disassembling, and decompiling Nintendo 64 ROMs (.z64, .n64, .v64) into structured High-Level C++ code.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
