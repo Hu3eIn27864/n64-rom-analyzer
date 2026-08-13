@@ -67,7 +67,7 @@ export interface RecompilationProgress {
 
 export interface CppProjectFile {
   filename: string;
-  language: 'cpp' | 'hpp' | 'c' | 'asm' | 'cmake' | 'bat' | 'json' | 'md' | 'python' | 'bash' | 'sh';
+  language: 'cpp' | 'hpp' | 'c' | 'asm' | 'cmake' | 'bat' | 'json' | 'md' | 'markdown' | 'plaintext' | 'python' | 'bash' | 'sh';
   content: string;
   description: string;
 }

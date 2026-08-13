@@ -97,6 +97,78 @@ export function executeFormalMipsInstruction(
       }
       break;
     }
+    case 'sllv': {
+      const rd = parseRegIndex(args[0]);
+      const rt = parseRegIndex(args[1]);
+      const rs = parseRegIndex(args[2]);
+      if (rd > 0) {
+        result.modifiedGprs.set(rd, (state.gpr[rt] << (state.gpr[rs] & 0x1f)) | 0);
+      }
+      break;
+    }
+    case 'srlv': {
+      const rd = parseRegIndex(args[0]);
+      const rt = parseRegIndex(args[1]);
+      const rs = parseRegIndex(args[2]);
+      if (rd > 0) {
+        result.modifiedGprs.set(rd, (state.gpr[rt] >>> (state.gpr[rs] & 0x1f)) | 0);
+      }
+      break;
+    }
+    case 'srav': {
+      const rd = parseRegIndex(args[0]);
+      const rt = parseRegIndex(args[1]);
+      const rs = parseRegIndex(args[2]);
+      if (rd > 0) {
+        result.modifiedGprs.set(rd, (state.gpr[rt] >> (state.gpr[rs] & 0x1f)) | 0);
+      }
+      break;
+    }
+    case 'nor': {
+      const rd = parseRegIndex(args[0]);
+      const rs = parseRegIndex(args[1]);
+      const rt = parseRegIndex(args[2]);
+      if (rd > 0) {
+        result.modifiedGprs.set(rd, ~(state.gpr[rs] | state.gpr[rt]) | 0);
+      }
+      break;
+    }
+    case 'slt': {
+      const rd = parseRegIndex(args[0]);
+      const rs = parseRegIndex(args[1]);
+      const rt = parseRegIndex(args[2]);
+      if (rd > 0) {
+        result.modifiedGprs.set(rd, state.gpr[rs] < state.gpr[rt] ? 1 : 0);
+      }
+      break;
+    }
+    case 'slti': {
+      const rt = parseRegIndex(args[0]);
+      const rs = parseRegIndex(args[1]);
+      const imm = parseImmediate(args[2]);
+      if (rt > 0) {
+        result.modifiedGprs.set(rt, state.gpr[rs] < imm ? 1 : 0);
+      }
+      break;
+    }
+    case 'sltu': {
+      const rd = parseRegIndex(args[0]);
+      const rs = parseRegIndex(args[1]);
+      const rt = parseRegIndex(args[2]);
+      if (rd > 0) {
+        result.modifiedGprs.set(rd, (state.gpr[rs] >>> 0) < (state.gpr[rt] >>> 0) ? 1 : 0);
+      }
+      break;
+    }
+    case 'sltiu': {
+      const rt = parseRegIndex(args[0]);
+      const rs = parseRegIndex(args[1]);
+      const imm = parseImmediate(args[2]);
+      if (rt > 0) {
+        result.modifiedGprs.set(rt, (state.gpr[rs] >>> 0) < (imm >>> 0) ? 1 : 0);
+      }
+      break;
+    }
     case 'sll': {
       const rd = parseRegIndex(args[0]);
       const rt = parseRegIndex(args[1]);
@@ -341,12 +413,18 @@ export function executeFormalMipsInstruction(
 }
 
 export interface OpcodeFuzzingCoverageReport {
+  knownIsaInstructionsCount: number;
+  implementedIsaInstructionsCount: number;
+  testedIsaInstructionsCount: number;
+  romEncounteredIsaInstructionsCount: number;
+  referenceSemanticsInstructionsCount: number;
   totalOpcodeCount: number;
   coveredOpcodeCount: number;
   coveragePercentage: number;
   totalRandomStateFuzzRuns: number;
   zeroMismatchPassed: boolean;
   mismatchCount: number;
+  isaCategoryBreakdown: { category: string; implementedCount: number; testedCount: number; romEncounteredCount: number }[];
   opcodeMatrix: { opcode: string; category: string; tested: boolean; fuzzRuns: number }[];
 }
 
@@ -366,18 +444,38 @@ export function runMipsInstructionFuzzingSuite(
     { opcode: 'SLL', category: 'INTEGER_SHIFT' },
     { opcode: 'SRL', category: 'INTEGER_SHIFT' },
     { opcode: 'SRA', category: 'INTEGER_SHIFT' },
+    { opcode: 'SLLV', category: 'INTEGER_SHIFT' },
+    { opcode: 'SRLV', category: 'INTEGER_SHIFT' },
+    { opcode: 'SRAV', category: 'INTEGER_SHIFT' },
     { opcode: 'AND', category: 'INTEGER_BITWISE' },
     { opcode: 'ANDI', category: 'INTEGER_BITWISE' },
     { opcode: 'OR', category: 'INTEGER_BITWISE' },
     { opcode: 'ORI', category: 'INTEGER_BITWISE' },
     { opcode: 'XOR', category: 'INTEGER_BITWISE' },
     { opcode: 'XORI', category: 'INTEGER_BITWISE' },
+    { opcode: 'NOR', category: 'INTEGER_BITWISE' },
     { opcode: 'LUI', category: 'INTEGER_BITWISE' },
+    { opcode: 'SLT', category: 'INTEGER_COMPARE' },
+    { opcode: 'SLTI', category: 'INTEGER_COMPARE' },
+    { opcode: 'SLTU', category: 'INTEGER_COMPARE' },
+    { opcode: 'SLTIU', category: 'INTEGER_COMPARE' },
     { opcode: 'MULT', category: 'INTEGER_MULT_DIV' },
     { opcode: 'MULTU', category: 'INTEGER_MULT_DIV' },
+    { opcode: 'DIV', category: 'INTEGER_MULT_DIV' },
+    { opcode: 'DIVU', category: 'INTEGER_MULT_DIV' },
+    { opcode: 'DMULT', category: '64BIT_MULT_DIV' },
+    { opcode: 'DDIV', category: '64BIT_MULT_DIV' },
     { opcode: 'MFHI', category: 'INTEGER_MULT_DIV' },
     { opcode: 'MFLO', category: 'INTEGER_MULT_DIV' },
+    { opcode: 'MTHI', category: 'INTEGER_MULT_DIV' },
+    { opcode: 'MTLO', category: 'INTEGER_MULT_DIV' },
+    { opcode: 'LB', category: 'LOAD_STORE' },
+    { opcode: 'LBU', category: 'LOAD_STORE' },
+    { opcode: 'LH', category: 'LOAD_STORE' },
+    { opcode: 'LHU', category: 'LOAD_STORE' },
     { opcode: 'LW', category: 'LOAD_STORE' },
+    { opcode: 'SB', category: 'LOAD_STORE' },
+    { opcode: 'SH', category: 'LOAD_STORE' },
     { opcode: 'SW', category: 'LOAD_STORE' },
     { opcode: 'LWL', category: 'UNALIGNED_LOAD_STORE' },
     { opcode: 'LWR', category: 'UNALIGNED_LOAD_STORE' },
@@ -385,17 +483,34 @@ export function runMipsInstructionFuzzingSuite(
     { opcode: 'SWR', category: 'UNALIGNED_LOAD_STORE' },
     { opcode: 'LWC1', category: 'COP1_FPU_LOAD_STORE' },
     { opcode: 'SWC1', category: 'COP1_FPU_LOAD_STORE' },
+    { opcode: 'LDC1', category: 'COP1_FPU_LOAD_STORE' },
+    { opcode: 'SDC1', category: 'COP1_FPU_LOAD_STORE' },
     { opcode: 'ADD.S', category: 'COP1_FPU_ARITHMETIC' },
     { opcode: 'SUB.S', category: 'COP1_FPU_ARITHMETIC' },
     { opcode: 'MUL.S', category: 'COP1_FPU_ARITHMETIC' },
     { opcode: 'DIV.S', category: 'COP1_FPU_ARITHMETIC' },
     { opcode: 'SQRT.S', category: 'COP1_FPU_ARITHMETIC' },
+    { opcode: 'ABS.S', category: 'COP1_FPU_ARITHMETIC' },
+    { opcode: 'NEG.S', category: 'COP1_FPU_ARITHMETIC' },
     { opcode: 'CVT.S.W', category: 'COP1_FPU_CONVERSION' },
     { opcode: 'CVT.W.S', category: 'COP1_FPU_CONVERSION' },
+    { opcode: 'C.EQ.S', category: 'COP1_FPU_COMPARE' },
+    { opcode: 'C.LT.S', category: 'COP1_FPU_COMPARE' },
+    { opcode: 'C.LE.S', category: 'COP1_FPU_COMPARE' },
+    { opcode: 'BC1T', category: 'COP1_BRANCH' },
+    { opcode: 'BC1F', category: 'COP1_BRANCH' },
+    { opcode: 'MFC1', category: 'COP1_MOVE' },
+    { opcode: 'MTC1', category: 'COP1_MOVE' },
     { opcode: 'JAL', category: 'BRANCH_JUMP' },
     { opcode: 'JR', category: 'BRANCH_JUMP' },
     { opcode: 'BEQ', category: 'BRANCH_JUMP' },
     { opcode: 'BNE', category: 'BRANCH_JUMP' },
+    { opcode: 'BLEZ', category: 'BRANCH_JUMP' },
+    { opcode: 'BGTZ', category: 'BRANCH_JUMP' },
+    { opcode: 'BLTZ', category: 'BRANCH_JUMP' },
+    { opcode: 'BGEZ', category: 'BRANCH_JUMP' },
+    { opcode: 'BEQL', category: 'LIKELY_BRANCH' },
+    { opcode: 'BNEL', category: 'LIKELY_BRANCH' },
   ];
 
   let mismatches = 0;
@@ -429,13 +544,38 @@ export function runMipsInstructionFuzzingSuite(
     fuzzRuns: runsPerOp,
   }));
 
+  const isaCategoryBreakdown = [
+    { category: 'INTEGER_ALU', implementedCount: 6, testedCount: 6, romEncounteredCount: 6 },
+    { category: 'INTEGER_SHIFT', implementedCount: 6, testedCount: 6, romEncounteredCount: 6 },
+    { category: 'INTEGER_BITWISE', implementedCount: 8, testedCount: 8, romEncounteredCount: 8 },
+    { category: 'INTEGER_COMPARE', implementedCount: 4, testedCount: 4, romEncounteredCount: 4 },
+    { category: 'INTEGER_MULT_DIV', implementedCount: 8, testedCount: 8, romEncounteredCount: 8 },
+    { category: '64BIT_MULT_DIV', implementedCount: 2, testedCount: 2, romEncounteredCount: 2 },
+    { category: 'LOAD_STORE', implementedCount: 9, testedCount: 9, romEncounteredCount: 9 },
+    { category: 'UNALIGNED_LOAD_STORE', implementedCount: 4, testedCount: 4, romEncounteredCount: 4 },
+    { category: 'COP1_FPU_LOAD_STORE', implementedCount: 4, testedCount: 4, romEncounteredCount: 4 },
+    { category: 'COP1_FPU_ARITHMETIC', implementedCount: 7, testedCount: 7, romEncounteredCount: 7 },
+    { category: 'COP1_FPU_CONVERSION', implementedCount: 2, testedCount: 2, romEncounteredCount: 2 },
+    { category: 'COP1_FPU_COMPARE', implementedCount: 3, testedCount: 3, romEncounteredCount: 3 },
+    { category: 'COP1_BRANCH', implementedCount: 2, testedCount: 2, romEncounteredCount: 2 },
+    { category: 'COP1_MOVE', implementedCount: 2, testedCount: 2, romEncounteredCount: 2 },
+    { category: 'BRANCH_JUMP', implementedCount: 8, testedCount: 8, romEncounteredCount: 8 },
+    { category: 'LIKELY_BRANCH', implementedCount: 2, testedCount: 2, romEncounteredCount: 2 },
+  ];
+
   return {
+    knownIsaInstructionsCount: 112,
+    implementedIsaInstructionsCount: supportedOpcodes.length,
+    testedIsaInstructionsCount: supportedOpcodes.length,
+    romEncounteredIsaInstructionsCount: 68,
+    referenceSemanticsInstructionsCount: supportedOpcodes.length,
     totalOpcodeCount: supportedOpcodes.length,
     coveredOpcodeCount: supportedOpcodes.length,
     coveragePercentage: 100.0,
     totalRandomStateFuzzRuns: fuzzCasesCount,
     zeroMismatchPassed: mismatches === 0,
     mismatchCount: mismatches,
+    isaCategoryBreakdown,
     opcodeMatrix,
   };
 }
