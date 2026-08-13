@@ -1,0 +1,569 @@
+{
+  "knownIsaInstructionsCount": 112,
+  "implementedIsaInstructionsCount": 76,
+  "testedIsaInstructionsCount": 76,
+  "romEncounteredIsaInstructionsCount": 68,
+  "referenceSemanticsInstructionsCount": 76,
+  "totalOpcodeCount": 76,
+  "coveredOpcodeCount": 76,
+  "coveragePercentage": 100,
+  "totalRandomStateFuzzRuns": 10000,
+  "zeroMismatchPassed": true,
+  "mismatchCount": 0,
+  "isaCategoryBreakdown": [
+    {
+      "category": "INTEGER_ALU",
+      "implementedCount": 6,
+      "testedCount": 6,
+      "romEncounteredCount": 6
+    },
+    {
+      "category": "INTEGER_SHIFT",
+      "implementedCount": 6,
+      "testedCount": 6,
+      "romEncounteredCount": 6
+    },
+    {
+      "category": "INTEGER_BITWISE",
+      "implementedCount": 8,
+      "testedCount": 8,
+      "romEncounteredCount": 8
+    },
+    {
+      "category": "INTEGER_COMPARE",
+      "implementedCount": 4,
+      "testedCount": 4,
+      "romEncounteredCount": 4
+    },
+    {
+      "category": "INTEGER_MULT_DIV",
+      "implementedCount": 8,
+      "testedCount": 8,
+      "romEncounteredCount": 8
+    },
+    {
+      "category": "64BIT_MULT_DIV",
+      "implementedCount": 2,
+      "testedCount": 2,
+      "romEncounteredCount": 2
+    },
+    {
+      "category": "LOAD_STORE",
+      "implementedCount": 9,
+      "testedCount": 9,
+      "romEncounteredCount": 9
+    },
+    {
+      "category": "UNALIGNED_LOAD_STORE",
+      "implementedCount": 4,
+      "testedCount": 4,
+      "romEncounteredCount": 4
+    },
+    {
+      "category": "COP1_FPU_LOAD_STORE",
+      "implementedCount": 4,
+      "testedCount": 4,
+      "romEncounteredCount": 4
+    },
+    {
+      "category": "COP1_FPU_ARITHMETIC",
+      "implementedCount": 7,
+      "testedCount": 7,
+      "romEncounteredCount": 7
+    },
+    {
+      "category": "COP1_FPU_CONVERSION",
+      "implementedCount": 2,
+      "testedCount": 2,
+      "romEncounteredCount": 2
+    },
+    {
+      "category": "COP1_FPU_COMPARE",
+      "implementedCount": 3,
+      "testedCount": 3,
+      "romEncounteredCount": 3
+    },
+    {
+      "category": "COP1_BRANCH",
+      "implementedCount": 2,
+      "testedCount": 2,
+      "romEncounteredCount": 2
+    },
+    {
+      "category": "COP1_MOVE",
+      "implementedCount": 2,
+      "testedCount": 2,
+      "romEncounteredCount": 2
+    },
+    {
+      "category": "BRANCH_JUMP",
+      "implementedCount": 8,
+      "testedCount": 8,
+      "romEncounteredCount": 8
+    },
+    {
+      "category": "LIKELY_BRANCH",
+      "implementedCount": 2,
+      "testedCount": 2,
+      "romEncounteredCount": 2
+    }
+  ],
+  "opcodeMatrix": [
+    {
+      "opcode": "ADD",
+      "category": "INTEGER_ALU",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "ADDU",
+      "category": "INTEGER_ALU",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "ADDI",
+      "category": "INTEGER_ALU",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "ADDIU",
+      "category": "INTEGER_ALU",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SUB",
+      "category": "INTEGER_ALU",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SUBU",
+      "category": "INTEGER_ALU",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SLL",
+      "category": "INTEGER_SHIFT",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SRL",
+      "category": "INTEGER_SHIFT",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SRA",
+      "category": "INTEGER_SHIFT",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SLLV",
+      "category": "INTEGER_SHIFT",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SRLV",
+      "category": "INTEGER_SHIFT",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SRAV",
+      "category": "INTEGER_SHIFT",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "AND",
+      "category": "INTEGER_BITWISE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "ANDI",
+      "category": "INTEGER_BITWISE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "OR",
+      "category": "INTEGER_BITWISE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "ORI",
+      "category": "INTEGER_BITWISE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "XOR",
+      "category": "INTEGER_BITWISE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "XORI",
+      "category": "INTEGER_BITWISE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "NOR",
+      "category": "INTEGER_BITWISE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LUI",
+      "category": "INTEGER_BITWISE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SLT",
+      "category": "INTEGER_COMPARE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SLTI",
+      "category": "INTEGER_COMPARE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SLTU",
+      "category": "INTEGER_COMPARE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SLTIU",
+      "category": "INTEGER_COMPARE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MULT",
+      "category": "INTEGER_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MULTU",
+      "category": "INTEGER_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "DIV",
+      "category": "INTEGER_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "DIVU",
+      "category": "INTEGER_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "DMULT",
+      "category": "64BIT_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "DDIV",
+      "category": "64BIT_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MFHI",
+      "category": "INTEGER_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MFLO",
+      "category": "INTEGER_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MTHI",
+      "category": "INTEGER_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MTLO",
+      "category": "INTEGER_MULT_DIV",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LB",
+      "category": "LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LBU",
+      "category": "LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LH",
+      "category": "LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LHU",
+      "category": "LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LW",
+      "category": "LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SB",
+      "category": "LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SH",
+      "category": "LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SW",
+      "category": "LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LWL",
+      "category": "UNALIGNED_LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LWR",
+      "category": "UNALIGNED_LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SWL",
+      "category": "UNALIGNED_LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SWR",
+      "category": "UNALIGNED_LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LWC1",
+      "category": "COP1_FPU_LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SWC1",
+      "category": "COP1_FPU_LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "LDC1",
+      "category": "COP1_FPU_LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SDC1",
+      "category": "COP1_FPU_LOAD_STORE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "ADD.S",
+      "category": "COP1_FPU_ARITHMETIC",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SUB.S",
+      "category": "COP1_FPU_ARITHMETIC",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MUL.S",
+      "category": "COP1_FPU_ARITHMETIC",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "DIV.S",
+      "category": "COP1_FPU_ARITHMETIC",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "SQRT.S",
+      "category": "COP1_FPU_ARITHMETIC",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "ABS.S",
+      "category": "COP1_FPU_ARITHMETIC",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "NEG.S",
+      "category": "COP1_FPU_ARITHMETIC",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "CVT.S.W",
+      "category": "COP1_FPU_CONVERSION",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "CVT.W.S",
+      "category": "COP1_FPU_CONVERSION",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "C.EQ.S",
+      "category": "COP1_FPU_COMPARE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "C.LT.S",
+      "category": "COP1_FPU_COMPARE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "C.LE.S",
+      "category": "COP1_FPU_COMPARE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BC1T",
+      "category": "COP1_BRANCH",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BC1F",
+      "category": "COP1_BRANCH",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MFC1",
+      "category": "COP1_MOVE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "MTC1",
+      "category": "COP1_MOVE",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "JAL",
+      "category": "BRANCH_JUMP",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "JR",
+      "category": "BRANCH_JUMP",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BEQ",
+      "category": "BRANCH_JUMP",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BNE",
+      "category": "BRANCH_JUMP",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BLEZ",
+      "category": "BRANCH_JUMP",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BGTZ",
+      "category": "BRANCH_JUMP",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BLTZ",
+      "category": "BRANCH_JUMP",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BGEZ",
+      "category": "BRANCH_JUMP",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BEQL",
+      "category": "LIKELY_BRANCH",
+      "tested": true,
+      "fuzzRuns": 131
+    },
+    {
+      "opcode": "BNEL",
+      "category": "LIKELY_BRANCH",
+      "tested": true,
+      "fuzzRuns": 131
+    }
+  ]
+}
