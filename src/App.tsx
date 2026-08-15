@@ -86,35 +86,109 @@ export default function App() {
     setActiveTab('cli');
   };
 
-  // Load a ROM buffer into the system asynchronously with progress milestones
-  const processRomBuffer = async (rawBuffer: Uint8Array, sourceName: string) => {
-    clearDecompilerCache();
-    const parsedHeader = parseRomHeader(rawBuffer);
-    setHeader(parsedHeader);
+  const processRomBuffer = async (
+  rawBuffer: Uint8Array,
+  sourceName: string,
+  ) => {
+  clearDecompilerCache();
 
-    const normalizedZ64 = byteSwapToZ64(rawBuffer, parsedHeader.rawEndian);
-    setRomBuffer(normalizedZ64);
+  setProgress({
+    isProcessing: true,
+    stage: 'disassembling',
+    currentTaskName: 'Uploading ROM to analysis engine',
+    overallPercent: 10,
+    disassembledCount: 0,
+    disassembledTotal: 0,
+    subroutinesCount: 0,
+    subroutinesTotal: 0,
+    liftedCount: 0,
+    liftedTotal: 0,
+    recompiledFilesCount: 0,
+    recompiledFilesTotal: 0,
+    timeElapsedMs: 0,
+    logs: [],
+  });
 
-    const result = await runAsyncPipeline(normalizedZ64, parsedHeader, (p) => {
-      setProgress(p);
+  try {
+    const base64 = uint8ToBase64(rawBuffer);
+
+    const response = await fetch('/api/analyze-rom', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        rom: base64,
+      }),
     });
 
-    setInstructions(result.instructions);
-    setFunctions(result.functions);
-    if (result.functions.length > 0) setSelectedFn(result.functions[0]);
-    setCppFiles(result.cppFiles);
+    const json = await response.json();
 
-    addLog('system', `================================================================`);
-    addLog('system', `[SUCCESS] Loaded N64 ROM: "${parsedHeader.imageName}" (${sourceName})`);
-    addLog('info', `Header Magic: 0x80371240 | Raw Endianness: .${parsedHeader.rawEndian.toUpperCase()}`);
-    addLog('info', `Title: ${parsedHeader.imageName} | Game ID: ${parsedHeader.gameId} | Region: ${parsedHeader.countryName}`);
-    addLog('info', `Entry Point (PC): ${formatHex32(parsedHeader.entryPoint)} | CIC Security: ${parsedHeader.cicType}`);
-    addLog('info', `Disassembled ${result.instructions.length.toLocaleString()} MIPS R4300i instructions into ${result.functions.length.toLocaleString()} subroutines.`);
-    addLog('success', `Generated ${result.cppFiles.length} High-Level C++ source files ready for recompilation.`);
-    addLog('success', `[BYTE MATCH VERIFICATION] High-Level C++ re-assembled back to MIPS: 100.0% Byte-Identical Match with initial disassembly!`);
-    addLog('system', `================================================================`);
+    if (!json.success) {
+      throw new Error(
+        json.error || 'ROM analysis failed.',
+      );
+    }
+
+    setHeader(json.header);
+
+    setInstructions(json.instructions);
+
+    const recoveredFunctions =
+      json.functions.map((fn: any) => ({
+        ...fn,
+        entryAddress: fn.address,
+      }));
+
+    setFunctions(recoveredFunctions);
+
+    if (recoveredFunctions.length > 0) {
+      setSelectedFn(recoveredFunctions[0]);
+    }
+
+    setRomBuffer(rawBuffer);
+
+    addLog(
+      'success',
+      `[ROM] Loaded ${sourceName}`,
+    );
+
+    addLog(
+      'info',
+      `[ROM] Size: ${rawBuffer.length.toLocaleString()} bytes`,
+    );
+
+    addLog(
+      'info',
+      `[MIPS] Discovered ${json.instructions.length.toLocaleString()} instructions`,
+    );
+
+    addLog(
+      'success',
+      `[ANALYSIS] Recovered ${json.functions.length} functions`,
+    );
+
+    setActiveTab('disasm');
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Unknown analysis error';
+
+    addLog(
+      'error',
+      `[ANALYSIS ERROR] ${message}`,
+    );
+  } finally {
+    setProgress((p) => ({
+      ...p,
+      isProcessing: false,
+      stage: 'idle',
+      overallPercent: 100,
+    }));
+  }
   };
-
+  
   // Auto load default sample ROM on first render
   useEffect(() => {
     addLog('system', 'N64DecompEXE.exe v2.4.1 [Windows Command Line Interface]');
