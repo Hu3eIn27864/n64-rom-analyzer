@@ -98,6 +98,63 @@ Requirements:
   }
 });
 
+app.post('/api/analyze-rom', (req, res) => {
+  try {
+    const encoded = req.body?.rom;
+
+    if (typeof encoded !== 'string') {
+      res.status(400).json({
+        success: false,
+        error: 'Expected ROM as base64 string.',
+      });
+      return;
+    }
+
+    const buffer = Buffer.from(encoded, 'base64');
+
+    if (buffer.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'ROM is empty.',
+      });
+      return;
+    }
+
+    const result = analyzeRom(
+      new Uint8Array(buffer),
+    );
+
+    res.json({
+      success: true,
+
+      header: result.header,
+
+      romSize: result.romSize,
+
+      instructions: result.instructions,
+
+      functions: result.functions.map((fn) => ({
+        address: fn.address,
+        name: fn.name,
+        endAddress: fn.endAddress,
+        calls: fn.calls,
+        branches: fn.branches,
+        instructionCount: fn.instructions.length,
+      })),
+    });
+  } catch (error) {
+    console.error('ROM analysis failed:', error);
+
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'ROM analysis failed.',
+    });
+  }
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
