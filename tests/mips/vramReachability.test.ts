@@ -33,6 +33,37 @@ test('reachability resolves VRAM entry points through the ROM address map', () =
   assert.equal(result.instructions[0]?.address, 0x1000);
 });
 
+test('reachability canonicalizes a VRAM call target before queuing it', () => {
+  const segments = createRomSegments([{
+    romStart: 0x1000,
+    romEnd: 0x100c,
+    vramStart: 0x80001000,
+    vramEnd: 0x8000100c,
+    type: 'code',
+  }]);
+  const map = new RomAddressMap(segments);
+  const bytes = new Uint8Array([
+    0x0c, 0x00, 0x04, 0x02,
+    0x00, 0x00, 0x00, 0x00,
+    0x03, 0xe0, 0x00, 0x08,
+  ]);
+  const reader = (address: number): number => {
+    if (address === 0x80001000) return 0x0c000402;
+    return createRomInstructionWordReader(bytes, 0x1000)(address);
+  };
+
+  const result = discoverReachableCode([0x80001000], {
+    addressMap: map,
+    readWord: reader,
+    isAddressValid: (address) => address === 0x80001000 || segmentAddressValidator(segments)(address),
+    maxInstructions: 2,
+  });
+
+  assert.deepEqual(result.visitedAddresses, [0x1008, 0x80001000]);
+  assert.equal(result.instructions[0]?.targetAddress, 0x80001008);
+  assert.equal(result.instructions[1]?.address, 0x1008);
+});
+
 test('function recovery can start from a resolved VRAM entry point', () => {
   const segments = createRomSegments([{
     romStart: 0x1000,

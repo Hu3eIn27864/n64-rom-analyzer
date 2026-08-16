@@ -6,8 +6,10 @@ export interface FunctionRecoveryOptions extends ReachabilityOptions {
   knownEntryPoints?: readonly number[];
 }
 
-function targetOfCall(instruction: MipsInstruction): number | undefined {
-  return instruction.targetAddress;
+function targetOfCall(instruction: MipsInstruction, options: FunctionRecoveryOptions): number | undefined {
+  const target = instruction.targetAddress;
+  if (target === undefined) return undefined;
+  return options.addressMap?.vramToRom(target) ?? target;
 }
 
 function cloneFunction(fn: RecoveredFunction): RecoveredFunction {
@@ -49,14 +51,19 @@ export function recoverFunctions(
       instructions.push(instruction);
 
       if (instruction.isCall) {
-        const target = targetOfCall(instruction);
+        const rawTarget = instruction.targetAddress;
+        const target = targetOfCall(instruction, options);
         if (target !== undefined) {
           callees.push(target);
           if (!discovered.has(target) && byAddress.has(target)) {
             discovered.add(target);
             queue.push(target);
           }
-          evidence.push(`direct ${instruction.mnemonic} target 0x${target.toString(16)}`);
+          if (rawTarget !== target) {
+            evidence.push(`resolved ${instruction.mnemonic} VRAM target 0x${rawTarget!.toString(16)} to ROM 0x${target.toString(16)}`);
+          } else {
+            evidence.push(`direct ${instruction.mnemonic} target 0x${target.toString(16)}`);
+          }
         } else {
           evidence.push(`${instruction.mnemonic} target unavailable`);
         }

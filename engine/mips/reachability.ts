@@ -25,8 +25,10 @@ function isControlTransfer(instruction: MipsInstruction): boolean {
   return instruction.isBranch || instruction.isJump;
 }
 
-function targetFor(instruction: MipsInstruction): number | undefined {
-  return instruction.targetAddress;
+function targetFor(instruction: MipsInstruction, options: ReachabilityOptions): number | undefined {
+  const target = instruction.targetAddress;
+  if (target === undefined) return undefined;
+  return options.addressMap?.vramToRom(target) ?? target;
 }
 
 export function resolveReachabilityEntryPoints(
@@ -86,7 +88,7 @@ export function discoverReachableCode(
         continue;
       }
 
-      const target = targetFor(instruction);
+      const target = targetFor(instruction, options);
       if (target !== undefined && !visited.has(target) && !queued.has(target)) {
         queue.push(target);
         queued.add(target);

@@ -15,20 +15,37 @@ function uniqueEdges(edges: CallGraphEdge[]): CallGraphEdge[] {
   });
 }
 
+function canonicalTarget(
+  target: number,
+  knownAddresses: Set<number>,
+  knownVramAddresses: Map<number, number>,
+): number {
+  if (knownAddresses.has(target)) return target;
+  return knownVramAddresses.get(target) ?? target;
+}
+
 export function buildCallGraph(
   functions: readonly RecoveredFunction[],
   options: CallGraphOptions = {},
 ): CallGraph {
   const nodes = [...new Set(functions.map((fn) => fn.address))].sort((a, b) => a - b);
   const known = new Set(nodes);
+  const knownVram = new Map<number, number>();
+  for (const fn of functions) {
+    if (fn.vramAddress !== undefined && !knownVram.has(fn.vramAddress)) {
+      knownVram.set(fn.vramAddress, fn.address);
+    }
+  }
+
   const edges: CallGraphEdge[] = [];
 
   for (const fn of functions) {
     for (const callee of fn.callees) {
+      const target = canonicalTarget(callee, known, knownVram);
       edges.push({
         from: fn.address,
-        to: callee,
-        kind: known.has(callee) ? 'direct-jal' : 'heuristic',
+        to: target,
+        kind: known.has(target) ? 'direct-jal' : 'heuristic',
       });
     }
 
