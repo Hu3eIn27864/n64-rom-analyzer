@@ -2,9 +2,12 @@ import type { MipsInstruction } from '../model/instruction';
 import type { RomSegment } from '../model/rom';
 import { decodeInstruction } from './decoder';
 
+export type InstructionWordReader = (address: number) => number;
+
 export interface ReachabilityOptions {
   maxInstructions?: number;
   isAddressValid?: (address: number) => boolean;
+  readWord?: InstructionWordReader;
 }
 
 export interface ReachabilityResult {
@@ -40,6 +43,9 @@ export function discoverReachableCode(
 ): ReachabilityResult {
   const maxInstructions = options.maxInstructions ?? 100_000;
   const isAddressValid = options.isAddressValid ?? ((address) => address >= 0 && address % 4 === 0);
+  const readWord = options.readWord;
+  if (!readWord) throw new Error('discoverReachableCode requires an instruction word reader');
+
   const queue = [...entryPoints];
   const queued = new Set(queue);
   const visited = new Set<number>();
@@ -59,7 +65,8 @@ export function discoverReachableCode(
 
       let instruction: MipsInstruction;
       try {
-        instruction = decodeInstruction(0, address);
+        const word = readWord(address) >>> 0;
+        instruction = decodeInstruction(word, address);
       } catch {
         invalidTargets.add(address);
         break;
@@ -103,6 +110,15 @@ export function discoverReachableCode(
     codeRegions,
     unknownTargets: [...unknownTargets].sort((a, b) => a - b),
     invalidTargets: [...invalidTargets].sort((a, b) => a - b),
+  };
+}
+
+export function createRomInstructionWordReader(bytes: Uint8Array, romBase = 0): InstructionWordReader {
+  return (address: number): number => {
+    if (!Number.isInteger(address) || address % 4 !== 0) throw new RangeError(`Unaligned instruction address: 0x${address.toString(16)}`);
+    const offset = address - romBase;
+    if (offset < 0 || offset + 4 > bytes.byteLength) throw new RangeError(`Instruction address outside ROM: 0x${address.toString(16)}`);
+    return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, false);
   };
 }
 
