@@ -64,7 +64,10 @@ function branchCondition(instruction: MipsInstruction): MicroCExpr | undefined {
   return undefined;
 }
 
-function instructionOperations(instruction: MipsInstruction): MicroCOperation[] {
+function instructionOperations(
+  instruction: MipsInstruction,
+  canonicalTargets: ReadonlyMap<number, number>,
+): MicroCOperation[] {
   const [a, b, c] = instruction.operands;
   const target = a ? normalizeRegister(a) : undefined;
   const operations: MicroCOperation[] = [];
@@ -105,7 +108,8 @@ function instructionOperations(instruction: MipsInstruction): MicroCOperation[] 
     }
     case 'JAL':
       if (a) {
-        const targetAddress = parseImmediate(a);
+        const rawTarget = parseImmediate(a);
+        const targetAddress = rawTarget === undefined ? undefined : canonicalTargets.get(rawTarget) ?? rawTarget;
         operations.push({ kind: 'call', target: targetAddress === undefined ? value(a) : constant(targetAddress), args: [], result: 'rra' });
       }
       break;
@@ -134,19 +138,24 @@ function instructionOperations(instruction: MipsInstruction): MicroCOperation[] 
 export function liftInstructionsToMicroC(
   functionAddress: number,
   instructions: readonly MipsInstruction[],
+  canonicalTargets: ReadonlyMap<number, number> = new Map(),
 ): FunctionIR {
-  const operations = instructions.flatMap(instructionOperations);
+  const operations = instructions.flatMap((instruction) => instructionOperations(instruction, canonicalTargets));
   return {
     functionAddress,
     blocks: [{ id: 0, operations, predecessors: [], successors: [] }],
   };
 }
 
-export function liftBasicBlocks(functionAddress: number, blocks: readonly BasicBlock[]): FunctionIR {
+export function liftBasicBlocks(
+  functionAddress: number,
+  blocks: readonly BasicBlock[],
+  canonicalTargets: ReadonlyMap<number, number> = new Map(),
+): FunctionIR {
   return {
     functionAddress,
     blocks: blocks.map((block) => {
-      const operations = block.instructions.flatMap(instructionOperations);
+      const operations = block.instructions.flatMap((instruction) => instructionOperations(instruction, canonicalTargets));
       const terminator = block.instructions.at(-1);
       const successors = [...block.successors];
       if (terminator && (terminator.isConditionalBranch || terminator.mnemonic.startsWith('B')) && successors.length > 0) {

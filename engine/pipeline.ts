@@ -59,10 +59,16 @@ export function buildCanonicalFunctionIR(functions: readonly RecoveredFunction[]
 } {
   const cfgs = new Map<number, FunctionCFG>();
   const irs = new Map<number, FunctionIR>();
+  const canonicalTargets = new Map<number, number>();
+  for (const fn of functions) {
+    canonicalTargets.set(fn.address, fn.address);
+    if (fn.vramAddress !== undefined) canonicalTargets.set(fn.vramAddress, fn.address);
+  }
+
   for (const fn of functions) {
     const cfg = buildControlFlowGraph(fn.address, fn.instructions);
     cfgs.set(fn.address, cfg);
-    irs.set(fn.address, liftBasicBlocks(fn.address, cfg.blocks));
+    irs.set(fn.address, liftBasicBlocks(fn.address, cfg.blocks, canonicalTargets));
   }
   return { cfgs, irs };
 }
