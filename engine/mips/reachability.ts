@@ -18,23 +18,12 @@ export interface ReachabilityResult {
   invalidTargets: number[];
 }
 
-const CONTROL_TRANSFER = new Set(['BEQ', 'BNE', 'BLEZ', 'BGTZ', 'BEQL', 'BNEL', 'BLEZL', 'BGTZL', 'J', 'JAL', 'JR', 'JALR']);
-const INDIRECT = new Set(['JR', 'JALR']);
-
-function getNumber(value: unknown): number | undefined {
-  if (typeof value === 'number') return value >>> 0;
-  if (typeof value !== 'string') return undefined;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed)) return parsed >>> 0;
-  return undefined;
+function isControlTransfer(instruction: MipsInstruction): boolean {
+  return instruction.isBranch || instruction.isJump;
 }
 
 function targetFor(instruction: MipsInstruction): number | undefined {
-  const target = getNumber(instruction.args[0]);
-  if (!target) return undefined;
-  if (instruction.opcodeName === 'J' || instruction.opcodeName === 'JAL') return target;
-  if (instruction.opcodeName.startsWith('B')) return getNumber(instruction.args[2]);
-  return undefined;
+  return instruction.targetAddress;
 }
 
 export function discoverReachableCode(
@@ -46,7 +35,7 @@ export function discoverReachableCode(
   const readWord = options.readWord;
   if (!readWord) throw new Error('discoverReachableCode requires an instruction word reader');
 
-  const queue = [...entryPoints];
+  const queue = [...new Set(entryPoints.map((address) => address >>> 0))];
   const queued = new Set(queue);
   const visited = new Set<number>();
   const instructions: MipsInstruction[] = [];
@@ -75,7 +64,7 @@ export function discoverReachableCode(
       visited.add(address);
       instructions.push(instruction);
 
-      if (!CONTROL_TRANSFER.has(instruction.opcodeName)) {
+      if (!isControlTransfer(instruction)) {
         address = (address + 4) >>> 0;
         continue;
       }
@@ -84,11 +73,11 @@ export function discoverReachableCode(
       if (target !== undefined && !visited.has(target) && !queued.has(target)) {
         queue.push(target);
         queued.add(target);
-      } else if (INDIRECT.has(instruction.opcodeName)) {
+      } else if (instruction.isJump && !instruction.targetAddress) {
         unknownTargets.add(address);
       }
 
-      if (instruction.opcodeName === 'JAL' || instruction.opcodeName.startsWith('B')) {
+      if (instruction.isCall || instruction.isConditionalBranch) {
         address = (address + 8) >>> 0;
       } else {
         break;
