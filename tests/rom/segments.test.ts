@@ -63,6 +63,28 @@ test('ROM address resolution returns segment-relative offset and mapped VRAM', (
   assert.equal(map.resolveRomOffset(0x2000), undefined);
 });
 
+test('VRAM address resolution returns ROM offset and segment-relative offset', () => {
+  const segments = createRomSegments([
+    {
+      romStart: 0x4000,
+      romEnd: 0x4800,
+      vramStart: 0x80004000,
+      vramEnd: 0x80004800,
+      type: 'code',
+    },
+    { romStart: 0x4800, romEnd: 0x5000, type: 'data' },
+  ]);
+  const map = new RomAddressMap(segments);
+
+  const code = map.resolveVramAddress(0x80004120);
+  assert.equal(code?.segment, segments[0]);
+  assert.equal(code?.vramOffset, 0x120);
+  assert.equal(code?.romOffset, 0x4120);
+
+  assert.equal(map.resolveVramAddress(0x80004800), undefined);
+  assert.equal(map.resolveVramAddress(0x90000000), undefined);
+});
+
 test('segment validation catches invalid and overlapping ranges', () => {
   const segments = createRomSegments([
     { romStart: 0x1000, romEnd: 0x1800 },
