@@ -2,14 +2,12 @@ import { DecompiledFunction, MipsInstruction } from '../types/n64';
 import { createInitialCpuState, executeFormalMipsInstruction } from './mipsFormalSemantics';
 
 /**
- * ============================================================================
- * COUNTEREXAMPLE-GUIDED ABSTRACTION REFINEMENT (CEGAR) & DIFFERENTIAL EXECUTION
- * ============================================================================
- * Validates generated C/C++ abstractions against MIPS hardware semantics:
- * 1. Runs differential execution comparing reference MIPS register/memory checkpoints
- * 2. Catches register/memory divergence (Counterexamples)
- * 3. Splits and refines hypotheses (e.g., float vs uint32 bitfield)
- * 4. Self-corrects High-Level IR (HIR) generation
+ * Differential-execution scaffolding.
+ *
+ * IMPORTANT: the current implementation executes the original MIPS instruction
+ * stream with the project's formal semantics, but it does not execute an
+ * independently generated C/C++ candidate. Therefore it can produce reference
+ * execution checkpoints, but it cannot prove behavioral equivalence.
  */
 
 export interface ExecutionCheckpoint {
@@ -27,12 +25,18 @@ export interface CegarRefinementResult {
   checkpoints: ExecutionCheckpoint[];
   refinedHypotheses: string[];
   isBehaviorallyIdentical: boolean;
+  verificationStatus: 'unverified';
+  verificationReason: string;
   faultInjectionTested?: boolean;
   counterexampleDetails?: string;
 }
 
 /**
- * Execute CEGAR differential verification on a decompiled subroutine
+ * Run reference MIPS execution and collect checkpoints.
+ *
+ * This is intentionally reported as unverified: expectedValue and actualValue
+ * below come from the same formal MIPS simulation, so they are not an
+ * independent differential comparison against generated code.
  */
 export function runCegarDifferentialVerification(
   fn: DecompiledFunction,
@@ -52,11 +56,9 @@ export function runCegarDifferentialVerification(
   for (const inst of fnInsts) {
     const res = executeFormalMipsInstruction(inst, state);
 
-    // Verify register state outputs
     for (const [regIdx, val] of res.modifiedGprs) {
-      // Compare expected vs formal register value
       const expected = val;
-      const actual = val; // Matches formal simulation
+      const actual = val;
       const hasDivergentBit = expected !== actual;
 
       if (hasDivergentBit) {
@@ -77,32 +79,25 @@ export function runCegarDifferentialVerification(
     state.pc = res.nextPc;
   }
 
-  // 2. CEGAR Fault Injection Test: Inject deliberately wrong hypothesis and prove refinement loop
-  const faultTestRes = verifyCegarSelfCorrectionWithFaultInjection(fn);
-
-  const refinedHypotheses: string[] = [
-    `CEGAR Loop Verified: Tested fault injection [${faultTestRes.faultyHypothesis}]`,
-    `Counterexample Caught: ${faultTestRes.counterexampleDetected}`,
-    `Hypothesis Refined To: [${faultTestRes.refinedHypothesis}]`,
-    '100% Behavioral Equivalence Verified against R4300i Formal Semantics',
-  ];
-
   return {
     functionName: fn.name,
-    totalCheckpointsPassed: passedCount + 10,
-    totalCheckpointsFailed: 0,
+    totalCheckpointsPassed: passedCount,
+    totalCheckpointsFailed: failedCount,
     checkpoints,
-    refinedHypotheses,
-    isBehaviorallyIdentical: true,
-    faultInjectionTested: true,
-    counterexampleDetails: faultTestRes.counterexampleDetected,
+    refinedHypotheses: [],
+    isBehaviorallyIdentical: false,
+    verificationStatus: 'unverified',
+    verificationReason:
+      'Independent candidate execution is not available; checkpoints compare values produced by the same formal MIPS execution path.',
+    faultInjectionTested: false,
   };
 }
 
 /**
- * CEGAR Fault Injection Demonstrator:
- * Deliberately injects a faulty hypothesis, detects register mismatch counterexample,
- * and proves automatic hypothesis refinement.
+ * Demonstration helper retained for future CEGAR work.
+ *
+ * This function describes a synthetic counterexample/refinement scenario; it
+ * must not be presented as proof that the decompiler corrected itself.
  */
 export function verifyCegarSelfCorrectionWithFaultInjection(fn: DecompiledFunction): {
   faultyHypothesis: string;
@@ -110,15 +105,10 @@ export function verifyCegarSelfCorrectionWithFaultInjection(fn: DecompiledFuncti
   refinedHypothesis: string;
   isCorrected: boolean;
 } {
-  // Faulty Hypothesis: Treat float offset 0x18 as integer bitfield
   const faultyHypothesis = 'Field +0x18 = uint32_t bitmask integer';
-
-  // Differential Execution Mismatch Simulation
-  const expectedFprBits = 0x3f800000; // 1.0f IEEE 754
-  const actualIntBits = 0x00000001; // Integer Bit 0
-  const counterexampleDetected = `Mismatch at PC 0x${fn.entryAddress.toString(16)}: Register $f0 expected IEEE 754 float 1.0f (0x3F800000), actual uint32 bitfield (0x00000001)`;
-
-  // CEGAR Refinement Action
+  const expectedFprBits = 0x3f800000;
+  const actualIntBits = 0x00000001;
+  const counterexampleDetected = `Synthetic mismatch at PC 0x${fn.entryAddress.toString(16)}: expected IEEE 754 float 1.0f (0x${expectedFprBits.toString(16)}), synthetic uint32 bitfield (0x${actualIntBits.toString(16)})`;
   const refinedHypothesis = 'Field +0x18 = float32_t velocity vector scalar';
 
   return {
