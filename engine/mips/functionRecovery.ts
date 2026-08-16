@@ -1,6 +1,6 @@
 import type { RecoveredFunction } from '../model/function';
 import type { MipsInstruction } from '../model/instruction';
-import { discoverReachableCode, type ReachabilityOptions } from './reachability';
+import { discoverReachableCode, resolveReachabilityEntryPoints, type ReachabilityOptions } from './reachability';
 
 export interface FunctionRecoveryOptions extends ReachabilityOptions {
   knownEntryPoints?: readonly number[];
@@ -24,7 +24,8 @@ export function recoverFunctions(
   entryPoints: readonly number[],
   options: FunctionRecoveryOptions = {},
 ): RecoveredFunction[] {
-  const roots = [...new Set([...(options.knownEntryPoints ?? []), ...entryPoints].map((address) => address >>> 0))];
+  const requestedRoots = [...new Set([...(options.knownEntryPoints ?? []), ...entryPoints].map((address) => address >>> 0))];
+  const roots = resolveReachabilityEntryPoints(requestedRoots, options);
   const reachability = discoverReachableCode(roots, options);
   const byAddress = new Map(reachability.instructions.map((instruction) => [instruction.address, instruction]));
   const discovered = new Set<number>(roots);
