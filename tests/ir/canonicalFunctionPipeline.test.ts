@@ -80,3 +80,32 @@ test('canonical IR preserves branch semantics and lowers memory operations', () 
   assert.ok(operations.some((operation) => operation.kind === 'jump'));
   assert.ok(operations.some((operation) => operation.kind === 'return'));
 });
+
+test('canonical IR lowers a VRAM JAL alias to the canonical ROM function address', () => {
+  const caller: RecoveredFunction = {
+    address: 0x1000,
+    endAddress: 0x1008,
+    instructions: [instruction(0x1000, 'JAL', ['0x80002000'], 0x80002000)],
+    callers: [],
+    callees: [0x2000],
+    confidence: 1,
+    evidence: ['resolved JAL VRAM target 0x80002000 to ROM 0x2000'],
+  };
+  const callee: RecoveredFunction = {
+    address: 0x2000,
+    vramAddress: 0x80002000,
+    endAddress: 0x2008,
+    instructions: [instruction(0x2000, 'JR', ['$ra'])],
+    callers: [0x1000],
+    callees: [],
+    confidence: 1,
+    evidence: ['resolved VRAM address 0x80002000'],
+  };
+
+  const { irs } = buildCanonicalFunctionIR([caller, callee]);
+  const operations = irs.get(0x1000)?.blocks.flatMap((block) => block.operations) ?? [];
+  const call = operations.find((operation) => operation.kind === 'call');
+
+  assert.ok(call);
+  assert.deepEqual(call.target, { kind: 'const', value: 0x2000 });
+});
