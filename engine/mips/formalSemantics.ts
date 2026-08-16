@@ -14,6 +14,10 @@ export interface MipsInstructionSemantics {
 }
 
 const register = (name: string): string => name.replace(/^\$/, '');
+const memoryBase = (operand: string): string | undefined => {
+  const match = operand.match(/\((\$[^)]+)\)/);
+  return match ? register(match[1]) : undefined;
+};
 
 function memorySize(mnemonic: string): 1 | 2 | 4 | 8 | undefined {
   if (/^(LB|LBU|SB)$/.test(mnemonic)) return 1;
@@ -56,8 +60,9 @@ export function analyzeInstructionSemantics(
     control = 'call';
     description = 'JAL transfers control to a direct target and writes the return address to $ra.';
   } else if (op === 'JALR') {
-    addRead(b ?? a);
-    addWrite(a === '$ra' ? b : a);
+    const targetRegister = b ?? a;
+    addRead(targetRegister);
+    if (a !== '$ra') addWrite(a);
     control = 'indirect';
     description = 'JALR transfers control through a register and may write a return address.';
   } else if (/^(BEQ|BNE|BLEZ|BGTZ|BLTZ|BGEZ|BLTZAL|BGEZAL)$/.test(op)) {
@@ -71,13 +76,15 @@ export function analyzeInstructionSemantics(
   } else {
     const size = memorySize(op);
     if (size !== undefined && b) {
-      addWrite(a);
-      addRead(b);
-      memory.push({ kind: /^(SB|SH|SW|SD)$/.test(op) ? 'write' : 'read', address: b, size });
-      if (/^(SB|SH|SW|SD)$/.test(op)) {
+      const isStore = /^(SB|SH|SW|SD)$/.test(op);
+      const base = memoryBase(b);
+      if (base) addRead(base);
+      memory.push({ kind: isStore ? 'write' : 'read', address: b, size });
+      if (isStore) {
         addRead(a);
         description = `${op} writes register data to memory at the effective address.`;
       } else {
+        addWrite(a);
         description = `${op} reads memory at the effective address into the destination register.`;
       }
     }
