@@ -11,27 +11,33 @@ This document records the intended implementation order. It is deliberately cons
 
 ## Near-term architecture
 
-- [ ] Canonical analysis data model
-- [ ] Canonical VR4300 decoder API
-- [ ] Expanded VR4300 decoding corpus
-- [ ] ROM segment/address-map model
-- [ ] Reachable-code discovery
-- [ ] First-class function recovery
-- [ ] Canonical CFG and call graph
+- [x] Canonical analysis data model
+- [x] Canonical VR4300 decoder API
+- [x] Expanded VR4300 decoding corpus
+- [x] ROM segment/address-map model
+- [x] Reachable-code discovery
+- [x] First-class function recovery
+- [x] Canonical CFG and call graph
 
 ## Decompiler pipeline
 
-- [ ] Canonical Micro-C IR
+- [x] Canonical Micro-C IR
 - [ ] Formal MIPS semantics integration
 - [ ] Memory SSA/data-flow analysis
-- [ ] Evidence-driven type inference
+- [x] Evidence-driven type inference
 - [ ] Structured C AST generation
 
 ## Verification
 
 - [ ] Independent execution-backed differential verification
 - [ ] Real compiler/toolchain rebuild
-- [ ] Real ROM byte comparison
+- [x] Real ROM byte comparison
+
+## CI regression gates
+
+- [x] Repository typecheck, test, and build workflow
+- [x] Dedicated analysis regression workflow
+- [x] Canonical analysis regression suite passes locally
 
 ## Experimental work
 

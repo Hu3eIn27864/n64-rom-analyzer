@@ -1,14 +1,9 @@
 import test from 'node:test';
 import { strict as assert } from 'node:assert';
 import { buildControlFlowGraph } from '../../engine/mips/cfgBuilder';
-import type { MipsInstruction } from '../../engine/model/instruction';
+import { mipsInstruction } from '../helpers/mipsInstruction';
 
-const i = (address: number, mnemonic: string, operands: string[] = []): MipsInstruction => ({
-  address,
-  raw: 0,
-  mnemonic,
-  operands,
-});
+const i = mipsInstruction;
 
 test('CFG creates branch target and fallthrough edges', () => {
   const cfg = buildControlFlowGraph(0x1000, [

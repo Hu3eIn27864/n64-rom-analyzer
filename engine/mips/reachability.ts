@@ -1,10 +1,16 @@
 import type { MipsInstruction } from '../model/instruction';
 import type { RomSegment } from '../model/rom';
 import { decodeInstruction } from './decoder';
+import { RomAddressMap } from '../rom/addressMap';
+
+export type InstructionWordReader = (address: number) => number;
 
 export interface ReachabilityOptions {
   maxInstructions?: number;
   isAddressValid?: (address: number) => boolean;
+  readWord?: InstructionWordReader;
+  addressMap?: RomAddressMap;
+  vramEntryPoints?: readonly number[];
 }
 
 export interface ReachabilityResult {
@@ -15,23 +21,28 @@ export interface ReachabilityResult {
   invalidTargets: number[];
 }
 
-const CONTROL_TRANSFER = new Set(['BEQ', 'BNE', 'BLEZ', 'BGTZ', 'BEQL', 'BNEL', 'BLEZL', 'BGTZL', 'J', 'JAL', 'JR', 'JALR']);
-const INDIRECT = new Set(['JR', 'JALR']);
-
-function getNumber(value: unknown): number | undefined {
-  if (typeof value === 'number') return value >>> 0;
-  if (typeof value !== 'string') return undefined;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed)) return parsed >>> 0;
-  return undefined;
+function isControlTransfer(instruction: MipsInstruction): boolean {
+  return instruction.isBranch || instruction.isJump;
 }
 
-function targetFor(instruction: MipsInstruction): number | undefined {
-  const target = getNumber(instruction.args[0]);
-  if (!target) return undefined;
-  if (instruction.opcodeName === 'J' || instruction.opcodeName === 'JAL') return target;
-  if (instruction.opcodeName.startsWith('B')) return getNumber(instruction.args[2]);
-  return undefined;
+function targetFor(instruction: MipsInstruction, options: ReachabilityOptions): number | undefined {
+  const target = instruction.targetAddress;
+  if (target === undefined) return undefined;
+  return options.addressMap?.vramToRom(target) ?? target;
+}
+
+export function resolveReachabilityEntryPoints(
+  entryPoints: readonly number[],
+  options: ReachabilityOptions,
+): number[] {
+  const resolved = [...entryPoints];
+  if (options.addressMap) {
+    for (const vram of options.vramEntryPoints ?? []) {
+      const rom = options.addressMap.vramToRom(vram);
+      if (rom !== undefined) resolved.push(rom);
+    }
+  }
+  return [...new Set(resolved.map((address) => address >>> 0))];
 }
 
 export function discoverReachableCode(
@@ -40,7 +51,10 @@ export function discoverReachableCode(
 ): ReachabilityResult {
   const maxInstructions = options.maxInstructions ?? 100_000;
   const isAddressValid = options.isAddressValid ?? ((address) => address >= 0 && address % 4 === 0);
-  const queue = [...entryPoints];
+  const readWord = options.readWord;
+  if (!readWord) throw new Error('discoverReachableCode requires an instruction word reader');
+
+  const queue = resolveReachabilityEntryPoints(entryPoints, options);
   const queued = new Set(queue);
   const visited = new Set<number>();
   const instructions: MipsInstruction[] = [];
@@ -59,7 +73,8 @@ export function discoverReachableCode(
 
       let instruction: MipsInstruction;
       try {
-        instruction = decodeInstruction(0, address);
+        const word = readWord(address) >>> 0;
+        instruction = decodeInstruction(word, address);
       } catch {
         invalidTargets.add(address);
         break;
@@ -68,20 +83,20 @@ export function discoverReachableCode(
       visited.add(address);
       instructions.push(instruction);
 
-      if (!CONTROL_TRANSFER.has(instruction.opcodeName)) {
+      if (!isControlTransfer(instruction)) {
         address = (address + 4) >>> 0;
         continue;
       }
 
-      const target = targetFor(instruction);
+      const target = targetFor(instruction, options);
       if (target !== undefined && !visited.has(target) && !queued.has(target)) {
         queue.push(target);
         queued.add(target);
-      } else if (INDIRECT.has(instruction.opcodeName)) {
+      } else if (instruction.isJump && !instruction.targetAddress) {
         unknownTargets.add(address);
       }
 
-      if (instruction.opcodeName === 'JAL' || instruction.opcodeName.startsWith('B')) {
+      if (instruction.isCall || instruction.isConditionalBranch) {
         address = (address + 8) >>> 0;
       } else {
         break;
@@ -103,6 +118,15 @@ export function discoverReachableCode(
     codeRegions,
     unknownTargets: [...unknownTargets].sort((a, b) => a - b),
     invalidTargets: [...invalidTargets].sort((a, b) => a - b),
+  };
+}
+
+export function createRomInstructionWordReader(bytes: Uint8Array, romBase = 0): InstructionWordReader {
+  return (address: number): number => {
+    if (!Number.isInteger(address) || address % 4 !== 0) throw new RangeError(`Unaligned instruction address: 0x${address.toString(16)}`);
+    const offset = address - romBase;
+    if (offset < 0 || offset + 4 > bytes.byteLength) throw new RangeError(`Instruction address outside ROM: 0x${address.toString(16)}`);
+    return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, false);
   };
 }
 

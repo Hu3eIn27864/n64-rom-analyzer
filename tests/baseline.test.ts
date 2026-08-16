@@ -11,11 +11,11 @@ const generator = resolve(fixtureDir, "generate.ts");
 const romPath = resolve(fixtureDir, "golden-n64.z64");
 const expectedPath = resolve(fixtureDir, "expected.json");
 
-const expectedWords = [
-  0x27bdffe0, 0xafbf001c, 0x2404000a, 0x24050014,
-  0x0c000410, 0x00000000, 0x8fbf001c, 0x27bd0020,
-  0x03e00008, 0x00000000, 0x00851021, 0x03e00008,
-  0x00000000,
+const expectedWords: Array<[number, number]> = [
+  [0x1000, 0x27bdffe0], [0x1004, 0xafbf001c], [0x1008, 0x2404000a], [0x100c, 0x24050014],
+  [0x1010, 0x0c000410], [0x1014, 0x00000000], [0x1018, 0x8fbf001c], [0x101c, 0x27bd0020],
+  [0x1020, 0x03e00008], [0x1024, 0x00000000], [0x1040, 0x00851021], [0x1044, 0x03e00008],
+  [0x1048, 0x00000000],
 ];
 
 test("golden N64 fixture is deterministic and structurally valid", () => {
@@ -32,11 +32,11 @@ test("golden N64 fixture is deterministic and structurally valid", () => {
     assert.equal(rom.readUInt32BE(0x00), 0x80371240);
     assert.equal(rom.readUInt32BE(0x0c), 0x1000);
 
-    expectedWords.forEach((word, index) => {
+    expectedWords.forEach(([address, word]) => {
       assert.equal(
-        rom.readUInt32BE(0x1000 + index * 4),
+        rom.readUInt32BE(address),
         word >>> 0,
-        `unexpected word at 0x${(0x1000 + index * 4).toString(16)}`,
+        `unexpected word at 0x${address.toString(16)}`,
       );
     });
 
