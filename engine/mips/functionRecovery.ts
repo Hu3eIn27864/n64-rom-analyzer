@@ -69,8 +69,13 @@ export function recoverFunctions(
 
     if (instructions.length === 0) continue;
     const endAddress = instructions[instructions.length - 1].address + 4;
+    const vramAddress = options.addressMap?.romToVram(address);
+    if (vramAddress !== undefined) {
+      evidence.push(`resolved VRAM address 0x${vramAddress.toString(16)}`);
+    }
     const functionResult: RecoveredFunction = {
       address,
+      vramAddress,
       endAddress,
       instructions,
       callers,

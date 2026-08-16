@@ -3,6 +3,7 @@ import type { MipsInstruction } from './instruction';
 
 export interface RecoveredFunction {
   address: number;
+  vramAddress?: number;
   endAddress?: number;
   instructions: MipsInstruction[];
   callers: number[];

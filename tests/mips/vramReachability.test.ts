@@ -54,5 +54,7 @@ test('function recovery can start from a resolved VRAM entry point', () => {
 
   assert.equal(functions.length, 1);
   assert.equal(functions[0]?.address, 0x1000);
+  assert.equal(functions[0]?.vramAddress, 0x80001000);
+  assert.ok(functions[0]?.evidence.includes('resolved VRAM address 0x80001000'));
   assert.equal(functions[0]?.instructions[0]?.mnemonic, 'JR');
 });
