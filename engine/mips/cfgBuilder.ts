@@ -28,6 +28,13 @@ function classify(i: MipsInstruction): TerminatorKind {
 
 function isTerminator(i: MipsInstruction): boolean { return classify(i) !== 'fallthrough'; }
 
+function semanticTerminator(instructions: readonly MipsInstruction[]): MipsInstruction {
+  const last = instructions.at(-1)!;
+  const previous = instructions.at(-2);
+  if (previous && last.mnemonic === 'NOP' && isTerminator(previous)) return previous;
+  return last;
+}
+
 export function buildControlFlowGraph(functionAddress: number, instructions: readonly MipsInstruction[]): FunctionCFG {
   if (instructions.length === 0) return { functionAddress, blocks: [] };
   const ordered = [...instructions].sort((a, b) => a.address - b.address);
@@ -51,7 +58,8 @@ export function buildControlFlowGraph(functionAddress: number, instructions: rea
     const nextStart = sortedLeaders[index + 1];
     const blockInstructions = ordered.filter((i) => i.address >= start && (nextStart === undefined || i.address < nextStart));
     if (!blockInstructions.length) continue;
-    const block: BasicBlock = { id: blocks.length, start, end: blockInstructions.at(-1)!.address + 4, instructions: blockInstructions, predecessors: [], successors: [], terminator: classify(blockInstructions.at(-1)!) };
+    const terminator = semanticTerminator(blockInstructions);
+    const block: BasicBlock = { id: blocks.length, start, end: blockInstructions.at(-1)!.address + 4, instructions: blockInstructions, predecessors: [], successors: [], terminator: classify(terminator) };
     blocks.push(block);
     addressToBlock.set(start, block);
   }
@@ -63,7 +71,7 @@ export function buildControlFlowGraph(functionAddress: number, instructions: rea
 
   for (let index = 0; index < blocks.length; index += 1) {
     const block = blocks[index];
-    const last = block.instructions.at(-1)!;
+    const last = semanticTerminator(block.instructions);
     const kind = classify(last);
     const target = branchTarget(last);
     const afterDelay = (last.address + 8) >>> 0;

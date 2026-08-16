@@ -35,8 +35,7 @@ export function buildCallGraph(
     if (options.includeUnknownIndirectCalls) {
       for (const instruction of fn.instructions) {
         if (instruction.mnemonic === 'JALR') {
-          const register = instruction.operands[0];
-          if (register !== '$ra') edges.push({ from: fn.address, kind: 'jalr' });
+          edges.push({ from: fn.address, kind: 'jalr' });
         }
       }
     }
