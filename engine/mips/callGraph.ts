@@ -5,6 +5,11 @@ export interface CallGraphOptions {
   includeUnknownIndirectCalls?: boolean;
 }
 
+export interface CanonicalFunctionGraph {
+  functions: RecoveredFunction[];
+  graph: CallGraph;
+}
+
 function uniqueEdges(edges: CallGraphEdge[]): CallGraphEdge[] {
   const seen = new Set<string>();
   return edges.filter((edge) => {
@@ -59,6 +64,41 @@ export function buildCallGraph(
   }
 
   return { nodes, edges: uniqueEdges(edges) };
+}
+
+function cloneFunction(fn: RecoveredFunction): RecoveredFunction {
+  return {
+    ...fn,
+    instructions: [...fn.instructions],
+    callers: [...fn.callers],
+    callees: [...fn.callees],
+    evidence: [...fn.evidence],
+  };
+}
+
+export function buildCanonicalFunctionGraph(
+  functions: readonly RecoveredFunction[],
+  options: CallGraphOptions = {},
+): CanonicalFunctionGraph {
+  const graph = buildCallGraph(functions, options);
+  const canonicalFunctions = functions
+    .map(cloneFunction)
+    .sort((a, b) => a.address - b.address);
+
+  const byAddress = new Map(canonicalFunctions.map((fn) => [fn.address, fn]));
+  for (const fn of canonicalFunctions) {
+    fn.callers = getCallers(graph, fn.address);
+    fn.callees = getCallees(graph, fn.address)
+      .filter((address): address is number => address !== undefined)
+      .sort((a, b) => a - b);
+    const uniqueEvidence = [...new Set(fn.evidence)];
+    fn.evidence = uniqueEvidence;
+    if (byAddress.has(fn.address) && !uniqueEvidence.includes('canonical call graph consolidated')) {
+      fn.evidence.push('canonical call graph consolidated');
+    }
+  }
+
+  return { functions: canonicalFunctions, graph };
 }
 
 export function getCallers(graph: CallGraph, functionAddress: number): number[] {
