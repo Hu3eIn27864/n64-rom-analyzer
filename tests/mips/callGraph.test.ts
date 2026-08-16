@@ -1,11 +1,14 @@
 import test from 'node:test';
 import { strict as assert } from 'node:assert';
 import { buildCallGraph, getCallers, getCallees } from '../../engine/mips/callGraph';
+import { mipsInstruction } from '../helpers/mipsInstruction';
 
 const fn = (address: number, callees: number[], mnemonics: string[] = ['JR']) => ({
   address,
   endAddress: address + 4,
-  instructions: mnemonics.map((mnemonic) => ({ address, raw: 0, mnemonic, operands: mnemonic === 'JALR' ? ['$t9'] : [] })),
+  instructions: mnemonics.map((mnemonic) =>
+    mipsInstruction(address, mnemonic, mnemonic === 'JALR' ? ['$ra', '$t9'] : mnemonic === 'JR' ? ['$ra'] : []),
+  ),
   callers: [],
   callees,
   confidence: 0.9,

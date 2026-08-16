@@ -8,7 +8,7 @@ type Case = {
   address: number;
   mnemonic: string;
   operands: string[];
-  controlFlow: 'none' | 'branch' | 'jump' | 'return' | 'indirect';
+  controlFlow: 'none' | 'branch' | 'jump' | 'call' | 'return' | 'indirect';
 };
 
 const cases: Case[] = [
@@ -17,7 +17,7 @@ const cases: Case[] = [
   { name: 'addiu', raw: 0x2404000a, address: 0x1008, mnemonic: 'ADDIU', operands: ['$a0', '$zero', '10'], controlFlow: 'none' },
   { name: 'beq', raw: 0x10850004, address: 0x100c, mnemonic: 'BEQ', operands: ['$a0', '$a1', '0x00001020'], controlFlow: 'branch' },
   { name: 'j', raw: 0x08000410, address: 0x1010, mnemonic: 'J', operands: ['0x00001040'], controlFlow: 'jump' },
-  { name: 'jal', raw: 0x0c000410, address: 0x1014, mnemonic: 'JAL', operands: ['0x00001040'], controlFlow: 'jump' },
+  { name: 'jal', raw: 0x0c000410, address: 0x1014, mnemonic: 'JAL', operands: ['0x00001040'], controlFlow: 'call' },
   { name: 'jr-ra', raw: 0x03e00008, address: 0x1018, mnemonic: 'JR', operands: ['$ra'], controlFlow: 'return' },
   { name: 'jalr', raw: 0x0080f809, address: 0x101c, mnemonic: 'JALR', operands: ['$ra', '$a0'], controlFlow: 'indirect' },
   { name: 'lw', raw: 0x8fbf001c, address: 0x1020, mnemonic: 'LW', operands: ['$ra', '28($sp)'], controlFlow: 'none' },
@@ -27,14 +27,13 @@ const cases: Case[] = [
 test('VR4300 decoder corpus', () => {
   for (const fixture of cases) {
     const instruction = decodeInstruction(fixture.raw, fixture.address);
-    assert.equal(instruction.opcodeName, fixture.mnemonic, fixture.name);
-    assert.deepEqual(instruction.args, fixture.operands, fixture.name);
+    assert.equal(instruction.mnemonic, fixture.mnemonic, fixture.name);
+    assert.deepEqual(instruction.operands, fixture.operands, fixture.name);
     assert.equal(instruction.address, fixture.address, fixture.name);
-    assert.equal(
-      instruction.isBranchOrJump ? (fixture.controlFlow === 'none' ? 'branch' : fixture.controlFlow) : 'none',
-      fixture.controlFlow === 'return' || fixture.controlFlow === 'indirect' ? fixture.controlFlow : fixture.controlFlow,
-      fixture.name,
-    );
+    assert.equal(instruction.isConditionalBranch, fixture.controlFlow === 'branch', fixture.name);
+    assert.equal(instruction.isJump, ['jump', 'call', 'return', 'indirect'].includes(fixture.controlFlow), fixture.name);
+    assert.equal(instruction.isCall, fixture.controlFlow === 'call' || fixture.controlFlow === 'indirect', fixture.name);
+    assert.equal(instruction.isReturn, fixture.controlFlow === 'return', fixture.name);
   }
 });
 
@@ -47,10 +46,11 @@ test('golden fixture arithmetic sequence decodes as expected', () => {
   ];
 
   const decoded = words.map((word, index) => decodeInstruction(word, 0x1000 + index * 4));
-  assert.deepEqual(decoded.map((i) => i.opcodeName), [
+  assert.deepEqual(decoded.map((i) => i.mnemonic), [
     'ADDIU', 'SW', 'ADDIU', 'ADDIU', 'JAL', 'NOP', 'LW', 'ADDIU',
     'JR', 'NOP', 'ADDU', 'JR', 'NOP',
   ]);
-  assert.equal(decoded[4].isBranchOrJump, true);
-  assert.equal(decoded[10].opcodeName, 'ADDU');
+  assert.equal(decoded[4].isJump, true);
+  assert.equal(decoded[4].isCall, true);
+  assert.equal(decoded[10].mnemonic, 'ADDU');
 });
