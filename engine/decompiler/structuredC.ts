@@ -33,6 +33,15 @@ function assignment(target: string, value: MicroCExpr): CStmt {
   };
 }
 
+function declaration(name: string, value: MicroCExpr): CStmt {
+  return {
+    kind: 'decl',
+    name,
+    type: 'uint32_t',
+    init: lowerExpr(value),
+  };
+}
+
 function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   switch (operation.kind) {
     case 'assign':
@@ -145,6 +154,10 @@ function phiAssignments(join: FunctionIR['blocks'][number], predecessorId: numbe
       if (input === undefined) throw new Error(`structured phi lowering is missing input from predecessor ${predecessorId}`);
       return assignment(phi.target, input);
     });
+}
+
+function phiOperations(block: FunctionIR['blocks'][number]): Extract<MicroCOperation, { kind: 'phi' }>[] {
+  return block.operations.filter((operation): operation is Extract<MicroCOperation, { kind: 'phi' }> => operation.kind === 'phi');
 }
 
 function lowerDiamond(ir: FunctionIR): CFunction {
@@ -273,13 +286,124 @@ function lowerWhile(ir: FunctionIR): CFunction {
   };
 }
 
+function lowerLoopWithPhi(ir: FunctionIR): CFunction {
+  if (ir.blocks.length !== 4) {
+    throw new Error(`structured loop-phi lowering requires four IR blocks; received ${ir.blocks.length}`);
+  }
+
+  const entry = entryBlock(ir);
+  if (entry.successors.length !== 1) {
+    throw new Error('structured loop-phi lowering requires a single preheader successor');
+  }
+
+  const header = blockById(ir, entry.successors[0]);
+  if (header.predecessors.length !== 2 || !header.predecessors.includes(entry.id)) {
+    throw new Error('structured loop-phi lowering requires the header to have preheader and back-edge predecessors');
+  }
+  const branch = header.operations.at(-1);
+  if (!branch || branch.kind !== 'branch' || branch.falseTarget === undefined) {
+    throw new Error('structured loop-phi lowering requires a two-way header branch');
+  }
+
+  const bodyBlock = blockById(ir, branch.trueTarget);
+  const exitBlock = blockById(ir, branch.falseTarget);
+  const bodyLoops = bodyBlock.successors.length === 1 && bodyBlock.successors[0] === header.id;
+  const exitTerminates = exitBlock.successors.length === 0;
+  if (!bodyLoops || !exitTerminates) {
+    throw new Error('structured loop-phi lowering requires one body back-edge and one terminal exit');
+  }
+  if (bodyBlock.predecessors.length !== 1 || bodyBlock.predecessors[0] !== header.id) {
+    throw new Error('structured loop-phi lowering requires the body to have only the header predecessor');
+  }
+  if (exitBlock.predecessors.length !== 1 || exitBlock.predecessors[0] !== header.id) {
+    throw new Error('structured loop-phi lowering requires the exit to have only the header predecessor');
+  }
+
+  const phis = phiOperations(header);
+  if (phis.length === 0) {
+    throw new Error('structured loop-phi lowering requires at least one loop-carried phi');
+  }
+  const phiTargets = new Set(phis.map(phi => phi.target));
+  const initializers = phis.map(phi => {
+    const input = phi.inputs[entry.id];
+    if (input === undefined) throw new Error(`structured loop phi ${phi.target} is missing preheader input ${entry.id}`);
+    return assignment(phi.target, input);
+  });
+
+  const updates = phis.map(phi => {
+    const input = phi.inputs[bodyBlock.id];
+    if (input === undefined) throw new Error(`structured loop phi ${phi.target} is missing back-edge input ${bodyBlock.id}`);
+    return { target: phi.target, input };
+  });
+
+  const temporaryNames = new Set<string>();
+  const updateStatements: CStmt[] = [];
+  for (const update of updates) {
+    const temp = `__phi_next_${update.target}`;
+    if (phiTargets.has(temp) || temporaryNames.has(temp)) {
+      throw new Error(`structured loop phi temporary name collides with ${temp}`);
+    }
+    temporaryNames.add(temp);
+    updateStatements.push(declaration(temp, update.input));
+  }
+  updateStatements.push(...updates.map(update => assignment(update.target, { kind: 'value', name: `__phi_next_${update.target}` })));
+
+  const headerBody = header.operations
+    .slice(0, -1)
+    .filter(operation => operation.kind !== 'phi');
+  if (headerBody.length !== 0) {
+    throw new Error('structured loop-phi lowering only supports phi nodes before the header branch');
+  }
+
+  const bodyStatements = bodyBlock.operations
+    .slice(0, -1)
+    .map(lowerOperation)
+    .filter((statement): statement is CStmt => statement !== undefined);
+  bodyStatements.push(...updateStatements);
+
+  const body = [
+    ...entry.operations
+      .filter(operation => operation.kind !== 'jump')
+      .map(lowerOperation)
+      .filter((statement): statement is CStmt => statement !== undefined),
+    ...initializers,
+    {
+      kind: 'while' as const,
+      condition: lowerExpr(branch.condition),
+      body: bodyStatements,
+    },
+    ...exitBlock.operations
+      .map(lowerOperation)
+      .filter((statement): statement is CStmt => statement !== undefined),
+  ];
+
+  return {
+    kind: 'function',
+    name: hexAddress(ir.functionAddress),
+    returnType: 'uint32_t',
+    parameters: [],
+    body,
+  };
+}
+
+function isLoopWithPhi(ir: FunctionIR): boolean {
+  if (ir.blocks.length !== 4) return false;
+  const entry = ir.blocks.find(block => block.predecessors.length === 0);
+  if (!entry || entry.successors.length !== 1) return false;
+  const header = ir.blocks.find(block => block.id === entry.successors[0]);
+  if (!header || header.predecessors.length !== 2) return false;
+  return phiOperations(header).length > 0;
+}
+
 /**
  * Conservative structured-decompilation boundary.
  *
  * Single-block IR lowers linearly. A three-block entry + terminal-arm shape
  * lowers to C if/else, while a three-block entry + back-edge + terminal-exit
- * shape lowers to C while. A four-block diamond materializes phi inputs in
- * predecessor arms and lowers the join afterward. Other CFG shapes are
+ * shape lowers to C while. A four-block canonical loop with a header phi
+ * lowers the loop-carried SSA value into explicit initialization plus
+ * parallel update temporaries. A four-block diamond materializes phi inputs
+ * in predecessor arms and lowers the join afterward. Other CFG shapes are
  * rejected rather than guessed; all function identity still comes from the
  * canonical FunctionIR.functionAddress.
  */
@@ -293,7 +417,10 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     if (hasBackEdge) return lowerWhile(ir);
     return lowerTwoWayBranch(ir);
   }
-  if (ir.blocks.length === 4) return lowerDiamond(ir);
+  if (ir.blocks.length === 4) {
+    if (isLoopWithPhi(ir)) return lowerLoopWithPhi(ir);
+    return lowerDiamond(ir);
+  }
   throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
 }
 

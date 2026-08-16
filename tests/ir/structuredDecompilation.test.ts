@@ -182,20 +182,90 @@ test('structured decompilation lowers a canonical while loop without inventing a
   ].join('\n'));
 });
 
-test('structured decompilation rejects loop-carried phi until its update semantics are explicit', () => {
-  const loopWithPhi: FunctionIR = {
+test('structured decompilation lowers loop-carried phi values with explicit initialization and parallel updates', () => {
+  const loopPhiIr: FunctionIR = {
     functionAddress: 0x7000,
     blocks: [
-      { id: 0, predecessors: [], successors: [1, 2], operations: [{ kind: 'phi', target: 'r2', inputs: { 0: { kind: 'const', value: 0 }, 1: { kind: 'value', name: 'r3' } } }, { kind: 'branch', condition: { kind: 'value', name: 'r1' }, trueTarget: 1, falseTarget: 2 }] },
-      { id: 1, predecessors: [0], successors: [0], operations: [{ kind: 'assign', target: 'r3', value: { kind: 'const', value: 1 } }, { kind: 'jump', target: 0 }] },
-      { id: 2, predecessors: [0], successors: [], operations: [{ kind: 'return', value: { kind: 'value', name: 'r2' } }] },
+      {
+        id: 0,
+        predecessors: [],
+        successors: [1],
+        operations: [
+          { kind: 'assign', target: 'r4', value: { kind: 'const', value: 99 } },
+          { kind: 'jump', target: 1 },
+        ],
+      },
+      {
+        id: 1,
+        predecessors: [0, 2],
+        successors: [2, 3],
+        operations: [
+          { kind: 'phi', target: 'r2', inputs: { 0: { kind: 'const', value: 0 }, 2: { kind: 'binary', op: '+', left: { kind: 'value', name: 'r2' }, right: { kind: 'const', value: 1 } } } },
+          { kind: 'phi', target: 'r3', inputs: { 0: { kind: 'const', value: 1 }, 2: { kind: 'value', name: 'r2' } } },
+          { kind: 'branch', condition: { kind: 'value', name: 'r1' }, trueTarget: 2, falseTarget: 3 },
+        ],
+      },
+      {
+        id: 2,
+        predecessors: [1],
+        successors: [1],
+        operations: [
+          { kind: 'assign', target: 'r4', value: { kind: 'value', name: 'r3' } },
+          { kind: 'jump', target: 1 },
+        ],
+      },
+      {
+        id: 3,
+        predecessors: [1],
+        successors: [],
+        operations: [{ kind: 'return', value: { kind: 'value', name: 'r4' } }],
+      },
     ],
   };
 
-  assert.throws(() => decompileStructuredFunctionIR(loopWithPhi), /loop-carried phi/);
+  const fn = decompileStructuredFunctionIR(loopPhiIr);
+  assert.equal(renderFunction(fn), [
+    'uint32_t func_00007000(void)',
+    '{',
+    '    (r4 = 99);',
+    '    (r2 = 0);',
+    '    (r3 = 1);',
+    '    while (r1)',
+    '    {',
+    '        (r4 = r3);',
+    '        uint32_t __phi_next_r2 = (r2 + 1);',
+    '        uint32_t __phi_next_r3 = r2;',
+    '        (r2 = __phi_next_r2);',
+    '        (r3 = __phi_next_r3);',
+    '    }',
+    '    return r4;',
+    '}',
+  ].join('\n'));
 });
 
-test('structured decompilation refuses unsupported CFG shapes instead of guessing', () => {
+test('structured decompilation rejects loop-carried phi with a missing back-edge input', () => {
+  const malformedLoop: FunctionIR = {
+    functionAddress: 0x7100,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [{ kind: 'jump', target: 1 }] },
+      {
+        id: 1,
+        predecessors: [0, 2],
+        successors: [2, 3],
+        operations: [
+          { kind: 'phi', target: 'r2', inputs: { 0: { kind: 'const', value: 0 } } },
+          { kind: 'branch', condition: { kind: 'value', name: 'r1' }, trueTarget: 2, falseTarget: 3 },
+        ],
+      },
+      { id: 2, predecessors: [1], successors: [1], operations: [{ kind: 'jump', target: 1 }] },
+      { id: 3, predecessors: [1], successors: [], operations: [{ kind: 'return', value: { kind: 'value', name: 'r2' } }] },
+    ],
+  };
+
+  assert.throws(() => decompileStructuredFunctionIR(malformedLoop), /missing back-edge input/);
+});
+
+test('structured decompilation rejects unsupported CFG shapes instead of guessing', () => {
   assert.throws(
     () => decompileStructuredFunctionIR({
       ...ir,
