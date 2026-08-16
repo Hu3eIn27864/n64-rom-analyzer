@@ -2,29 +2,12 @@ import type { RecoveredFunction } from '../model/function';
 import type { MipsInstruction } from '../model/instruction';
 import { discoverReachableCode, type ReachabilityOptions } from './reachability';
 
-const CALL = 'JAL';
-const RETURN = 'JR';
-
 export interface FunctionRecoveryOptions extends ReachabilityOptions {
   knownEntryPoints?: readonly number[];
 }
 
-function isCall(instruction: MipsInstruction): boolean {
-  return instruction.opcodeName === CALL;
-}
-
-function isReturn(instruction: MipsInstruction): boolean {
-  return instruction.opcodeName === RETURN && instruction.args[0] === '$ra';
-}
-
 function targetOfCall(instruction: MipsInstruction): number | undefined {
-  const raw = instruction.args[0];
-  if (typeof raw === 'number') return raw >>> 0;
-  if (typeof raw === 'string') {
-    const value = Number(raw);
-    return Number.isFinite(value) ? value >>> 0 : undefined;
-  }
-  return undefined;
+  return instruction.targetAddress;
 }
 
 function cloneFunction(fn: RecoveredFunction): RecoveredFunction {
@@ -64,7 +47,7 @@ export function recoverFunctions(
       if (!instruction) break;
       instructions.push(instruction);
 
-      if (isCall(instruction)) {
+      if (instruction.isCall) {
         const target = targetOfCall(instruction);
         if (target !== undefined) {
           callees.push(target);
@@ -72,13 +55,13 @@ export function recoverFunctions(
             discovered.add(target);
             queue.push(target);
           }
-          evidence.push(`direct JAL target 0x${target.toString(16)}`);
+          evidence.push(`direct ${instruction.mnemonic} target 0x${target.toString(16)}`);
         } else {
-          evidence.push('JAL target unavailable');
+          evidence.push(`${instruction.mnemonic} target unavailable`);
         }
       }
 
-      if (isReturn(instruction)) break;
+      if (instruction.isReturn) break;
       current = (current + 4) >>> 0;
       if (current === address || instructions.length >= (options.maxInstructions ?? 100_000)) break;
     }
@@ -91,7 +74,7 @@ export function recoverFunctions(
       instructions,
       callers,
       callees: [...new Set(callees)],
-      confidence: isReturn(instructions[instructions.length - 1]) ? 0.9 : 0.65,
+      confidence: instructions[instructions.length - 1].isReturn ? 0.9 : 0.65,
       evidence,
     };
 
