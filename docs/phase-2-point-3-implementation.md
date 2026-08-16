@@ -1,10 +1,30 @@
 # Phase 2.3 — Implementation Record
 
-Status: **READY / NOT YET CODED**
+Status: **IMPLEMENTED — PENDING TEST EXECUTION**
 
 ## Confirmed defect
 
-`engine/mips/reachability.ts` currently invokes `decodeInstruction(0, address)`. The canonical decoder accepts the word supplied by its caller and preserves it as `raw`, so the defect is at the reachability input boundary, not in the decoder adapter.
+`engine/mips/reachability.ts` previously invoked `decodeInstruction(0, address)`. The canonical decoder accepts the word supplied by its caller and preserves it as `raw`, so the defect was at the reachability input boundary, not in the decoder adapter.
+
+## Implemented boundary
+
+```ts
+type InstructionWordReader = (address: number) => number;
+```
+
+`discoverReachableCode()` now requires a reader and passes the returned ROM word to `decodeInstruction(word, address)`.
+
+`createRomInstructionWordReader()` provides an explicit big-endian, bounds-checked ROM-backed implementation with a configurable ROM base address.
+
+## Regression coverage
+
+`tests/analysis/reachability.test.ts` covers:
+
+- actual ROM words are decoded;
+- different addresses preserve different ROM words;
+- unaligned addresses are rejected;
+- out-of-range addresses are rejected;
+- non-zero ROM bases are explicit and deterministic.
 
 ## Required invariant
 
@@ -14,20 +34,14 @@ For every emitted reachable instruction:
 instruction.raw === ROM.readUint32BE(address)
 ```
 
-subject to the repository's explicit address-to-ROM mapping.
-
-## Planned API boundary
-
-```ts
-type InstructionWordReader = (address: number) => number;
-```
-
-The reachability engine will consume this dependency rather than owning ROM storage or depending on server/application state.
-
-## Verification strategy
-
-Use deterministic synthetic words with distinct opcodes and assert that the resulting `raw`, mnemonic/opcode, and address correspond to the supplied ROM data. Include invalid and unaligned addresses. Keep indirect control-transfer reporting unchanged.
+subject to the explicit address-to-ROM mapping supplied to the reader.
 
 ## Integration rule
 
 This phase repairs the canonical reachability component only. It does **not** switch the production API to the canonical pipeline. That remains Phase 2.5 after function-recovery stabilization and integration work.
+
+## Remaining verification
+
+- [ ] Execute the repository test suite and TypeScript checks.
+- [ ] Update Phase-2 truth classification from BROKEN to IMPLEMENTED only after execution succeeds.
+- [ ] Mark INTEGRATED only when the canonical runtime pipeline consumes this reader.
