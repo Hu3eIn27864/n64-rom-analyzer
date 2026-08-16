@@ -1,5 +1,6 @@
 import type { MipsInstruction } from '../model/instruction';
 import type { RomSegment } from '../model/rom';
+import { RomAddressMap } from '../rom/addressMap';
 import { decodeInstruction } from './decoder';
 
 export type InstructionWordReader = (address: number) => number;
@@ -108,6 +109,18 @@ export function createRomInstructionWordReader(bytes: Uint8Array, romBase = 0): 
     const offset = address - romBase;
     if (offset < 0 || offset + 4 > bytes.byteLength) throw new RangeError(`Instruction address outside ROM: 0x${address.toString(16)}`);
     return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, false);
+  };
+}
+
+export function createVramInstructionWordReader(
+  bytes: Uint8Array,
+  addressMap: RomAddressMap,
+): InstructionWordReader {
+  const readRomWord = createRomInstructionWordReader(bytes);
+  return (address: number): number => {
+    const resolved = addressMap.resolveVramAddress(address >>> 0);
+    if (!resolved) throw new RangeError(`Unmapped VRAM instruction address: 0x${address.toString(16)}`);
+    return readRomWord(resolved.romOffset);
   };
 }
 

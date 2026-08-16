@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { recoverFunctions } from '../../engine/mips/functionRecovery';
+import { RomAddressMap } from '../../engine/rom/addressMap';
+import { createVramInstructionWordReader } from '../../engine/mips/reachability';
 
 const NOP = 0x00000000;
 const JR_RA = 0x03e00008;
@@ -73,4 +75,30 @@ test('function recovery keeps confidence separate from verification', () => {
 
   assert.equal(fn.confidence, 0.9);
   assert.equal('verification' in fn, false);
+});
+
+test('function recovery consumes VRAM entry points and preserves VRAM call targets', () => {
+  const bytes = new Uint8Array(0x10c);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0x100, 0x0c000402, false); // JAL 0x80001008
+  view.setUint32(0x104, NOP, false);
+  view.setUint32(0x108, JR_RA, false);
+
+  const map = new RomAddressMap([
+    {
+      romStart: 0x100,
+      romEnd: 0x10c,
+      vramStart: 0x80001000,
+      vramEnd: 0x8000100c,
+      type: 'code',
+    },
+  ]);
+  const readWord = createVramInstructionWordReader(bytes, map);
+
+  const functions = recoverFunctions([0x80001000], { readWord });
+  const root = functions.find((fn) => fn.address === 0x80001000);
+  const callee = functions.find((fn) => fn.address === 0x80001008);
+
+  assert.deepEqual(root?.callees, [0x80001008]);
+  assert.deepEqual(callee?.callers, [0x80001000]);
 });
