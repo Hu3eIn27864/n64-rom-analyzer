@@ -1,0 +1,41 @@
+{
+  "rom": {
+    "format": "n64-z64",
+    "size": 8192,
+    "entryPoint": "0x1000"
+  },
+  "functions": [
+    {
+      "address": "0x1000",
+      "name": "func_80001000",
+      "calls": ["0x1040"]
+    },
+    {
+      "address": "0x1040",
+      "name": "func_80001040",
+      "calls": []
+    }
+  ],
+  "instructions": {
+    "0x1000": "addiu sp, sp, -0x20",
+    "0x1004": "sw ra, 0x1c(sp)",
+    "0x1008": "addiu a0, zero, 10",
+    "0x100c": "addiu a1, zero, 20",
+    "0x1010": "jal 0x1040",
+    "0x1014": "nop",
+    "0x1018": "lw ra, 0x1c(sp)",
+    "0x101c": "addiu sp, sp, 0x20",
+    "0x1020": "jr ra",
+    "0x1024": "nop",
+    "0x1040": "addu v0, a0, a1",
+    "0x1044": "jr ra",
+    "0x1048": "nop"
+  },
+  "semantics": {
+    "function": "0x1040",
+    "arguments": ["a0", "a1"],
+    "returnRegister": "v0",
+    "operation": "a0 + a1"
+  },
+  "expectedResult": 30
+}
