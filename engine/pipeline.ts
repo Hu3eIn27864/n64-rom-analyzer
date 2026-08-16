@@ -1,97 +1,190 @@
-import { parseN64Rom } from './rom/header';
-import { disassemble } from './mips/disassemble';
 import {
-  recoverFunction,
-  type RecoveredFunction,
-} from './analysis/functions';
+  parseRom,
+  normalizeRom,
+} from '../src/utils/n64Parser';
 
-export interface AnalysisResult {
-  header: ReturnType<typeof parseN64Rom>['header'];
+import {
+  disassembleMipsWord,
+} from '../src/utils/mipsDisassembler';
 
-  romSize: number;
+import {
+  extractSubroutines,
+} from '../src/utils/mipsDisassembler';
 
-  instructions: ReturnType<typeof disassemble>;
+import {
+  buildControlFlowGraph,
+  decompileSubroutineToC,
+} from '../src/utils/mipsToCDecompiler';
 
-  functions: RecoveredFunction[];
+import {
+  runSemanticUltraLifterPipelineAsync,
+} from '../src/utils/semanticUltraLifter';
+
+import {
+  solveWholeProgramTypesAndLayouts,
+} from '../src/utils/constraintTypeSolver';
+
+import {
+  ProvenanceKnowledgeGraph,
+} from '../src/utils/provenanceKnowledgeGraph';
+
+export interface RealAnalysisResult {
+  header: any;
+
+  instructions: any[];
+
+  functions: any[];
+
+  cfgs: Map<number, any[]>;
+
+  typeAnalysis: any;
+
+  semanticAnalysis: any;
+
+  provenance: ProvenanceKnowledgeGraph;
 }
 
-export function analyzeRom(
+export async function analyzeRomReal(
   input: Uint8Array,
-): AnalysisResult {
-  const parsed = parseN64Rom(input);
+  onProgress?: (
+    stage: string,
+    percent: number,
+  ) => void,
+): Promise<RealAnalysisResult> {
+
+  onProgress?.('Parsing ROM', 5);
 
   /*
-   * First milestone:
-   *
-   * Treat the beginning of the ROM image as executable.
-   *
-   * Later this becomes segment-aware and uses
-   * linker/config information and control-flow discovery.
+   * Use the mature parser, not the small engine parser.
    */
+  const parsed = parseRom(input);
 
-  const entry = parsed.header.entryPoint;
+  const normalized = normalizeRom(
+    parsed.buffer,
+  );
+
+  onProgress?.('Disassembling executable code', 15);
 
   /*
-   * N64 virtual addresses generally map into
-   * cartridge ROM through the ROM segment.
+   * IMPORTANT:
    *
-   * This initial mapping is intentionally conservative.
+   * This is where we will replace the current
+   * linear sweep with reachability analysis.
+   *
+   * For the first integration pass we use the
+   * existing disassembler/extractor.
    */
-  const romOffset = 0;
+  const instructions: any[] = [];
 
-  const codeSize = Math.min(
-    parsed.rom.length,
-    2 * 1024 * 1024,
+  const view = new DataView(
+    normalized.buffer,
+    normalized.byteOffset,
+    normalized.byteLength,
   );
-
-  const instructions = disassemble(
-    parsed.rom,
-    romOffset,
-    entry,
-    codeSize,
-  );
-
-  const functions: RecoveredFunction[] = [];
-
-  const entryFunction = recoverFunction(
-    instructions,
-    entry,
-  );
-
-  if (entryFunction) {
-    functions.push(entryFunction);
-  }
 
   /*
-   * Discover direct JAL targets.
+   * Temporary executable window.
+   *
+   * This is deliberately marked as a temporary
+   * integration boundary.
    */
-  const discovered = new Set<number>();
+  const startOffset = 0x1000;
 
-  for (const instruction of instructions) {
-    if (instruction.isCall) {
-      discovered.add(instruction.target);
-    }
-  }
+  let pc = parsed.header.entryPoint;
 
-  for (const target of discovered) {
-    if (functions.some((f) => f.address === target)) {
-      continue;
-    }
-
-    const fn = recoverFunction(
-      instructions,
-      target,
+  for (
+    let offset = startOffset;
+    offset + 4 <= normalized.length;
+    offset += 4
+  ) {
+    const word = view.getUint32(
+      offset,
+      false,
     );
 
-    if (fn) {
-      functions.push(fn);
-    }
+    instructions.push(
+      disassembleMipsWord(
+        word,
+        pc,
+      ),
+    );
+
+    pc += 4;
   }
+
+  onProgress?.(
+    'Recovering functions',
+    35,
+  );
+
+  const functions =
+    extractSubroutines(
+      instructions,
+      parsed.header.entryPoint,
+    );
+
+  onProgress?.(
+    'Building control-flow graphs',
+    50,
+  );
+
+  const cfgs = new Map<number, any[]>();
+
+  for (const fn of functions) {
+    const fnInstructions =
+      instructions.filter(
+        (i) =>
+          i.address >= fn.entryAddress &&
+          i.address <= fn.endAddress,
+      );
+
+    cfgs.set(
+      fn.entryAddress,
+      buildControlFlowGraph(
+        fnInstructions,
+        fn.entryAddress,
+      ),
+    );
+  }
+
+  onProgress?.(
+    'Solving type constraints',
+    65,
+  );
+
+  const typeAnalysis =
+    solveWholeProgramTypesAndLayouts(
+      functions,
+      instructions,
+    );
+
+  onProgress?.(
+    'Semantic lifting',
+    75,
+  );
+
+  const semanticAnalysis =
+    await runSemanticUltraLifterPipelineAsync(
+      parsed.header,
+      functions,
+      instructions,
+    );
+
+  onProgress?.(
+    'Analysis complete',
+    100,
+  );
+
+  const provenance =
+    new ProvenanceKnowledgeGraph();
 
   return {
     header: parsed.header,
-    romSize: parsed.rom.length,
     instructions,
     functions,
+    cfgs,
+    typeAnalysis,
+    semanticAnalysis,
+    provenance,
   };
 }
