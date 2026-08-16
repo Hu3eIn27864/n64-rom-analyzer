@@ -1,6 +1,7 @@
 import type { MipsInstruction } from '../model/instruction';
 import type { RomSegment } from '../model/rom';
 import { decodeInstruction } from './decoder';
+import { RomAddressMap } from '../rom/addressMap';
 
 export type InstructionWordReader = (address: number) => number;
 
@@ -8,6 +9,8 @@ export interface ReachabilityOptions {
   maxInstructions?: number;
   isAddressValid?: (address: number) => boolean;
   readWord?: InstructionWordReader;
+  addressMap?: RomAddressMap;
+  vramEntryPoints?: readonly number[];
 }
 
 export interface ReachabilityResult {
@@ -22,8 +25,24 @@ function isControlTransfer(instruction: MipsInstruction): boolean {
   return instruction.isBranch || instruction.isJump;
 }
 
-function targetFor(instruction: MipsInstruction): number | undefined {
-  return instruction.targetAddress;
+function targetFor(instruction: MipsInstruction, options: ReachabilityOptions): number | undefined {
+  const target = instruction.targetAddress;
+  if (target === undefined) return undefined;
+  return options.addressMap?.vramToRom(target) ?? target;
+}
+
+export function resolveReachabilityEntryPoints(
+  entryPoints: readonly number[],
+  options: ReachabilityOptions,
+): number[] {
+  const resolved = [...entryPoints];
+  if (options.addressMap) {
+    for (const vram of options.vramEntryPoints ?? []) {
+      const rom = options.addressMap.vramToRom(vram);
+      if (rom !== undefined) resolved.push(rom);
+    }
+  }
+  return [...new Set(resolved.map((address) => address >>> 0))];
 }
 
 export function discoverReachableCode(
@@ -35,7 +54,7 @@ export function discoverReachableCode(
   const readWord = options.readWord;
   if (!readWord) throw new Error('discoverReachableCode requires an instruction word reader');
 
-  const queue = [...new Set(entryPoints.map((address) => address >>> 0))];
+  const queue = resolveReachabilityEntryPoints(entryPoints, options);
   const queued = new Set(queue);
   const visited = new Set<number>();
   const instructions: MipsInstruction[] = [];
@@ -69,7 +88,7 @@ export function discoverReachableCode(
         continue;
       }
 
-      const target = targetFor(instruction);
+      const target = targetFor(instruction, options);
       if (target !== undefined && !visited.has(target) && !queued.has(target)) {
         queue.push(target);
         queued.add(target);

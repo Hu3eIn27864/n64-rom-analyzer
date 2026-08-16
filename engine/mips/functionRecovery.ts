@@ -1,13 +1,15 @@
 import type { RecoveredFunction } from '../model/function';
 import type { MipsInstruction } from '../model/instruction';
-import { discoverReachableCode, type ReachabilityOptions } from './reachability';
+import { discoverReachableCode, resolveReachabilityEntryPoints, type ReachabilityOptions } from './reachability';
 
 export interface FunctionRecoveryOptions extends ReachabilityOptions {
   knownEntryPoints?: readonly number[];
 }
 
-function targetOfCall(instruction: MipsInstruction): number | undefined {
-  return instruction.targetAddress;
+function targetOfCall(instruction: MipsInstruction, options: FunctionRecoveryOptions): number | undefined {
+  const target = instruction.targetAddress;
+  if (target === undefined) return undefined;
+  return options.addressMap?.vramToRom(target) ?? target;
 }
 
 function cloneFunction(fn: RecoveredFunction): RecoveredFunction {
@@ -24,7 +26,8 @@ export function recoverFunctions(
   entryPoints: readonly number[],
   options: FunctionRecoveryOptions = {},
 ): RecoveredFunction[] {
-  const roots = [...new Set([...(options.knownEntryPoints ?? []), ...entryPoints].map((address) => address >>> 0))];
+  const requestedRoots = [...new Set([...(options.knownEntryPoints ?? []), ...entryPoints].map((address) => address >>> 0))];
+  const roots = resolveReachabilityEntryPoints(requestedRoots, options);
   const reachability = discoverReachableCode(roots, options);
   const byAddress = new Map(reachability.instructions.map((instruction) => [instruction.address, instruction]));
   const discovered = new Set<number>(roots);
@@ -48,14 +51,19 @@ export function recoverFunctions(
       instructions.push(instruction);
 
       if (instruction.isCall) {
-        const target = targetOfCall(instruction);
+        const rawTarget = instruction.targetAddress;
+        const target = targetOfCall(instruction, options);
         if (target !== undefined) {
           callees.push(target);
           if (!discovered.has(target) && byAddress.has(target)) {
             discovered.add(target);
             queue.push(target);
           }
-          evidence.push(`direct ${instruction.mnemonic} target 0x${target.toString(16)}`);
+          if (rawTarget !== target) {
+            evidence.push(`resolved ${instruction.mnemonic} VRAM target 0x${rawTarget!.toString(16)} to ROM 0x${target.toString(16)}`);
+          } else {
+            evidence.push(`direct ${instruction.mnemonic} target 0x${target.toString(16)}`);
+          }
         } else {
           evidence.push(`${instruction.mnemonic} target unavailable`);
         }
@@ -68,8 +76,13 @@ export function recoverFunctions(
 
     if (instructions.length === 0) continue;
     const endAddress = instructions[instructions.length - 1].address + 4;
+    const vramAddress = options.addressMap?.romToVram(address);
+    if (vramAddress !== undefined) {
+      evidence.push(`resolved VRAM address 0x${vramAddress.toString(16)}`);
+    }
     const functionResult: RecoveredFunction = {
       address,
+      vramAddress,
       endAddress,
       instructions,
       callers,
