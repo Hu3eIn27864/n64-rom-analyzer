@@ -5,6 +5,12 @@ export interface AddressRange {
   end: number;
 }
 
+export interface ResolvedRomAddress {
+  segment: RomSegment;
+  offset: number;
+  vram?: number;
+}
+
 export class RomAddressMap {
   constructor(private readonly segments: readonly RomSegment[]) {}
 
@@ -21,6 +27,16 @@ export class RomAddressMap {
       vram >= segment.vramStart &&
       vram < segment.vramEnd,
     );
+  }
+
+  resolveRomOffset(offset: number): ResolvedRomAddress | undefined {
+    const segment = this.findSegmentByRomOffset(offset);
+    if (!segment) return undefined;
+    return {
+      segment,
+      offset: offset - segment.romStart,
+      vram: segment.vramStart === undefined ? undefined : segment.vramStart + (offset - segment.romStart),
+    };
   }
 
   romToVram(offset: number): number | undefined {
