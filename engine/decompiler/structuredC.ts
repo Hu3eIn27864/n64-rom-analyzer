@@ -210,18 +210,89 @@ function lowerDiamond(ir: FunctionIR): CFunction {
   };
 }
 
+function lowerWhile(ir: FunctionIR): CFunction {
+  if (ir.blocks.length !== 3) {
+    throw new Error(`structured while lowering requires three IR blocks; received ${ir.blocks.length}`);
+  }
+
+  const { entry, branch } = branchFromEntry(ir);
+  const trueBlock = blockById(ir, branch.trueTarget);
+  const falseBlock = blockById(ir, branch.falseTarget);
+  const trueLoops = trueBlock.successors.length === 1 && trueBlock.successors[0] === entry.id;
+  const falseLoops = falseBlock.successors.length === 1 && falseBlock.successors[0] === entry.id;
+  if (trueLoops === falseLoops) {
+    throw new Error('structured while lowering requires exactly one branch arm to loop back to the entry');
+  }
+
+  const loopBlock = trueLoops ? trueBlock : falseBlock;
+  const exitBlock = trueLoops ? falseBlock : trueBlock;
+  if (exitBlock.successors.length !== 0) {
+    throw new Error('structured while lowering requires a terminal loop exit block');
+  }
+  if (loopBlock.predecessors.length !== 1 || loopBlock.predecessors[0] !== entry.id) {
+    throw new Error('structured while lowering requires the loop body to have only the entry predecessor');
+  }
+  if (exitBlock.predecessors.length !== 1 || exitBlock.predecessors[0] !== entry.id) {
+    throw new Error('structured while lowering requires the loop exit to have only the entry predecessor');
+  }
+
+  const hasPhi = [entry, loopBlock, exitBlock].some(block => block.operations.some(operation => operation.kind === 'phi'));
+  if (hasPhi) {
+    throw new Error('structured while lowering does not yet support loop-carried phi values');
+  }
+
+  const loopTerminator = loopBlock.operations.at(-1);
+  if (!loopTerminator || loopTerminator.kind !== 'jump' || loopTerminator.target !== entry.id) {
+    throw new Error('structured while lowering requires the loop body to end with a jump to the entry');
+  }
+
+  const condition = lowerExpr(branch.condition);
+  const whileCondition = trueLoops ? condition : { kind: 'unary' as const, op: '!', operand: condition, type: 'uint32_t' as const };
+  const body = entry.operations
+    .slice(0, -1)
+    .map(lowerOperation)
+    .filter((statement): statement is CStmt => statement !== undefined);
+  body.push({
+    kind: 'while',
+    condition: whileCondition,
+    body: loopBlock.operations
+      .slice(0, -1)
+      .map(lowerOperation)
+      .filter((statement): statement is CStmt => statement !== undefined),
+  });
+  body.push(...exitBlock.operations
+    .map(lowerOperation)
+    .filter((statement): statement is CStmt => statement !== undefined));
+
+  return {
+    kind: 'function',
+    name: hexAddress(ir.functionAddress),
+    returnType: 'uint32_t',
+    parameters: [],
+    body,
+  };
+}
+
 /**
  * Conservative structured-decompilation boundary.
  *
  * Single-block IR lowers linearly. A three-block entry + terminal-arm shape
- * lowers to C if/else. A four-block diamond materializes phi inputs in the
+ * lowers to C if/else, while a three-block entry + back-edge + terminal-exit
+ * shape lowers to C while. A four-block diamond materializes phi inputs in
  * predecessor arms and lowers the join afterward. Other CFG shapes are
  * rejected rather than guessed; all function identity still comes from the
  * canonical FunctionIR.functionAddress.
  */
 export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
   if (ir.blocks.length === 1) return lowerSingleBlock(ir);
-  if (ir.blocks.length === 3) return lowerTwoWayBranch(ir);
+  if (ir.blocks.length === 3) {
+    const { entry, branch } = branchFromEntry(ir);
+    const targets = [branch.trueTarget, branch.falseTarget];
+    const targetBlocks = targets.map(target => blockById(ir, target));
+    const hasBackEdge = targetBlocks.some(block => block.successors.length === 1 && block.successors[0] === entry.id);
+    if (hasBackEdge) return lowerWhile(ir);
+    return lowerTwoWayBranch(ir);
+  }
   if (ir.blocks.length === 4) return lowerDiamond(ir);
   throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
 }
