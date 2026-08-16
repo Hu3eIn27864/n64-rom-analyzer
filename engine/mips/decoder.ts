@@ -2,6 +2,11 @@ import { disassembleMipsWord } from '../../src/utils/mipsDisassembler';
 import type { MipsInstruction as LegacyMipsInstruction } from '../../src/types/n64';
 import type { MipsInstruction } from '../model/instruction';
 
+const CONDITIONAL_BRANCHES = new Set([
+  'BEQ', 'BNE', 'BLEZ', 'BGTZ', 'BEQL', 'BNEL', 'BLEZL', 'BGTZL',
+]);
+const JUMPS = new Set(['J', 'JAL', 'JR', 'JALR']);
+
 /**
  * Canonical engine entry point for VR4300/MIPS instruction decoding.
  *
@@ -11,12 +16,23 @@ import type { MipsInstruction } from '../model/instruction';
  */
 export function decodeInstruction(word: number, address: number): MipsInstruction {
   const decoded: LegacyMipsInstruction = disassembleMipsWord(word >>> 0, address >>> 0);
+  const mnemonic = decoded.opcodeName;
+  const isConditionalBranch = CONDITIONAL_BRANCHES.has(mnemonic);
+  const isJump = JUMPS.has(mnemonic);
+  const isCall = mnemonic === 'JAL' || mnemonic === 'JALR';
+  const isReturn = mnemonic === 'JR' && decoded.args[0] === '$ra';
 
   return {
     address: decoded.address >>> 0,
     raw: word >>> 0,
-    mnemonic: decoded.opcodeName,
+    mnemonic,
     operands: decoded.args,
+    targetAddress: decoded.targetAddress === undefined ? undefined : decoded.targetAddress >>> 0,
+    isBranch: isConditionalBranch,
+    isConditionalBranch,
+    isJump,
+    isCall,
+    isReturn,
   };
 }
 
