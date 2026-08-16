@@ -243,6 +243,40 @@ test('structured decompilation lowers loop-carried phi values with explicit init
   ].join('\n'));
 });
 
+test('structured decompilation preserves loop-carried phi semantics when the false branch is the loop body', () => {
+  const invertedLoopPhiIr: FunctionIR = {
+    functionAddress: 0x7200,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [{ kind: 'jump', target: 1 }] },
+      {
+        id: 1,
+        predecessors: [0, 2],
+        successors: [3, 2],
+        operations: [
+          { kind: 'phi', target: 'r2', inputs: { 0: { kind: 'const', value: 0 }, 2: { kind: 'binary', op: '+', left: { kind: 'value', name: 'r2' }, right: { kind: 'const', value: 1 } } } },
+          { kind: 'branch', condition: { kind: 'value', name: 'r1' }, trueTarget: 3, falseTarget: 2 },
+        ],
+      },
+      { id: 2, predecessors: [1], successors: [1], operations: [{ kind: 'jump', target: 1 }] },
+      { id: 3, predecessors: [1], successors: [], operations: [{ kind: 'return', value: { kind: 'value', name: 'r2' } }] },
+    ],
+  };
+
+  const fn = decompileStructuredFunctionIR(invertedLoopPhiIr);
+  assert.equal(renderFunction(fn), [
+    'uint32_t func_00007200(void)',
+    '{',
+    '    (r2 = 0);',
+    '    while (!r1)',
+    '    {',
+    '        uint32_t __phi_next_r2 = (r2 + 1);',
+    '        (r2 = __phi_next_r2);',
+    '    }',
+    '    return r2;',
+    '}',
+  ].join('\n'));
+});
+
 test('structured decompilation rejects loop-carried phi with a missing back-edge input', () => {
   const malformedLoop: FunctionIR = {
     functionAddress: 0x7100,
