@@ -23,6 +23,21 @@ test('ROM/VRAM address mapping is reversible', () => {
   assert.equal(map.romToVram(0x2000), undefined);
 });
 
+test('address map resolves the owning VRAM segment', () => {
+  const code = createRomSegments([{
+    romStart: 0x1000,
+    romEnd: 0x2000,
+    vramStart: 0x80001000,
+    vramEnd: 0x80002000,
+    type: 'code',
+  }])[0];
+  const map = new RomAddressMap([code]);
+
+  assert.equal(map.findSegmentByVramAddress(0x80001020), code);
+  assert.equal(map.findSegmentByVramAddress(0x80002000), undefined);
+  assert.equal(map.vramToRom(0x80002000), undefined);
+});
+
 test('segment validation catches invalid and overlapping ranges', () => {
   const segments = createRomSegments([
     { romStart: 0x1000, romEnd: 0x1800 },
