@@ -27,15 +27,26 @@ function targetOfCall(instruction: MipsInstruction): number | undefined {
   return undefined;
 }
 
+function cloneFunction(fn: RecoveredFunction): RecoveredFunction {
+  return {
+    ...fn,
+    instructions: [...fn.instructions],
+    callers: [...fn.callers],
+    callees: [...fn.callees],
+    evidence: [...fn.evidence],
+  };
+}
+
 export function recoverFunctions(
   entryPoints: readonly number[],
   options: FunctionRecoveryOptions = {},
 ): RecoveredFunction[] {
-  const roots = [...new Set([...(options.knownEntryPoints ?? []), ...entryPoints])];
+  const roots = [...new Set([...(options.knownEntryPoints ?? []), ...entryPoints].map((address) => address >>> 0))];
   const reachability = discoverReachableCode(roots, options);
   const byAddress = new Map(reachability.instructions.map((instruction) => [instruction.address, instruction]));
-  const discovered = new Set<number>(roots.map((address) => address >>> 0));
-  const queue = [...discovered];
+  const discovered = new Set<number>(roots);
+  const queue = [...roots];
+  const results = new Map<number, RecoveredFunction>();
 
   while (queue.length > 0) {
     const address = queue.shift()!;
@@ -74,8 +85,6 @@ export function recoverFunctions(
 
     if (instructions.length === 0) continue;
     const endAddress = instructions[instructions.length - 1].address + 4;
-    discovered.add(address);
-
     const functionResult: RecoveredFunction = {
       address,
       endAddress,
@@ -86,24 +95,27 @@ export function recoverFunctions(
       evidence,
     };
 
-    const existing = recoverFunctions._results.get(address);
+    const existing = results.get(address);
     if (!existing || functionResult.instructions.length > existing.instructions.length) {
-      recoverFunctions._results.set(address, functionResult);
+      results.set(address, functionResult);
     }
   }
 
-  const functions = [...recoverFunctions._results.values()]
+  const functions = [...results.values()]
     .filter((fn) => roots.includes(fn.address) || reachability.visitedAddresses.includes(fn.address))
-    .sort((a, b) => a.address - b.address);
-  recoverFunctions._results.clear();
+    .sort((a, b) => a.address - b.address)
+    .map(cloneFunction);
 
   const byFunction = new Map(functions.map((fn) => [fn.address, fn]));
   for (const fn of functions) {
     for (const callee of fn.callees) {
-      byFunction.get(callee)?.callers.push(fn.address);
+      const target = byFunction.get(callee);
+      if (target && !target.callers.includes(fn.address)) target.callers.push(fn.address);
     }
+    fn.callers.sort((a, b) => a - b);
+    fn.callees.sort((a, b) => a - b);
+    fn.evidence = [...new Set(fn.evidence)];
   }
+
   return functions;
 }
-
-recoverFunctions._results = new Map<number, RecoveredFunction>();
