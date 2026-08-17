@@ -45,14 +45,33 @@ function definitionExpressions(o: MicroCOperation): MicroCExpr[] {
   if (o.kind === 'call') return [...o.args];
   return [];
 }
+type MemoryRange = { address: number; size: 1 | 2 | 4 | 8 };
+function constantAddress(e: MicroCExpr): number | undefined { return e.kind === 'const' ? e.value >>> 0 : undefined; }
+function overlaps(a: MemoryRange, b: MemoryRange): boolean {
+  const aEnd = a.address + a.size - 1, bEnd = b.address + b.size - 1;
+  return a.address <= bEnd && b.address <= aEnd;
+}
+function contains(container: MemoryRange, value: MemoryRange): boolean {
+  return container.address <= value.address && container.address + container.size >= value.address + value.size;
+}
+function coherentWithKnownStores(load: MemoryRange, stores: MemoryRange[]): boolean {
+  for (const store of stores) {
+    if (!overlaps(store, load)) continue;
+    if (!contains(store, load)) return false;
+  }
+  return true;
+}
 /**
- * Validate SSA and memory-access provenance in strict program order.
- * Loads and stores participate in the same availability chain as Phi
- * definitions: an address or stored value may only reference a value already
- * established by the Phi state or an earlier operation in the same arm.
+ * Validate SSA provenance and conservatively merge memory knowledge in program
+ * order. Known constant-address stores form an alias summary. A later load is
+ * accepted when every overlapping store fully covers it; disjoint stores are
+ * irrelevant. Unknown-address stores or partially-overlapping known stores
+ * make the load unverifiable, so lowering fails rather than guessing.
  */
 function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
   const available = new Set(phiTargets);
+  const stores: MemoryRange[] = [];
+  let unknownStore = false;
   for (const o of operations) {
     const target = definitionTarget(o);
     const isPhiTarget = target !== undefined && phiTargets.has(target);
@@ -63,6 +82,20 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
         const kind = isPhiTarget ? 'Phi dependency' : 'memory/SSA dependency';
         throw new Error(`multi-phi lowering found unresolved ${kind} ${value} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       }
+    }
+    if (o.kind === 'load') {
+      const address = constantAddress(o.address);
+      if (address === undefined && (unknownStore || stores.length > 0)) throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+      if (address !== undefined) {
+        const loadRange = { address, size: o.size } satisfies MemoryRange;
+        if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+        if (!coherentWithKnownStores(loadRange, stores)) throw new Error(`multi-phi lowering cannot prove memory coherence for overlapping load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+      }
+    }
+    if (o.kind === 'store') {
+      const address = constantAddress(o.address);
+      if (address === undefined) unknownStore = true;
+      else stores.push({ address, size: o.size });
     }
     if (target) available.add(target);
   }
@@ -93,8 +126,8 @@ function phiTargets(ir: FunctionIR, headerId: number, latchId: number): Array<{ 
  * must also reference a value with established SSA provenance in the same
  * state or branch-local definition chain. Provenance is evaluated in program
  * order and independently for each branch arm, so a producer in one arm can
- * never leak into the sibling arm. Memory loads/stores use the same ordered
- * provenance rules for addresses and stored values.
+ * never leak into the sibling arm. Memory loads/stores use ordered
+ * provenance plus conservative memory-state coherence.
  */
 export function decompileMultiPhiBranchInLoopFunctionIR(ir: FunctionIR): CFunction {
   const compositions = analyzeControlFlowCompositions(ir).filter(c => c.kind === 'branch-in-loop');
