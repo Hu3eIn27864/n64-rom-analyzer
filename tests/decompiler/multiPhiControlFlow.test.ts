@@ -5,7 +5,10 @@ import type { FunctionIR, MicroCOperation } from '../../engine/ir/microC';
 
 const c = (value: number) => ({ kind: 'const', value } as const);
 const v = (name: string) => ({ kind: 'value', name } as const);
-const assign = (target: string, value: number): MicroCOperation => ({ kind: 'assign', target, value: c(value) });
+const add = (left: string, right: number) => ({ kind: 'binary', op: '+', left: v(left), right: c(right) } as const);
+const assign = (target: string, value: number | ReturnType<typeof add>): MicroCOperation => ({ kind: 'assign', target, value: typeof value === 'number' ? c(value) : value });
+const load = (target: string, address: number): MicroCOperation => ({ kind: 'load', target, address: c(address), size: 4 });
+const call = (result: string, target: number, args: string[] = []): MicroCOperation => ({ kind: 'call', target: c(target), args: args.map(v), result });
 const phi = (target: string, initial: number, backedge: number): MicroCOperation => ({ kind: 'phi', target, inputs: { 0: c(initial), 6: c(backedge) } });
 const branch = (condition: string, trueTarget: number, falseTarget: number): MicroCOperation => ({ kind: 'branch', condition: v(condition), trueTarget, falseTarget });
 const jump = (target: number): MicroCOperation => ({ kind: 'jump', target });
@@ -37,10 +40,38 @@ test('lowers multiple loop-carried Phi values as one branch-defined state vector
   assert.equal(nested.elseBranch?.kind, 'block');
 });
 
+test('preserves computed expressions as branch-local Phi state definitions', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', add('i', 2)), assign('sum', add('sum', 10))]));
+  const loop = fn.body.find(stmt => stmt.kind === 'while');
+  assert.ok(loop && loop.kind === 'while');
+  const nested = loop.body[0];
+  assert.equal(nested.kind, 'if');
+  assert.equal(nested.thenBranch?.kind, 'block');
+  if (nested.thenBranch?.kind === 'block') assert.equal(nested.thenBranch.body.length, 2);
+});
+
+test('accepts a load as a branch-local definition of a Phi target', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([load('i', 0x1000), assign('sum', 10)]));
+  const loop = fn.body.find(stmt => stmt.kind === 'while');
+  assert.ok(loop && loop.kind === 'while');
+  const nested = loop.body[0];
+  assert.equal(nested.kind, 'if');
+  if (nested.thenBranch?.kind === 'block') assert.equal(nested.thenBranch.body[0].kind, 'expr');
+});
+
+test('accepts a resolved call result as a branch-local definition of a Phi target', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([call('i', 0x80400000, ['sum']), assign('sum', 10)]));
+  const loop = fn.body.find(stmt => stmt.kind === 'while');
+  assert.ok(loop && loop.kind === 'while');
+  const nested = loop.body[0];
+  assert.equal(nested.kind, 'if');
+  if (nested.thenBranch?.kind === 'block') assert.equal(nested.thenBranch.body[0].kind, 'expr');
+});
+
 test('rejects a branch arm that updates only part of the Phi state vector', () => {
-  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', 2)])), /exactly one update in branch arm 3/);
+  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', 2)])), /exactly one branch definition for sum in block 3/);
 });
 
 test('rejects duplicate definitions of one Phi target inside a branch arm', () => {
-  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', 2), assign('i', 3), assign('sum', 10)])), /exactly one update in branch arm 3/);
+  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', 2), assign('i', 3), assign('sum', 10)])), /exactly one branch definition for i in block 3/);
 });
