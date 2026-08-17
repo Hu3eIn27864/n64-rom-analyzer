@@ -15,8 +15,9 @@ test('store then load resolves the proven memory value', () => {
 test('a later store overwrites the same proven location', () => {
   const first = propagateStore(empty, { pointer: ptr('sp', 8), value: 'old' });
   const second = propagateStore(first, { pointer: add('sp', 4), value: 'new' });
-  assert.equal(propagateLoad(second, { pointer: ptr('sp', 8) }), 'old');
-  assert.equal(propagateLoad(second, { pointer: ptr('sp', 8 + 0) }), 'old');
+  const overwritten = propagateStore(second, { pointer: ptr('sp', 8), value: 'latest' });
+  assert.equal(propagateLoad(overwritten, { pointer: ptr('sp', 8) }), 'latest');
+  assert.equal(propagateLoad(overwritten, { pointer: ptr('sp', 4) }), 'new');
 });
 
 test('unknown pointer arithmetic leaves a load unresolved', () => {
