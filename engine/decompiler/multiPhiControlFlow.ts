@@ -29,6 +29,37 @@ function definitionTarget(o: MicroCOperation): string | undefined {
   if (o.kind === 'call' && o.result !== undefined) return o.result;
   return undefined;
 }
+function expressionValues(e: MicroCExpr, values: Set<string>): void {
+  switch (e.kind) {
+    case 'value': values.add(e.name); return;
+    case 'binary': expressionValues(e.left, values); expressionValues(e.right, values); return;
+    case 'unary': expressionValues(e.value, values); return;
+    case 'cast': expressionValues(e.value, values); return;
+    case 'const': return;
+  }
+}
+function definitionExpressions(o: MicroCOperation): MicroCExpr[] {
+  if (o.kind === 'assign') return [o.value];
+  if (o.kind === 'load') return [o.address];
+  if (o.kind === 'call') return [...o.args];
+  return [];
+}
+function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): void {
+  const available = new Set(phiTargets);
+  for (const o of operations) {
+    const target = definitionTarget(o);
+    if (target && phiTargets.has(target)) {
+      const referenced = new Set<string>();
+      for (const e of definitionExpressions(o)) expressionValues(e, referenced);
+      for (const value of referenced) {
+        if (!available.has(value)) throw new Error(`multi-phi lowering found unresolved Phi dependency ${value} in block ${blockId} while defining ${target}`);
+      }
+      available.add(target);
+    } else if (target) {
+      available.add(target);
+    }
+  }
+}
 function stmts(b: FunctionIR['blocks'][number], excluded = new Set<string>()) { return b.operations.filter(o => o.kind !== 'branch' && o.kind !== 'jump' && o.kind !== 'phi' && !excluded.has(definitionTarget(o) ?? '')).map(op).filter((s): s is CStmt => s !== undefined); }
 
 function phiTargets(ir: FunctionIR, headerId: number, latchId: number): Array<{ target: string; initial: MicroCExpr; backedge: MicroCExpr }> {
@@ -50,7 +81,9 @@ function phiTargets(ir: FunctionIR, headerId: number, latchId: number): Array<{ 
  * Lower multiple loop-carried SSA values when every branch arm defines the
  * complete Phi state exactly once. State definitions may be assignments,
  * loads, or resolved calls; their RHS/address/arguments remain branch-local
- * expressions instead of being reduced to constants.
+ * expressions instead of being reduced to constants. Every Phi definition
+ * must also reference a value with established SSA provenance in the same
+ * state or branch-local definition chain.
  */
 export function decompileMultiPhiBranchInLoopFunctionIR(ir: FunctionIR): CFunction {
   const compositions = analyzeControlFlowCompositions(ir).filter(c => c.kind === 'branch-in-loop');
@@ -78,6 +111,7 @@ export function decompileMultiPhiBranchInLoopFunctionIR(ir: FunctionIR): CFuncti
   for (const arm of [thenBlock, elseBlock]) {
     const counts = count(arm);
     for (const phi of phis) if (counts.get(phi.target) !== 1) throw new Error(`multi-phi lowering requires exactly one branch definition for ${phi.target} in block ${arm.id}`);
+    validateDefinitionProvenance(arm.id, arm.operations, targets);
   }
   const updates = new Set(phis.map(phi => phi.target));
   const initializers = phis.map(phi => ({ kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'variable', value: phi.target, type: 'uint32_t' }, right: expr(phi.initial), type: 'uint32_t' } } as CStmt));

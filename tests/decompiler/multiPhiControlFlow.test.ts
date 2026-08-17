@@ -75,3 +75,7 @@ test('rejects a branch arm that updates only part of the Phi state vector', () =
 test('rejects duplicate definitions of one Phi target inside a branch arm', () => {
   assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', 2), assign('i', 3), assign('sum', 10)])), /exactly one branch definition for i in block 3/);
 });
+
+test('rejects a Phi definition whose expression has no established SSA provenance', () => {
+  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', add('ghost', 1)), assign('sum', 10)])), /unresolved Phi dependency ghost in block 3 while defining i/);
+});
