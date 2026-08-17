@@ -7,9 +7,10 @@ function blockById(ir: FunctionIR, id: number) { const block = ir.blocks.find(ca
 function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   if (operation.kind === 'return') return { kind: 'return' };
   if (operation.kind !== 'assign') return undefined;
-  const value: CExpr = operation.value.kind === 'value'
-    ? { kind: 'variable', value: operation.value.name, type: 'uint32_t' }
-    : { kind: 'literal', value: operation.value.value, type: 'uint32_t' };
+  let value: CExpr;
+  if (operation.value.kind === 'value') value = { kind: 'variable', value: operation.value.name, type: 'uint32_t' };
+  else if (operation.value.kind === 'const') value = { kind: 'literal', value: operation.value.value, type: 'uint32_t' };
+  else throw new Error(`nested loop lowering does not support ${operation.value.kind} assignment expressions`);
   return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'variable', value: operation.target, type: 'uint32_t' }, right: value, type: 'uint32_t' } };
 }
 function bodyOperations(ir: FunctionIR, id: number): CStmt[] { return blockById(ir, id).operations.map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined); }
@@ -19,9 +20,8 @@ function branch(block: FunctionIR['blocks'][number]) {
   return operation;
 }
 function condition(branchOperation: ReturnType<typeof branch>, trueTarget: number): CExpr {
-  const source: CExpr = branchOperation.condition.kind === 'value'
-    ? { kind: 'variable', value: branchOperation.condition.name, type: 'uint32_t' }
-    : { kind: 'variable', value: `cond_${trueTarget}`, type: 'uint32_t' };
+  if (branchOperation.condition.kind !== 'value') throw new Error('nested loop lowering requires explicit value conditions');
+  const source: CExpr = { kind: 'variable', value: branchOperation.condition.name, type: 'uint32_t' };
   return branchOperation.trueTarget === trueTarget ? source : { kind: 'unary', op: '!', operand: source, type: 'uint32_t' };
 }
 
