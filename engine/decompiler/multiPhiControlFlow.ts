@@ -24,7 +24,12 @@ function op(o: MicroCOperation): CStmt | undefined {
 }
 function block(ir: FunctionIR, id: number) { const b = ir.blocks.find(x => x.id === id); if (!b) throw new Error(`multi-phi lowering references missing block ${id}`); return b; }
 function branch(b: FunctionIR['blocks'][number]) { const o = b.operations.at(-1); if (!o || o.kind !== 'branch' || o.falseTarget === undefined) throw new Error(`multi-phi lowering requires a two-way terminal branch in block ${b.id}`); return o; }
-function stmts(b: FunctionIR['blocks'][number], excluded = new Set<string>()) { return b.operations.filter(o => o.kind !== 'branch' && o.kind !== 'jump' && o.kind !== 'phi' && !(o.kind === 'assign' && excluded.has(o.target))).map(op).filter((s): s is CStmt => s !== undefined); }
+function definitionTarget(o: MicroCOperation): string | undefined {
+  if (o.kind === 'assign' || o.kind === 'load') return o.target;
+  if (o.kind === 'call' && o.result !== undefined) return o.result;
+  return undefined;
+}
+function stmts(b: FunctionIR['blocks'][number], excluded = new Set<string>()) { return b.operations.filter(o => o.kind !== 'branch' && o.kind !== 'jump' && o.kind !== 'phi' && !excluded.has(definitionTarget(o) ?? '')).map(op).filter((s): s is CStmt => s !== undefined); }
 
 function phiTargets(ir: FunctionIR, headerId: number, latchId: number): Array<{ target: string; initial: MicroCExpr; backedge: MicroCExpr }> {
   const header = block(ir, headerId);
@@ -43,8 +48,9 @@ function phiTargets(ir: FunctionIR, headerId: number, latchId: number): Array<{ 
 
 /**
  * Lower multiple loop-carried SSA values when every branch arm defines the
- * complete Phi state exactly once. The state vector is treated atomically:
- * partial branch updates are rejected rather than silently inventing merges.
+ * complete Phi state exactly once. State definitions may be assignments,
+ * loads, or resolved calls; their RHS/address/arguments remain branch-local
+ * expressions instead of being reduced to constants.
  */
 export function decompileMultiPhiBranchInLoopFunctionIR(ir: FunctionIR): CFunction {
   const compositions = analyzeControlFlowCompositions(ir).filter(c => c.kind === 'branch-in-loop');
@@ -61,7 +67,14 @@ export function decompileMultiPhiBranchInLoopFunctionIR(ir: FunctionIR): CFuncti
   if (lb.falseTarget !== exit.id) throw new Error('multi-phi lowering requires the loop branch to target the proven exit');
   const phis = phiTargets(ir, loop.headerId, latch.id);
   const targets = new Set(phis.map(phi => phi.target));
-  const count = (b: FunctionIR['blocks'][number]) => new Map(b.operations.filter((o): o is Extract<MicroCOperation, { kind: 'assign' }> => o.kind === 'assign' && targets.has(o.target)).map(o => [o.target, (b.operations.filter(x => x.kind === 'assign' && 'target' in x && x.target === o.target)).length]));
+  const count = (b: FunctionIR['blocks'][number]) => {
+    const counts = new Map<string, number>();
+    for (const o of b.operations) {
+      const target = definitionTarget(o);
+      if (target && targets.has(target)) counts.set(target, (counts.get(target) ?? 0) + 1);
+    }
+    return counts;
+  };
   for (const arm of [thenBlock, elseBlock]) {
     const counts = count(arm);
     for (const phi of phis) if (counts.get(phi.target) !== 1) throw new Error(`multi-phi lowering requires exactly one branch definition for ${phi.target} in block ${arm.id}`);
@@ -72,8 +85,8 @@ export function decompileMultiPhiBranchInLoopFunctionIR(ir: FunctionIR): CFuncti
   const elseBranch: CStmt = { kind: 'block', body: stmts(elseBlock, updates) };
   for (const arm of [thenBranch, elseBranch]) {
     const source = arm === thenBranch ? thenBlock : elseBlock;
-    const assignments = source.operations.filter((o): o is Extract<MicroCOperation, { kind: 'assign' }> => o.kind === 'assign' && updates.has(o.target));
-    arm.body.push(...assignments.map(op).filter((s): s is CStmt => s !== undefined));
+    const definitions = source.operations.filter(o => updates.has(definitionTarget(o) ?? ''));
+    arm.body.push(...definitions.map(op).filter((s): s is CStmt => s !== undefined));
   }
   return { kind: 'function', name: name(ir.functionAddress), returnType: 'uint32_t', parameters: [], body: [...stmts(header, updates), ...initializers, { kind: 'while', condition: expr(lb.condition), body: [{ kind: 'if', condition: expr(ib.condition), thenBranch, elseBranch }, ...stmts(latch, updates)] }, ...stmts(exit)] };
 }
