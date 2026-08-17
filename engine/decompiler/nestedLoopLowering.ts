@@ -1,6 +1,7 @@
 import type { CFunction, CStmt, CExpr } from '../ir/cAst';
 import type { FunctionIR, MicroCOperation } from '../ir/microC';
 import { analyzeLoopRegions } from '../ir/loopRegions';
+import { lowerLoopPhi } from './loopPhiLowering';
 
 function hexAddress(address: number): string { return `func_${(address >>> 0).toString(16).padStart(8, '0')}`; }
 function blockById(ir: FunctionIR, id: number) { const block = ir.blocks.find(candidate => candidate.id === id); if (!block) throw new Error(`nested loop lowering references missing block ${id}`); return block; }
@@ -46,11 +47,21 @@ export function decompileNestedProvenLoopFunctionIR(ir: FunctionIR): CFunction {
   if (innerBody.successors.length !== 1 || innerBody.successors[0] !== innerHeaderId) throw new Error('nested loop lowering requires the inner body back-edge');
   if (innerExit.successors.length !== 1 || innerExit.successors[0] !== outer.headerId) throw new Error('nested loop lowering requires the inner exit to be the outer latch');
   if (outerExit.successors.length !== 0) throw new Error('nested loop lowering requires a terminal outer exit');
+
+  const outerPhi = lowerLoopPhi(blockById(ir, outer.headerId), entry.id, innerExitId);
+  const innerPhi = lowerLoopPhi(blockById(ir, innerHeaderId), outer.headerId, innerBodyId);
+
   return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body: [
     ...bodyOperations(ir, entry.id),
+    ...outerPhi.initial,
     { kind: 'while', condition: condition(outerBranch, innerHeaderId), body: [
-      { kind: 'while', condition: condition(innerBranch, innerBodyId), body: bodyOperations(ir, innerBodyId) },
+      ...innerPhi.initial,
+      { kind: 'while', condition: condition(innerBranch, innerBodyId), body: [
+        ...bodyOperations(ir, innerBodyId),
+        ...innerPhi.backEdge,
+      ] },
       ...bodyOperations(ir, innerExitId),
+      ...outerPhi.backEdge,
     ] },
     ...bodyOperations(ir, outerExitId),
   ] };
