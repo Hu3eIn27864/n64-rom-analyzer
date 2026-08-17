@@ -305,12 +305,18 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
     throw new Error('structured loop-phi lowering requires a two-way header branch');
   }
 
-  const bodyBlock = blockById(ir, branch.trueTarget);
-  const exitBlock = blockById(ir, branch.falseTarget);
-  const bodyLoops = bodyBlock.successors.length === 1 && bodyBlock.successors[0] === header.id;
-  const exitTerminates = exitBlock.successors.length === 0;
-  if (!bodyLoops || !exitTerminates) {
-    throw new Error('structured loop-phi lowering requires one body back-edge and one terminal exit');
+  const trueBlock = blockById(ir, branch.trueTarget);
+  const falseBlock = blockById(ir, branch.falseTarget);
+  const trueLoops = trueBlock.successors.length === 1 && trueBlock.successors[0] === header.id;
+  const falseLoops = falseBlock.successors.length === 1 && falseBlock.successors[0] === header.id;
+  if (trueLoops === falseLoops) {
+    throw new Error('structured loop-phi lowering requires exactly one header branch arm to be the loop body');
+  }
+
+  const bodyBlock = trueLoops ? trueBlock : falseBlock;
+  const exitBlock = trueLoops ? falseBlock : trueBlock;
+  if (exitBlock.successors.length !== 0) {
+    throw new Error('structured loop-phi lowering requires a terminal loop exit');
   }
   if (bodyBlock.predecessors.length !== 1 || bodyBlock.predecessors[0] !== header.id) {
     throw new Error('structured loop-phi lowering requires the body to have only the header predecessor');
@@ -361,6 +367,8 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
     .filter((statement): statement is CStmt => statement !== undefined);
   bodyStatements.push(...updateStatements);
 
+  const condition = lowerExpr(branch.condition);
+  const whileCondition = trueLoops ? condition : { kind: 'unary' as const, op: '!', operand: condition, type: 'uint32_t' as const };
   const body = [
     ...entry.operations
       .filter(operation => operation.kind !== 'jump')
@@ -369,7 +377,7 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
     ...initializers,
     {
       kind: 'while' as const,
-      condition: lowerExpr(branch.condition),
+      condition: whileCondition,
       body: bodyStatements,
     },
     ...exitBlock.operations
