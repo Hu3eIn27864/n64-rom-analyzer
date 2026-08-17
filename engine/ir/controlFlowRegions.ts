@@ -24,11 +24,11 @@ function contains(outer: Set<number>, inner: Set<number>): boolean {
   return [...inner].every(id => outer.has(id));
 }
 
-function validateEdgesInside(ir: FunctionIR, nodes: Set<number>): void {
+function validateEdgesInside(ir: FunctionIR, nodes: Set<number>, allowedExits = new Set<number>()): void {
   for (const id of nodes) {
     const block = ir.blocks.find(candidate => candidate.id === id);
     if (!block) throw new Error(`control-flow composition references missing block ${id}`);
-    if (block.successors.some(successor => !nodes.has(successor))) {
+    if (block.successors.some(successor => !nodes.has(successor) && !allowedExits.has(successor))) {
       throw new Error(`control-flow composition crosses region boundary at block ${id}`);
     }
   }
@@ -37,9 +37,9 @@ function validateEdgesInside(ir: FunctionIR, nodes: Set<number>): void {
 /**
  * Relates independently proven branch and natural-loop regions without
  * constructing another graph. A composition is admitted only when one
- * region is wholly contained by the other and the containing region remains
- * closed under successor edges. Boundary-crossing structures stay explicit
- * rather than being guessed into C syntax.
+ * region is wholly contained by the other and the containing region's edges
+ * remain inside it, except for exits already proven by LoopRegion. Boundary-
+ * crossing structures stay explicit rather than being guessed into C syntax.
  */
 export function analyzeControlFlowCompositions(ir: FunctionIR): ControlFlowComposition[] {
   const branches = analyzeBranchRegions(ir);
@@ -54,7 +54,7 @@ export function analyzeControlFlowCompositions(ir: FunctionIR): ControlFlowCompo
       .sort((a, b) => a.nodeIds.length - b.nodeIds.length || a.headerId - b.headerId)[0];
 
     if (containingLoop) {
-      validateEdgesInside(ir, loopNodes(containingLoop));
+      validateEdgesInside(ir, loopNodes(containingLoop), new Set(containingLoop.exitIds));
       compositions.push({
         kind: 'branch-in-loop',
         branchHeaderId: branch.headerId,
