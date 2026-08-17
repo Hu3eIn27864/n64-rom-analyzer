@@ -79,3 +79,36 @@ test('rejects duplicate definitions of one Phi target inside a branch arm', () =
 test('rejects a Phi definition whose expression has no established SSA provenance', () => {
   assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', add('ghost', 1)), assign('sum', 10)])), /unresolved Phi dependency ghost in block 3 while defining i/);
 });
+
+test('accepts a non-Phi branch-local producer before a Phi definition', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('tmp', 7), assign('i', add('tmp', 1)), assign('sum', 10)]));
+  const loop = fn.body.find(stmt => stmt.kind === 'while');
+  assert.ok(loop && loop.kind === 'while');
+  const nested = loop.body[0];
+  assert.equal(nested.kind, 'if');
+  if (nested.thenBranch?.kind === 'block') assert.equal(nested.thenBranch.body.length, 3);
+});
+
+test('rejects a Phi definition that reads a later branch-local producer', () => {
+  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([assign('i', add('tmp', 1)), assign('tmp', 7), assign('sum', 10)])), /unresolved Phi dependency tmp in block 3 while defining i/);
+});
+
+test('isolates provenance between sibling branch arms', () => {
+  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR(
+    [assign('tmp', 7), assign('i', add('tmp', 1)), assign('sum', 10)],
+    [assign('i', add('tmp', 1)), assign('sum', 20)],
+  )), /unresolved Phi dependency tmp in block 4 while defining i/);
+});
+
+test('keeps independent producer chains valid in both branch arms', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR(
+    [assign('tmpThen', 7), assign('i', add('tmpThen', 1)), assign('sum', 10)],
+    [assign('tmpElse', 8), assign('i', add('tmpElse', 1)), assign('sum', 20)],
+  ));
+  const loop = fn.body.find(stmt => stmt.kind === 'while');
+  assert.ok(loop && loop.kind === 'while');
+  const nested = loop.body[0];
+  assert.equal(nested.kind, 'if');
+  assert.equal(nested.thenBranch?.kind, 'block');
+  assert.equal(nested.elseBranch?.kind, 'block');
+});
