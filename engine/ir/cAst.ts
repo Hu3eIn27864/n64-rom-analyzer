@@ -13,7 +13,7 @@ export interface CExpr {
 }
 
 export interface CStmt {
-  kind: 'decl' | 'expr' | 'return' | 'if' | 'while' | 'block';
+  kind: 'decl' | 'expr' | 'return' | 'if' | 'while' | 'block' | 'break' | 'continue';
   name?: string;
   type?: CType;
   init?: CExpr;
@@ -52,6 +52,8 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
     case 'decl': return `${indent}${stmt.type ?? 'unknown'} ${stmt.name ?? 'tmp'}${stmt.init ? ` = ${renderExpr(stmt.init)}` : ''};`;
     case 'expr': return `${indent}${renderExpr(stmt.expr!)};`;
     case 'return': return `${indent}return${stmt.expr ? ` ${renderExpr(stmt.expr)}` : ''};`;
+    case 'break': return `${indent}break;`;
+    case 'continue': return `${indent}continue;`;
     case 'if': {
       const thenText = stmt.thenBranch ? renderStmt(stmt.thenBranch, `${indent}    `) : `${indent}    {}`;
       const elseText = stmt.elseBranch ? ` else\n${renderStmt(stmt.elseBranch, indent)}` : '';
