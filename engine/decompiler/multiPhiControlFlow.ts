@@ -44,7 +44,7 @@ function definitionExpressions(o: MicroCOperation): MicroCExpr[] {
   if (o.kind === 'call') return [...o.args];
   return [];
 }
-function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): void {
+function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
   const available = new Set(phiTargets);
   for (const o of operations) {
     const target = definitionTarget(o);
@@ -59,6 +59,7 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
       available.add(target);
     }
   }
+  return available;
 }
 function stmts(b: FunctionIR['blocks'][number], excluded = new Set<string>()) { return b.operations.filter(o => o.kind !== 'branch' && o.kind !== 'jump' && o.kind !== 'phi' && !excluded.has(definitionTarget(o) ?? '')).map(op).filter((s): s is CStmt => s !== undefined); }
 
@@ -83,7 +84,9 @@ function phiTargets(ir: FunctionIR, headerId: number, latchId: number): Array<{ 
  * loads, or resolved calls; their RHS/address/arguments remain branch-local
  * expressions instead of being reduced to constants. Every Phi definition
  * must also reference a value with established SSA provenance in the same
- * state or branch-local definition chain.
+ * state or branch-local definition chain. Provenance is evaluated in program
+ * order and independently for each branch arm, so a producer in one arm can
+ * never leak into the sibling arm.
  */
 export function decompileMultiPhiBranchInLoopFunctionIR(ir: FunctionIR): CFunction {
   const compositions = analyzeControlFlowCompositions(ir).filter(c => c.kind === 'branch-in-loop');
