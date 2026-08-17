@@ -9,7 +9,7 @@ const add = (left: string, right: number) => ({ kind: 'binary', op: '+', left: v
 const assign = (target: string, value: number | ReturnType<typeof add>): MicroCOperation => ({ kind: 'assign', target, value: typeof value === 'number' ? c(value) : value });
 const load = (target: string, address: number): MicroCOperation => ({ kind: 'load', target, address: c(address), size: 4 });
 const loadExpr = (target: string, address: MicroCExpr): MicroCOperation => ({ kind: 'load', target, address, size: 4 });
-const store = (address: MicroCExpr, value: MicroCExpr): MicroCOperation => ({ kind: 'store', address, value, size: 4 });
+const store = (address: MicroCExpr, value: MicroCExpr, size: 4 | 8 = 4): MicroCOperation => ({ kind: 'store', address, value, size });
 const call = (result: string, target: number, args: string[] = []): MicroCOperation => ({ kind: 'call', target: c(target), args: args.map(v), result });
 const phi = (target: string, initial: number, backedge: number): MicroCOperation => ({ kind: 'phi', target, inputs: { 0: c(initial), 6: c(backedge) } });
 const branch = (condition: string, trueTarget: number, falseTarget: number): MicroCOperation => ({ kind: 'branch', condition: v(condition), trueTarget, falseTarget });
@@ -170,4 +170,50 @@ test('isolates memory address provenance between sibling branch arms', () => {
     [assign('addr', 0x1000), store(v('addr'), c(7)), assign('i', 2), assign('sum', 10)],
     [store(v('addr'), c(8)), assign('i', 1), assign('sum', 20)],
   )), /unresolved memory\/SSA dependency addr in block 4/);
+});
+
+test('accepts a load after a proven store to the same address', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([
+    assign('addr', 0x1000),
+    assign('value', 7),
+    store(v('addr'), v('value')),
+    loadExpr('i', v('addr')),
+    assign('sum', 10),
+  ]));
+  assert.ok(fn.body.some(stmt => stmt.kind === 'while'));
+});
+
+test('accepts a load after a proven store to a disjoint range', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([
+    store(c(0x1000), c(7)),
+    load('i', 0x1008),
+    assign('sum', 10),
+  ]));
+  assert.ok(fn.body.some(stmt => stmt.kind === 'while'));
+});
+
+test('rejects a constant load after an unknown-address store', () => {
+  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([
+    assign('addr', 0x1000),
+    store(v('addr'), c(7)),
+    load('i', 0x1000),
+    assign('sum', 10),
+  ])), /cannot prove memory coherence for load at 0x1000 in block 3 while defining i/);
+});
+
+test('rejects a dynamic load after any proven store because aliasing is unresolved', () => {
+  assert.throws(() => decompileMultiPhiBranchInLoopFunctionIR(makeIR([
+    assign('addr', 0x1000),
+    store(c(0x1000), c(7)),
+    loadExpr('i', v('addr')),
+    assign('sum', 10),
+  ])), /cannot prove memory coherence for dynamic load in block 3 while defining i/);
+});
+
+test('allows an initial load before any local store', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([
+    load('i', 0x1000),
+    assign('sum', 10),
+  ]));
+  assert.ok(fn.body.some(stmt => stmt.kind === 'while'));
 });
