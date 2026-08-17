@@ -65,8 +65,9 @@ function coherentWithKnownStores(load: MemoryRange, stores: MemoryRange[]): bool
  * Validate SSA provenance and conservatively merge memory knowledge in program
  * order. Known constant-address stores form an alias summary. A later load is
  * accepted when every overlapping store fully covers it; disjoint stores are
- * irrelevant. Unknown-address stores or partially-overlapping known stores
- * make the load unverifiable, so lowering fails rather than guessing.
+ * irrelevant. Unknown-address stores or partially-overlapping known stores,
+ * and calls with unknown memory effects, make the load unverifiable, so
+ * lowering fails rather than guessing.
  */
 function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
   const available = new Set(phiTargets);
@@ -82,6 +83,14 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
         const kind = isPhiTarget ? 'Phi dependency' : 'memory/SSA dependency';
         throw new Error(`multi-phi lowering found unresolved ${kind} ${value} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       }
+    }
+    if (o.kind === 'call') {
+      // Calls are conservatively modeled as unknown memory clobbers until
+      // interprocedural effect information proves otherwise. The call result
+      // itself remains a normal SSA definition, while prior memory facts are
+      // invalidated at the call boundary.
+      stores.length = 0;
+      unknownStore = true;
     }
     if (o.kind === 'load') {
       const address = constantAddress(o.address);
@@ -127,7 +136,8 @@ function phiTargets(ir: FunctionIR, headerId: number, latchId: number): Array<{ 
  * state or branch-local definition chain. Provenance is evaluated in program
  * order and independently for each branch arm, so a producer in one arm can
  * never leak into the sibling arm. Memory loads/stores use ordered
- * provenance plus conservative memory-state coherence.
+ * provenance plus conservative memory-state coherence, including call
+ * boundaries that may clobber memory.
  */
 export function decompileMultiPhiBranchInLoopFunctionIR(ir: FunctionIR): CFunction {
   const compositions = analyzeControlFlowCompositions(ir).filter(c => c.kind === 'branch-in-loop');
