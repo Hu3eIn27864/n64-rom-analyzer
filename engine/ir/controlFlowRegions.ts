@@ -24,7 +24,7 @@ function contains(outer: Set<number>, inner: Set<number>): boolean {
   return [...inner].every(id => outer.has(id));
 }
 
-function validateContainedEdges(ir: FunctionIR, nodes: Set<number>): void {
+function validateEdgesInside(ir: FunctionIR, nodes: Set<number>): void {
   for (const id of nodes) {
     const block = ir.blocks.find(candidate => candidate.id === id);
     if (!block) throw new Error(`control-flow composition references missing block ${id}`);
@@ -37,8 +37,8 @@ function validateContainedEdges(ir: FunctionIR, nodes: Set<number>): void {
 /**
  * Relates independently proven branch and natural-loop regions without
  * constructing another graph. A composition is admitted only when one
- * region is wholly contained by the other and all contained-region edges
- * remain inside that region. Boundary-crossing structures stay explicit
+ * region is wholly contained by the other and the containing region remains
+ * closed under successor edges. Boundary-crossing structures stay explicit
  * rather than being guessed into C syntax.
  */
 export function analyzeControlFlowCompositions(ir: FunctionIR): ControlFlowComposition[] {
@@ -48,12 +48,13 @@ export function analyzeControlFlowCompositions(ir: FunctionIR): ControlFlowCompo
 
   for (const branch of branches) {
     const branchSet = branchNodes(branch);
+
     const containingLoop = loops
       .filter(loop => loop.headerId !== branch.headerId && contains(loopNodes(loop), branchSet))
       .sort((a, b) => a.nodeIds.length - b.nodeIds.length || a.headerId - b.headerId)[0];
 
     if (containingLoop) {
-      validateContainedEdges(ir, branchSet);
+      validateEdgesInside(ir, loopNodes(containingLoop));
       compositions.push({
         kind: 'branch-in-loop',
         branchHeaderId: branch.headerId,
@@ -64,18 +65,18 @@ export function analyzeControlFlowCompositions(ir: FunctionIR): ControlFlowCompo
       continue;
     }
 
-    const containingBranch = branches
-      .filter(candidate => candidate.headerId !== branch.headerId && contains(branchNodes(candidate), branchSet))
-      .sort((a, b) => branchNodes(a).size - branchNodes(b).size || a.headerId - b.headerId)[0];
+    const containedLoop = loops
+      .filter(loop => contains(branchSet, loopNodes(loop)))
+      .sort((a, b) => a.nodeIds.length - b.nodeIds.length || a.headerId - b.headerId)[0];
 
-    if (containingBranch) {
-      validateContainedEdges(ir, branchSet);
+    if (containedLoop) {
+      validateEdgesInside(ir, branchSet);
       compositions.push({
         kind: 'loop-in-branch',
-        branchHeaderId: containingBranch.headerId,
-        loopHeaderId: null,
+        branchHeaderId: branch.headerId,
+        loopHeaderId: containedLoop.headerId,
         branchRegion: branch,
-        loopRegion: null,
+        loopRegion: containedLoop,
       });
       continue;
     }
