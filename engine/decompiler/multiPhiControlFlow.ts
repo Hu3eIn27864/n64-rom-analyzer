@@ -51,13 +51,22 @@ function overlaps(a: MemoryRange, b: MemoryRange): boolean {
   const aEnd = a.address + a.size - 1, bEnd = b.address + b.size - 1;
   return a.address <= bEnd && b.address <= aEnd;
 }
+function contains(container: MemoryRange, value: MemoryRange): boolean {
+  return container.address <= value.address && container.address + container.size >= value.address + value.size;
+}
+function coherentWithKnownStores(load: MemoryRange, stores: MemoryRange[]): boolean {
+  for (const store of stores) {
+    if (!overlaps(store, load)) continue;
+    if (!contains(store, load)) return false;
+  }
+  return true;
+}
 /**
- * Validate SSA and memory-access provenance in strict program order.
- * In addition to proving addresses and stored values, this keeps a
- * conservative memory-state model: known stores may satisfy later loads only
- * when their ranges are disjoint or explicitly overlapping, while any
- * unknown-address store invalidates subsequent load provenance because an
- * alias cannot be proven away.
+ * Validate SSA provenance and conservatively merge memory knowledge in program
+ * order. Known constant-address stores form an alias summary. A later load is
+ * accepted when every overlapping store fully covers it; disjoint stores are
+ * irrelevant. Unknown-address stores or partially-overlapping known stores
+ * make the load unverifiable, so lowering fails rather than guessing.
  */
 function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
   const available = new Set(phiTargets);
@@ -76,11 +85,11 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
     }
     if (o.kind === 'load') {
       const address = constantAddress(o.address);
-      if (address === undefined && (unknownStore || stores.length > 0)) {
-        throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
-      }
-      if (address !== undefined && unknownStore) {
-        throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+      if (address === undefined && (unknownStore || stores.length > 0)) throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+      if (address !== undefined) {
+        const loadRange = { address, size: o.size } satisfies MemoryRange;
+        if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+        if (!coherentWithKnownStores(loadRange, stores)) throw new Error(`multi-phi lowering cannot prove memory coherence for overlapping load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       }
     }
     if (o.kind === 'store') {
