@@ -42,15 +42,21 @@ export class PointerFieldDetector {
       return reject(fieldOffset, fieldSize, 'NO_VALID_POINTER_SINK');
     }
 
-    if (
-      confirmedSinks.includes(ProvenanceSinkKind.MEMORY_BASE_DEREF) &&
-      !provenance.hasValidDereference &&
-      confirmedSinks.length === 1
-    ) {
+    const hasDeref = confirmedSinks.includes(ProvenanceSinkKind.MEMORY_BASE_DEREF);
+    const hasIndirectCall = confirmedSinks.includes(ProvenanceSinkKind.INDIRECT_JUMP_CALL);
+    const hasCallArgument = confirmedSinks.includes(ProvenanceSinkKind.CALL_ARGUMENT_POINTER);
+
+    if (hasDeref && !provenance.hasValidDereference && confirmedSinks.length === 1) {
       return reject(fieldOffset, fieldSize, 'UNVERIFIED_DEREFERENCE');
     }
 
-    const hasIndirectCall = confirmedSinks.includes(ProvenanceSinkKind.INDIRECT_JUMP_CALL);
+    // A call-argument sink is positive evidence only when the callee contract
+    // itself is known. This prevents ordinary u32/flags parameters from becoming
+    // pointers merely because they were passed through a call site.
+    if (hasCallArgument && !provenance.hasVerifiedPointerContract && !hasDeref && !hasIndirectCall) {
+      return reject(fieldOffset, fieldSize, 'UNVERIFIED_POINTER_CONTRACT');
+    }
+
     return {
       offset: fieldOffset,
       size: fieldSize,

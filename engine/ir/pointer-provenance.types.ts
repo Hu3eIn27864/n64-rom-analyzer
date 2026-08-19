@@ -25,6 +25,8 @@ export interface ProvenanceNode {
   readonly sinkKinds: ReadonlySet<ProvenanceSinkKind>;
   /** True only when the IR has independently verified a memory dereference. */
   readonly hasValidDereference: boolean;
+  /** True only when the callee parameter is formally known to require a pointer. */
+  readonly hasVerifiedPointerContract?: boolean;
 }
 
 export interface StructFieldPointerResult {
