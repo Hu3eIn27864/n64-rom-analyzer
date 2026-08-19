@@ -17,6 +17,12 @@ export enum ProvenanceSinkKind {
   NONE_OR_STORE_ONLY = 'NONE_OR_STORE_ONLY',
 }
 
+/** Exact ABI-level contract proving that a callee parameter expects a pointer. */
+export interface VerifiedPointerContract {
+  readonly calleeSymbol: string;
+  readonly parameterIndex: number;
+}
+
 export interface ProvenanceNode {
   readonly sourceKind: ProvenanceSourceKind;
   readonly sourceSymbol?: string;
@@ -25,8 +31,8 @@ export interface ProvenanceNode {
   readonly sinkKinds: ReadonlySet<ProvenanceSinkKind>;
   /** True only when the IR has independently verified a memory dereference. */
   readonly hasValidDereference: boolean;
-  /** True only when the callee parameter is formally known to require a pointer. */
-  readonly hasVerifiedPointerContract?: boolean;
+  /** Exact callee/parameter contract required for call-argument pointer evidence. */
+  readonly verifiedPointerContract?: VerifiedPointerContract;
 }
 
 export interface StructFieldPointerResult {

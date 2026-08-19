@@ -45,15 +45,16 @@ export class PointerFieldDetector {
     const hasDeref = confirmedSinks.includes(ProvenanceSinkKind.MEMORY_BASE_DEREF);
     const hasIndirectCall = confirmedSinks.includes(ProvenanceSinkKind.INDIRECT_JUMP_CALL);
     const hasCallArgument = confirmedSinks.includes(ProvenanceSinkKind.CALL_ARGUMENT_POINTER);
+    const hasVerifiedPointerContract = isValidPointerContract(provenance.verifiedPointerContract);
 
     if (hasDeref && !provenance.hasValidDereference && confirmedSinks.length === 1) {
       return reject(fieldOffset, fieldSize, 'UNVERIFIED_DEREFERENCE');
     }
 
-    // A call-argument sink is positive evidence only when the callee contract
-    // itself is known. This prevents ordinary u32/flags parameters from becoming
-    // pointers merely because they were passed through a call site.
-    if (hasCallArgument && !provenance.hasVerifiedPointerContract && !hasDeref && !hasIndirectCall) {
+    // A call-argument sink is positive evidence only when the exact callee
+    // parameter is formally known to require a pointer. This prevents ordinary
+    // u32/flags parameters from becoming pointers merely because they were passed.
+    if (hasCallArgument && !hasVerifiedPointerContract && !hasDeref && !hasIndirectCall) {
       return reject(fieldOffset, fieldSize, 'UNVERIFIED_POINTER_CONTRACT');
     }
 
@@ -82,6 +83,17 @@ function pointerSinks(
     if (sinks.has(sink)) result.push(sink);
   }
   return result;
+}
+
+function isValidPointerContract(
+  contract: ProvenanceNode['verifiedPointerContract'],
+): boolean {
+  return Boolean(
+    contract &&
+    contract.calleeSymbol.trim().length > 0 &&
+    Number.isInteger(contract.parameterIndex) &&
+    contract.parameterIndex >= 0,
+  );
 }
 
 function hasOpaqueTransform(operations: readonly string[]): boolean {

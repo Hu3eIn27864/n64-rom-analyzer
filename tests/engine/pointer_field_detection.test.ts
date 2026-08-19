@@ -12,13 +12,13 @@ const node = (
   sinks: ProvenanceSinkKind[],
   ops: string[] = [],
   hasValidDereference = false,
-  hasVerifiedPointerContract = false,
+  verifiedPointerContract?: { calleeSymbol: string; parameterIndex: number },
 ): ProvenanceNode => ({
   sourceKind,
   intermediateOps: ops,
   sinkKinds: new Set(sinks),
   hasValidDereference,
-  hasVerifiedPointerContract,
+  verifiedPointerContract,
 });
 
 test('TEST_01: global symbol provenance plus verified dereference is a pointer', () => {
@@ -131,10 +131,11 @@ test('TEST_13: call argument without a formal pointer contract stays UNKNOWN', (
   assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
 });
 
-test('TEST_14: call argument with a verified pointer contract is a pointer', () => {
+test('TEST_14: call argument with an exact pointer contract is a pointer', () => {
   const result = PointerFieldDetector.evaluateField(0x34, 4, node(
     ProvenanceSourceKind.PARAM_POINTER,
-    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false, true,
+    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
+    { calleeSymbol: 'foo', parameterIndex: 1 },
   ));
   assert.equal(result.isPointer, true);
   assert.equal(result.targetType, 'void*');
@@ -144,7 +145,7 @@ test('TEST_15: call argument contract is not needed when a verified dereference 
   const result = PointerFieldDetector.evaluateField(0x38, 4, node(
     ProvenanceSourceKind.PARAM_POINTER,
     [ProvenanceSinkKind.CALL_ARGUMENT_POINTER, ProvenanceSinkKind.MEMORY_BASE_DEREF],
-    [], true, false,
+    [], true,
   ));
   assert.equal(result.isPointer, true);
 });
@@ -165,4 +166,34 @@ test('TEST_17: ordinary OR-style scalar transformation breaks provenance', () =>
   ));
   assert.equal(result.isPointer, false);
   assert.equal(result.rejectionReason, 'PROVENANCE_CORRUPTED_BY_ARITHMETIC');
+});
+
+test('TEST_18: empty callee symbol does not establish a pointer contract', () => {
+  const result = PointerFieldDetector.evaluateField(0x40, 4, node(
+    ProvenanceSourceKind.PARAM_POINTER,
+    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
+    { calleeSymbol: '   ', parameterIndex: 0 },
+  ));
+  assert.equal(result.isPointer, false);
+  assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
+});
+
+test('TEST_19: negative parameter index does not establish a pointer contract', () => {
+  const result = PointerFieldDetector.evaluateField(0x44, 4, node(
+    ProvenanceSourceKind.PARAM_POINTER,
+    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
+    { calleeSymbol: 'foo', parameterIndex: -1 },
+  ));
+  assert.equal(result.isPointer, false);
+  assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
+});
+
+test('TEST_20: non-integer parameter index does not establish a pointer contract', () => {
+  const result = PointerFieldDetector.evaluateField(0x48, 4, node(
+    ProvenanceSourceKind.PARAM_POINTER,
+    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
+    { calleeSymbol: 'foo', parameterIndex: 1.5 },
+  ));
+  assert.equal(result.isPointer, false);
+  assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
 });
