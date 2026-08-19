@@ -23,6 +23,12 @@ export interface VerifiedPointerContract {
   readonly parameterIndex: number;
 }
 
+/** Concrete call-site identity proving which argument reached the callee parameter. */
+export interface VerifiedPointerCallSite {
+  readonly calleeSymbol: string;
+  readonly argumentIndex: number;
+}
+
 export interface ProvenanceNode {
   readonly sourceKind: ProvenanceSourceKind;
   readonly sourceSymbol?: string;
@@ -33,6 +39,8 @@ export interface ProvenanceNode {
   readonly hasValidDereference: boolean;
   /** Exact callee/parameter contract required for call-argument pointer evidence. */
   readonly verifiedPointerContract?: VerifiedPointerContract;
+  /** Exact call-site identity required to bind the observed argument to that contract. */
+  readonly verifiedPointerCallSite?: VerifiedPointerCallSite;
 }
 
 export interface StructFieldPointerResult {

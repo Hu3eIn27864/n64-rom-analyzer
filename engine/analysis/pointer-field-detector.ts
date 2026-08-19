@@ -45,15 +45,18 @@ export class PointerFieldDetector {
     const hasDeref = confirmedSinks.includes(ProvenanceSinkKind.MEMORY_BASE_DEREF);
     const hasIndirectCall = confirmedSinks.includes(ProvenanceSinkKind.INDIRECT_JUMP_CALL);
     const hasCallArgument = confirmedSinks.includes(ProvenanceSinkKind.CALL_ARGUMENT_POINTER);
-    const hasVerifiedPointerContract = isValidPointerContract(provenance.verifiedPointerContract);
+    const hasVerifiedPointerContract = isVerifiedPointerCall(
+      provenance.verifiedPointerContract,
+      provenance.verifiedPointerCallSite,
+    );
 
     if (hasDeref && !provenance.hasValidDereference && confirmedSinks.length === 1) {
       return reject(fieldOffset, fieldSize, 'UNVERIFIED_DEREFERENCE');
     }
 
-    // A call-argument sink is positive evidence only when the exact callee
-    // parameter is formally known to require a pointer. This prevents ordinary
-    // u32/flags parameters from becoming pointers merely because they were passed.
+    // A call-argument sink is positive evidence only when the exact observed
+    // argument is bound to the exact callee parameter contract. This prevents
+    // a valid pointer contract for one argument from leaking to sibling arguments.
     if (hasCallArgument && !hasVerifiedPointerContract && !hasDeref && !hasIndirectCall) {
       return reject(fieldOffset, fieldSize, 'UNVERIFIED_POINTER_CONTRACT');
     }
@@ -85,14 +88,21 @@ function pointerSinks(
   return result;
 }
 
-function isValidPointerContract(
+function isVerifiedPointerCall(
   contract: ProvenanceNode['verifiedPointerContract'],
+  callSite: ProvenanceNode['verifiedPointerCallSite'],
 ): boolean {
   return Boolean(
     contract &&
+    callSite &&
     contract.calleeSymbol.trim().length > 0 &&
+    callSite.calleeSymbol.trim().length > 0 &&
+    contract.calleeSymbol === callSite.calleeSymbol &&
     Number.isInteger(contract.parameterIndex) &&
-    contract.parameterIndex >= 0,
+    contract.parameterIndex >= 0 &&
+    Number.isInteger(callSite.argumentIndex) &&
+    callSite.argumentIndex >= 0 &&
+    contract.parameterIndex === callSite.argumentIndex,
   );
 }
 

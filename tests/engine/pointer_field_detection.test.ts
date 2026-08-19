@@ -13,12 +13,14 @@ const node = (
   ops: string[] = [],
   hasValidDereference = false,
   verifiedPointerContract?: { calleeSymbol: string; parameterIndex: number },
+  verifiedPointerCallSite?: { calleeSymbol: string; argumentIndex: number },
 ): ProvenanceNode => ({
   sourceKind,
   intermediateOps: ops,
   sinkKinds: new Set(sinks),
   hasValidDereference,
   verifiedPointerContract,
+  verifiedPointerCallSite,
 });
 
 test('TEST_01: global symbol provenance plus verified dereference is a pointer', () => {
@@ -131,11 +133,12 @@ test('TEST_13: call argument without a formal pointer contract stays UNKNOWN', (
   assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
 });
 
-test('TEST_14: call argument with an exact pointer contract is a pointer', () => {
+test('TEST_14: call argument with an exact pointer contract and matching call site is a pointer', () => {
   const result = PointerFieldDetector.evaluateField(0x34, 4, node(
     ProvenanceSourceKind.PARAM_POINTER,
     [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
     { calleeSymbol: 'foo', parameterIndex: 1 },
+    { calleeSymbol: 'foo', argumentIndex: 1 },
   ));
   assert.equal(result.isPointer, true);
   assert.equal(result.targetType, 'void*');
@@ -173,6 +176,7 @@ test('TEST_18: empty callee symbol does not establish a pointer contract', () =>
     ProvenanceSourceKind.PARAM_POINTER,
     [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
     { calleeSymbol: '   ', parameterIndex: 0 },
+    { calleeSymbol: 'foo', argumentIndex: 0 },
   ));
   assert.equal(result.isPointer, false);
   assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
@@ -183,6 +187,7 @@ test('TEST_19: negative parameter index does not establish a pointer contract', 
     ProvenanceSourceKind.PARAM_POINTER,
     [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
     { calleeSymbol: 'foo', parameterIndex: -1 },
+    { calleeSymbol: 'foo', argumentIndex: -1 },
   ));
   assert.equal(result.isPointer, false);
   assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
@@ -193,7 +198,52 @@ test('TEST_20: non-integer parameter index does not establish a pointer contract
     ProvenanceSourceKind.PARAM_POINTER,
     [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
     { calleeSymbol: 'foo', parameterIndex: 1.5 },
+    { calleeSymbol: 'foo', argumentIndex: 1.5 },
   ));
   assert.equal(result.isPointer, false);
   assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
+});
+
+test('TEST_21: matching contract but mismatched callee call site stays UNKNOWN', () => {
+  const result = PointerFieldDetector.evaluateField(0x4c, 4, node(
+    ProvenanceSourceKind.PARAM_POINTER,
+    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
+    { calleeSymbol: 'foo', parameterIndex: 1 },
+    { calleeSymbol: 'bar', argumentIndex: 1 },
+  ));
+  assert.equal(result.isPointer, false);
+  assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
+});
+
+test('TEST_22: matching callee but mismatched argument index stays UNKNOWN', () => {
+  const result = PointerFieldDetector.evaluateField(0x50, 4, node(
+    ProvenanceSourceKind.PARAM_POINTER,
+    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
+    { calleeSymbol: 'foo', parameterIndex: 1 },
+    { calleeSymbol: 'foo', argumentIndex: 0 },
+  ));
+  assert.equal(result.isPointer, false);
+  assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
+});
+
+test('TEST_23: call-site without a contract stays UNKNOWN', () => {
+  const result = PointerFieldDetector.evaluateField(0x54, 4, node(
+    ProvenanceSourceKind.PARAM_POINTER,
+    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
+    undefined,
+    { calleeSymbol: 'foo', argumentIndex: 0 },
+  ));
+  assert.equal(result.isPointer, false);
+  assert.equal(result.rejectionReason, 'UNVERIFIED_POINTER_CONTRACT');
+});
+
+test('TEST_24: exact contract and call site accept argument zero', () => {
+  const result = PointerFieldDetector.evaluateField(0x58, 4, node(
+    ProvenanceSourceKind.PARAM_POINTER,
+    [ProvenanceSinkKind.CALL_ARGUMENT_POINTER], [], false,
+    { calleeSymbol: 'foo', parameterIndex: 0 },
+    { calleeSymbol: 'foo', argumentIndex: 0 },
+  ));
+  assert.equal(result.isPointer, true);
+  assert.equal(result.targetType, 'void*');
 });
