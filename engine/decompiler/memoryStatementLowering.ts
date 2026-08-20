@@ -23,7 +23,7 @@ function renderBase(expr: MicroCExpr): string {
 }
 
 function lowerValue(expr: MicroCExpr): CExpr {
-  if (expr.kind === 'value') return { kind: 'variable', name: expr.name };
-  if (expr.kind === 'const') return { kind: 'literal', value: expr.value, type: 'uint32_t' };
-  return { kind: 'variable', name: 'unknown' };
+  if (expr.kind === 'value') return { kind: 'variable', name: expr.name } as unknown as CExpr;
+  if (expr.kind === 'const') return { kind: 'literal', value: expr.value, type: 'uint32_t' } as unknown as CExpr;
+  return { kind: 'variable', name: 'unknown' } as unknown as CExpr;
 }
