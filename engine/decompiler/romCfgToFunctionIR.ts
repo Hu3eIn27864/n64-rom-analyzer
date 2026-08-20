@@ -53,5 +53,5 @@ export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunct
   });
 
   const functionIR = liftBasicBlocks(cfg.entry.address >>> 0, blocks);
-  return { functionIR: { ...functionIR, entryBlockId: 0, blocks: functionIR.blocks.map((block, index) => ({ ...block, id: index })) }, blockCount: blocks.length, instructionCount: cfg.instructionCount };
+  return { functionIR, blockCount: blocks.length, instructionCount: cfg.instructionCount };
 }
