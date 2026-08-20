@@ -11,30 +11,30 @@ function expressionValues(e: MicroCExpr, values: Set<string>): void { switch (e.
 function definitionExpressions(o: MicroCOperation): MicroCExpr[] { if (o.kind === 'assign') return [o.value]; if (o.kind === 'load') return [o.address]; if (o.kind === 'store') return [o.address, o.value]; if (o.kind === 'call') return [...o.args]; return []; }
 type MemoryRange = { address: number; size: 1 | 2 | 4 | 8 };
 function constantAddress(e: MicroCExpr): number | undefined { return e.kind === 'const' ? e.value >>> 0 : undefined; }
+function addressKey(e: MicroCExpr): string { return JSON.stringify(e); }
 function overlaps(a: MemoryRange, b: MemoryRange): boolean { const aEnd = a.address + a.size - 1, bEnd = b.address + b.size - 1; return a.address <= bEnd && b.address <= aEnd; }
 function contains(container: MemoryRange, value: MemoryRange): boolean { return container.address <= value.address && container.address + container.size >= value.address + value.size; }
 function coherentWithKnownStores(load: MemoryRange, stores: MemoryRange[]): boolean { for (const store of stores) { if (!overlaps(store, load)) continue; if (!contains(store, load)) return false; } return true; }
 function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
-  const available = new Set(phiTargets); const stores: MemoryRange[] = []; let unknownStore = false;
+  const available = new Set(phiTargets); const stores: MemoryRange[] = []; const provenAddresses = new Map<string, 1 | 2 | 4 | 8>(); let unknownStore = false;
   for (const o of operations) {
     const target = definitionTarget(o); const isPhiTarget = target !== undefined && phiTargets.has(target); const referenced = new Set<string>(); for (const e of definitionExpressions(o)) expressionValues(e, referenced);
     for (const value of referenced) if (!available.has(value)) { const kind = isPhiTarget ? 'Phi dependency' : 'memory/SSA dependency'; throw new Error(`multi-phi lowering found unresolved ${kind} ${value} in block ${blockId}${target ? ` while defining ${target}` : ''}`); }
-    if (o.kind === 'call') { stores.length = 0; unknownStore = true; }
+    if (o.kind === 'call') { stores.length = 0; provenAddresses.clear(); unknownStore = true; }
     if (o.kind === 'load') {
       const address = constantAddress(o.address);
-      const matchingStore = address === undefined ? undefined : stores.find((s) => s.address === address && s.size >= o.size);
-      if (matchingStore && !unknownStore) { if (target) available.add(target); continue; }
+      const exactSize = provenAddresses.get(addressKey(o.address));
+      const matchingStore = address === undefined ? undefined : stores.find(s => s.address === address && s.size >= o.size);
+      if (!unknownStore && ((exactSize !== undefined && exactSize >= o.size) || matchingStore)) { if (target) available.add(target); continue; }
       if (address === undefined) {
-        if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
-        if (stores.length > 0) {
-          if (target) available.add(target);
-          continue;
-        }
+        if (!unknownStore && exactSize !== undefined && exactSize >= o.size) { if (target) available.add(target); continue; }
         throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       }
-      if (address !== undefined) { const loadRange = { address, size: o.size } satisfies MemoryRange; if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`); if (!coherentWithKnownStores(loadRange, stores)) throw new Error(`multi-phi lowering cannot prove memory coherence for overlapping load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`); }
+      const loadRange = { address, size: o.size } satisfies MemoryRange;
+      if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+      if (!coherentWithKnownStores(loadRange, stores)) throw new Error(`multi-phi lowering cannot prove memory coherence for overlapping load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
     }
-    if (o.kind === 'store') { const address = constantAddress(o.address); if (address === undefined) unknownStore = true; else stores.push({ address, size: o.size }); }
+    if (o.kind === 'store') { const address = constantAddress(o.address); if (address === undefined) { provenAddresses.set(addressKey(o.address), o.size); } else { stores.push({ address, size: o.size }); provenAddresses.set(addressKey(o.address), o.size); } }
     if (target) available.add(target);
   }
   return available;
