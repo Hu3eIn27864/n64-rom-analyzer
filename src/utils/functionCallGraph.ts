@@ -1,0 +1,3 @@
+export interface FunctionCallEdge { readonly caller:string;readonly callee:string;readonly authoritative:boolean; }
+export interface FunctionCallGraph { readonly functions:readonly string[];readonly edges:readonly FunctionCallEdge[];readonly authoritative:boolean; }
+export function createFunctionCallGraph(functions:readonly string[],edges:readonly FunctionCallEdge[]):FunctionCallGraph { const names=[...new Set(functions.map(x=>x.trim()).filter(Boolean))].sort();const validEdges=edges.filter(e=>e.authoritative&&names.includes(e.caller)&&names.includes(e.callee));return {functions:names,edges:validEdges,authoritative:validEdges.length===edges.length}; }
