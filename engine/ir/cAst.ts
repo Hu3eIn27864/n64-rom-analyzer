@@ -32,9 +32,7 @@ export interface CFunction {
   body: CStmt[];
 }
 
-export interface CProgram {
-  functions: CFunction[];
-}
+export interface CProgram { functions: CFunction[]; }
 
 export function renderExpr(expr: CExpr): string {
   switch (expr.kind) {
@@ -45,6 +43,18 @@ export function renderExpr(expr: CExpr): string {
     case 'call': return `${expr.callee ?? 'unknown'}(${(expr.args ?? []).map(renderExpr).join(', ')})`;
     case 'cast': return `((${expr.type ?? 'unknown'})${renderExpr(expr.operand!)})`;
   }
+}
+
+function flattenBranchStatements(statements: readonly CStmt[]): CStmt[] {
+  const flattened: CStmt[] = [];
+  for (const statement of statements) {
+    if (statement.kind === 'block' && statement.body?.length === 1 && statement.body[0]?.kind === 'block') {
+      flattened.push(...flattenBranchStatements(statement.body));
+    } else {
+      flattened.push(statement);
+    }
+  }
+  return flattened;
 }
 
 export function renderStmt(stmt: CStmt, indent = ''): string {
@@ -58,7 +68,7 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
       const renderBranchBody = (branch: CStmt | undefined, branchIndent: string): string => {
         if (!branch) return `${branchIndent}    {}`;
         if (branch.kind === 'block') {
-          return (branch.body ?? []).map(s => renderStmt(s, `${branchIndent}    `)).join('\n');
+          return flattenBranchStatements(branch.body ?? []).map(s => renderStmt(s, `${branchIndent}    `)).join('\n');
         }
         return renderStmt(branch, `${branchIndent}    `);
       };
@@ -66,13 +76,13 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
       const elseText = stmt.elseBranch ? ` else\n${indent}{\n${renderBranchBody(stmt.elseBranch, indent)}\n${indent}}` : '';
       return `${indent}if (${renderExpr(stmt.condition!)})\n${indent}{\n${thenText}\n${indent}}${elseText}`;
     }
-    case 'while': return `${indent}while (${renderExpr(stmt.condition!)})\n${indent}{\n${(stmt.body ?? []).map(s => renderStmt(s, `${indent}    `)).join('\n')}\n${indent}}`;
+    case 'while': return `${indent}while (${renderExpr(stmt.condition!)})\n${indent}{\n${flattenBranchStatements(stmt.body ?? []).map(s => renderStmt(s, `${indent}    `)).join('\n')}\n${indent}}`;
     case 'block': return `${indent}{\n${(stmt.body ?? []).map(s => renderStmt(s, `${indent}    `)).join('\n')}\n${indent}}`;
   }
 }
 
 export function renderFunction(fn: CFunction): string {
-  const params = fn.parameters.length === 0 ? 'void' : fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
+  const params = fn.parameters.length === 0 ? '()' : fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
   const body = fn.body.map(stmt => renderStmt(stmt, '    ')).join('\n');
   return `${fn.returnType} ${fn.name}(${params})\n{\n${body}\n}`;
 }
