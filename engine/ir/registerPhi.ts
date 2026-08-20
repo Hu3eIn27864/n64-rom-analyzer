@@ -13,21 +13,26 @@ export interface MaterializedPhi {
 /** Materialize only proven conflicting incoming register definitions. */
 export function materializeRegisterPhi(
   candidate: RegisterPhiCandidate,
+  incomingValues: readonly any[] = candidate.incoming,
 ): MaterializedPhi {
-  if (candidate.incoming.length < 2) {
+  if (incomingValues.length < 2) {
     throw new Error(`phi for ${candidate.register} requires at least two incoming values`);
   }
-  const incoming = [...new Set(candidate.incoming)];
+  const incoming = [...new Set(incomingValues)];
   if (incoming.length < 2) {
     throw new Error(`phi for ${candidate.register} has no real merge`);
   }
-  if (incoming.some((value) => value.trim().length === 0)) {
+  if (incoming.some((value) => String(value).trim().length === 0)) {
     throw new Error(`phi for ${candidate.register} contains an empty incoming value`);
   }
 
+  const args = incoming.map((value) => ({
+    kind: 'value' as const,
+    name: typeof value === 'string' ? value : value?.name ?? String(value),
+  }));
   const inputs: Record<number, MicroCExpr> = {};
-  incoming.forEach((val, idx) => {
-    inputs[idx] = { kind: 'value', name: String(val) };
+  args.forEach((arg, idx) => {
+    inputs[idx] = arg;
   });
 
   return {
@@ -35,8 +40,9 @@ export function materializeRegisterPhi(
     operation: {
       kind: 'phi',
       target: candidate.register,
+      args,
       inputs,
-    },
+    } as any,
   };
 }
 
