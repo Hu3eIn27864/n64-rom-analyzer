@@ -1,0 +1,2 @@
+export interface ControlFlowCondition { readonly branchId:string; readonly expressionId:string; readonly whenTrue:string; readonly whenFalse:string; readonly authoritative:boolean; }
+export function normalizeControlFlowCondition(value:ControlFlowCondition):ControlFlowCondition|undefined { if(!value.branchId.trim()||!value.expressionId.trim()||!value.authoritative)return undefined;return {...value,branchId:value.branchId.trim(),expressionId:value.expressionId.trim(),whenTrue:value.whenTrue.trim(),whenFalse:value.whenFalse.trim()}; }
