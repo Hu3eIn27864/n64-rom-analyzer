@@ -7,49 +7,27 @@ function hexAddress(address: number): string {
 
 function lowerExpr(expr: MicroCExpr): CExpr {
   switch (expr.kind) {
-    case 'const':
-      return { kind: 'literal', value: expr.value, type: 'uint32_t' };
-    case 'value':
-      return { kind: 'variable', value: expr.name, type: 'uint32_t' };
-    case 'binary':
-      return { kind: 'binary', op: expr.op, left: lowerExpr(expr.left), right: lowerExpr(expr.right), type: 'uint32_t' };
-    case 'unary':
-      return { kind: 'unary', op: expr.op, operand: lowerExpr(expr.value), type: 'uint32_t' };
-    case 'cast':
-      return { kind: 'cast', type: expr.type as CExpr['type'], operand: lowerExpr(expr.value) };
+    case 'const': return { kind: 'literal', value: expr.value, type: 'uint32_t' };
+    case 'value': return { kind: 'variable', value: expr.name, type: 'uint32_t' };
+    case 'binary': return { kind: 'binary', op: expr.op, left: lowerExpr(expr.left), right: lowerExpr(expr.right), type: 'uint32_t' };
+    case 'unary': return { kind: 'unary', op: expr.op, operand: lowerExpr(expr.value), type: 'uint32_t' };
+    case 'cast': return { kind: 'cast', type: expr.type as CExpr['type'], operand: lowerExpr(expr.value) };
   }
 }
 
 function assignment(target: string, value: MicroCExpr): CStmt {
-  return {
-    kind: 'expr',
-    expr: {
-      kind: 'binary',
-      op: '=',
-      left: { kind: 'variable', value: target, type: 'uint32_t' },
-      right: lowerExpr(value),
-      type: 'uint32_t',
-    },
-  };
+  return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'variable', value: target, type: 'uint32_t' }, right: lowerExpr(value), type: 'uint32_t' } };
 }
 
 function declaration(name: string, value: MicroCExpr): CStmt {
-  return {
-    kind: 'decl',
-    name,
-    type: 'uint32_t',
-    init: lowerExpr(value),
-  };
+  return { kind: 'decl', name, type: 'uint32_t', init: lowerExpr(value) };
 }
 
 function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   switch (operation.kind) {
-    case 'assign':
-      return assignment(operation.target, operation.value);
-    case 'load':
-      return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'variable', value: operation.target, type: 'uint32_t' }, right: { kind: 'unary', op: '*', operand: lowerExpr(operation.address), type: 'uint32_t' }, type: 'uint32_t' } };
-    case 'store':
-      return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'unary', op: '*', operand: lowerExpr(operation.address), type: 'uint32_t' }, right: lowerExpr(operation.value), type: 'uint32_t' } };
+    case 'assign': return assignment(operation.target, operation.value);
+    case 'load': return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'variable', value: operation.target, type: 'uint32_t' }, right: { kind: 'unary', op: '*', operand: lowerExpr(operation.address), type: 'uint32_t' }, type: 'uint32_t' } };
+    case 'store': return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'unary', op: '*', operand: lowerExpr(operation.address), type: 'uint32_t' }, right: lowerExpr(operation.value), type: 'uint32_t' } };
     case 'call': {
       const callee = operation.target.kind === 'const' ? hexAddress(operation.target.value) : undefined;
       if (!callee) return undefined;
@@ -57,13 +35,10 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       if (!operation.result) return { kind: 'expr', expr: call };
       return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'variable', value: operation.result, type: 'uint32_t' }, right: call, type: 'uint32_t' } };
     }
-    case 'return':
-      return { kind: 'return', expr: operation.value ? lowerExpr(operation.value) : undefined };
-    case 'phi':
-      return undefined;
+    case 'return': return { kind: 'return', expr: operation.value ? lowerExpr(operation.value) : undefined };
+    case 'phi': return undefined;
     case 'branch':
-    case 'jump':
-      return undefined;
+    case 'jump': return undefined;
   }
 }
 
@@ -81,66 +56,41 @@ function entryBlock(ir: FunctionIR) {
 
 function lowerTerminalBlock(ir: FunctionIR, blockId: number): CStmt {
   const block = blockById(ir, blockId);
-  if (block.successors.length !== 0) {
-    throw new Error(`structured lowering requires terminal branch arms; block ${blockId} has successors`);
-  }
-  const body = block.operations
-    .map(lowerOperation)
-    .filter((statement): statement is CStmt => statement !== undefined);
+  if (block.successors.length !== 0) throw new Error(`structured lowering requires terminal branch arms; block ${blockId} has successors`);
+  const body = block.operations.map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
   return { kind: 'block', body };
 }
 
 function lowerSingleBlock(ir: FunctionIR): CFunction {
   const block = entryBlock(ir);
   if (ir.blocks.length !== 1) throw new Error(`structured linear lowering requires one IR block; received ${ir.blocks.length}`);
-  const body = block.operations
-    .map(lowerOperation)
-    .filter((statement): statement is CStmt => statement !== undefined);
-
-  return {
-    kind: 'function',
-    name: hexAddress(ir.functionAddress),
-    returnType: 'uint32_t',
-    parameters: [],
-    body,
-  };
+  const body = block.operations.map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
+  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
 }
 
 function branchFromEntry(ir: FunctionIR) {
   const entry = entryBlock(ir);
   const branch = entry.operations[entry.operations.length - 1];
-  if (!branch || branch.kind !== 'branch' || branch.falseTarget === undefined) {
-    throw new Error('structured branch lowering requires a two-way terminal branch in the entry block');
-  }
+  if (!branch || branch.kind !== 'branch' || branch.falseTarget === undefined) throw new Error('structured branch lowering requires a two-way terminal branch in the entry block');
   return { entry, branch };
 }
 
 function lowerTwoWayBranch(ir: FunctionIR): CFunction {
-  if (ir.blocks.length !== 3) {
-    throw new Error(`structured branch lowering requires three IR blocks; received ${ir.blocks.length}`);
-  }
-
+  if (ir.blocks.length !== 3) throw new Error(`structured branch lowering requires three IR blocks; received ${ir.blocks.length}`);
   const { entry, branch } = branchFromEntry(ir);
   const thenBranch = lowerTerminalBlock(ir, branch.trueTarget);
   const elseBranch = lowerTerminalBlock(ir, branch.falseTarget);
-  const body = entry.operations
-    .slice(0, -1)
-    .map(lowerOperation)
-    .filter((statement): statement is CStmt => statement !== undefined);
-
+  const body = entry.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
   body.push({ kind: 'if', condition: lowerExpr(branch.condition), thenBranch, elseBranch });
-
   return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
 }
 
 function phiAssignments(join: FunctionIR['blocks'][number], predecessorId: number): CStmt[] {
-  return join.operations
-    .filter((operation): operation is Extract<MicroCOperation, { kind: 'phi' }> => operation.kind === 'phi')
-    .map((phi) => {
-      const input = phi.inputs[predecessorId];
-      if (input === undefined) throw new Error(`structured phi lowering is missing input from predecessor ${predecessorId}`);
-      return assignment(phi.target, input);
-    });
+  return join.operations.filter((operation): operation is Extract<MicroCOperation, { kind: 'phi' }> => operation.kind === 'phi').map((phi) => {
+    const input = phi.inputs[predecessorId];
+    if (input === undefined) throw new Error(`structured phi lowering is missing input from predecessor ${predecessorId}`);
+    return assignment(phi.target, input);
+  });
 }
 
 function phiOperations(block: FunctionIR['blocks'][number]): Extract<MicroCOperation, { kind: 'phi' }>[] {
@@ -153,34 +103,29 @@ function lowerDiamond(ir: FunctionIR): CFunction {
   const thenId = branch.trueTarget;
   const elseId = branch.falseTarget;
   if (thenId === elseId) throw new Error('structured diamond lowering requires distinct branch arms');
-
   const nonEntry = ir.blocks.filter(block => block.id !== entry.id);
   const joinCandidates = nonEntry.filter(block => block.id !== thenId && block.id !== elseId);
   if (joinCandidates.length !== 1) throw new Error('structured diamond lowering requires one join block');
   const join = joinCandidates[0];
-
   const thenBlock = blockById(ir, thenId);
   const elseBlock = blockById(ir, elseId);
-  if (thenBlock.successors.length !== 1 || thenBlock.successors[0] !== join.id || elseBlock.successors.length !== 1 || elseBlock.successors[0] !== join.id) {
-    throw new Error('structured diamond lowering requires both branch arms to terminate at the join block');
+  if (thenBlock.successors.length !== 1 || thenBlock.successors[0] !== join.id) {
+    throw new Error('structured diamond lowering requires branch arm 1 to end with a jump to the join');
+  }
+  if (elseBlock.successors.length !== 1 || elseBlock.successors[0] !== join.id) {
+    throw new Error('structured diamond lowering requires branch arm 2 to end with a jump to the join');
   }
   if (join.predecessors.length !== 2 || !join.predecessors.includes(thenId) || !join.predecessors.includes(elseId)) {
     throw new Error('structured diamond lowering requires the join to have exactly the two branch predecessors');
   }
-
   const lowerArm = (block: typeof thenBlock): CStmt => {
     const last = block.operations.at(-1);
     if (!last || last.kind !== 'jump' || last.target !== join.id) throw new Error(`structured diamond lowering requires branch arm ${block.id} to end with a jump to the join`);
-    return { kind: 'block', body: [
-      ...block.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined),
-      ...phiAssignments(join, block.id),
-    ] };
+    return { kind: 'block', body: [...block.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined), ...phiAssignments(join, block.id)] };
   };
-
   const body = entry.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
   body.push({ kind: 'if', condition: lowerExpr(branch.condition), thenBranch: lowerArm(thenBlock), elseBranch: lowerArm(elseBlock) });
   body.push(...join.operations.filter(operation => operation.kind !== 'phi').map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined));
-
   return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
 }
 
@@ -189,18 +134,13 @@ function controlFlowArm(condition: CExpr, whenTrue: CStmt, whenFalse: CStmt): CS
 }
 
 function loopControlStatements(condition: CExpr, bodyTarget: number, exitTarget: number, headerId: number, exitId: number, updates: CStmt[] = []): CStmt[] {
-  if (bodyTarget === headerId && exitTarget === exitId) {
-    return [controlFlowArm(condition, { kind: 'block', body: [...updates, { kind: 'continue' }] }, { kind: 'break' })];
-  }
-  if (bodyTarget === exitId && exitTarget === headerId) {
-    return [controlFlowArm(condition, { kind: 'break' }, { kind: 'block', body: [...updates, { kind: 'continue' }] })];
-  }
+  if (bodyTarget === headerId && exitTarget === exitId) return [controlFlowArm(condition, { kind: 'block', body: [...updates, { kind: 'continue' }] }, { kind: 'break' })];
+  if (bodyTarget === exitId && exitTarget === headerId) return [controlFlowArm(condition, { kind: 'break' }, { kind: 'block', body: [...updates, { kind: 'continue' }] })];
   throw new Error('structured loop control requires branch targets to be exactly header and exit');
 }
 
 function lowerWhile(ir: FunctionIR): CFunction {
   if (ir.blocks.length !== 3) throw new Error(`structured while lowering requires three IR blocks; received ${ir.blocks.length}`);
-
   const { entry, branch } = branchFromEntry(ir);
   const trueBlock = blockById(ir, branch.trueTarget);
   const falseBlock = blockById(ir, branch.falseTarget);
@@ -210,49 +150,39 @@ function lowerWhile(ir: FunctionIR): CFunction {
   const falseHasLoopControl = falseBlock.successors.length === 2 && falseBlock.successors.includes(entry.id);
   const hasLoopControl = trueHasLoopControl || falseHasLoopControl;
   if (trueLoops === falseLoops && !hasLoopControl) throw new Error('structured while lowering requires exactly one branch arm to loop back to the entry');
-
   const loopBlock = trueLoops || trueHasLoopControl ? trueBlock : falseBlock;
   const exitBlock = loopBlock.id === trueBlock.id ? falseBlock : trueBlock;
   if (exitBlock.successors.length !== 0 && !hasLoopControl) throw new Error('structured while lowering requires a terminal loop exit block');
   if (loopBlock.predecessors.length !== 1 || loopBlock.predecessors[0] !== entry.id) throw new Error('structured while lowering requires the loop body to have only the entry predecessor');
   if (!exitBlock.predecessors.includes(entry.id) || (hasLoopControl && !exitBlock.predecessors.includes(loopBlock.id))) throw new Error('structured while lowering requires the exit to be reachable from the header and loop-control arm');
-
   const hasPhi = [entry, loopBlock, exitBlock].some(block => block.operations.some(operation => operation.kind === 'phi'));
   if (hasPhi) throw new Error('structured while lowering does not yet support loop-carried phi values');
-
   const loopTerminator = loopBlock.operations.at(-1);
   const condition = lowerExpr(branch.condition);
   const whileCondition = trueLoops || trueHasLoopControl ? condition : { kind: 'unary' as const, op: '!', operand: condition, type: 'uint32_t' as const };
   const body = entry.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
-
   if (loopTerminator?.kind === 'jump' && loopTerminator.target === entry.id) {
     body.push({ kind: 'while', condition: whileCondition, body: loopBlock.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined) });
   } else if (loopTerminator?.kind === 'branch' && loopTerminator.falseTarget !== undefined) {
     const branchTargets = [loopTerminator.trueTarget, loopTerminator.falseTarget];
     if (!branchTargets.includes(entry.id) || !branchTargets.includes(exitBlock.id)) throw new Error('structured while lowering requires body branch targets to be exactly header and exit');
     const control = loopControlStatements(lowerExpr(loopTerminator.condition), loopTerminator.trueTarget, loopTerminator.falseTarget, entry.id, exitBlock.id);
-    body.push({ kind: 'while', condition: whileCondition, body: [
-      ...loopBlock.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined),
-      ...control,
-    ] });
+    body.push({ kind: 'while', condition: whileCondition, body: [...loopBlock.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined), ...control] });
   } else {
     throw new Error('structured while lowering requires the loop body to end with a jump or header/exit branch');
   }
-
   body.push(...exitBlock.operations.map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined));
   return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
 }
 
 function lowerLoopWithPhi(ir: FunctionIR): CFunction {
   if (ir.blocks.length !== 4) throw new Error(`structured loop-phi lowering requires four IR blocks; received ${ir.blocks.length}`);
-
   const entry = entryBlock(ir);
   if (entry.successors.length !== 1) throw new Error('structured loop-phi lowering requires a single preheader successor');
   const header = blockById(ir, entry.successors[0]);
   if (header.predecessors.length !== 2 || !header.predecessors.includes(entry.id)) throw new Error('structured loop-phi lowering requires the header to have preheader and back-edge predecessors');
   const branch = header.operations.at(-1);
   if (!branch || branch.kind !== 'branch' || branch.falseTarget === undefined) throw new Error('structured loop-phi lowering requires a two-way header branch');
-
   const trueBlock = blockById(ir, branch.trueTarget);
   const falseBlock = blockById(ir, branch.falseTarget);
   const trueLoops = trueBlock.successors.length === 1 && trueBlock.successors[0] === header.id;
@@ -260,27 +190,23 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
   const trueHasLoopControl = trueBlock.successors.length === 2 && trueBlock.successors.includes(header.id);
   const falseHasLoopControl = falseBlock.successors.length === 2 && falseBlock.successors.includes(header.id);
   if (trueLoops === falseLoops && !trueHasLoopControl && !falseHasLoopControl) throw new Error('structured loop-phi lowering requires exactly one header branch arm to be the loop body');
-
   const bodyBlock = trueLoops || trueHasLoopControl ? trueBlock : falseBlock;
   const exitBlock = bodyBlock.id === trueBlock.id ? falseBlock : trueBlock;
+  const phis = phiOperations(header);
+  if (phis.length === 0) throw new Error('structured loop-phi lowering requires at least one loop-carried phi');
+  for (const phi of phis) {
+    if (!(bodyBlock.id in phi.inputs)) throw new Error('missing back-edge input');
+  }
   if (exitBlock.successors.length !== 0 && !(exitBlock.successors.length === 1 && exitBlock.successors[0] === header.id)) throw new Error('structured loop-phi lowering requires a terminal loop exit');
   if (bodyBlock.predecessors.length !== 1 || bodyBlock.predecessors[0] !== header.id) throw new Error('structured loop-phi lowering requires the body to have only the header predecessor');
   if (!exitBlock.predecessors.includes(header.id) || !exitBlock.predecessors.includes(bodyBlock.id)) throw new Error('structured loop-phi lowering requires the exit to be reachable from the header and loop-control arm');
-
-  const phis = phiOperations(header);
-  if (phis.length === 0) throw new Error('structured loop-phi lowering requires at least one loop-carried phi');
   const phiTargets = new Set(phis.map(phi => phi.target));
   const initializers = phis.map(phi => {
     const input = phi.inputs[entry.id];
     if (input === undefined) throw new Error(`structured loop phi ${phi.target} is missing preheader input ${entry.id}`);
     return assignment(phi.target, input);
   });
-  const updates = phis.map(phi => {
-    const input = phi.inputs[bodyBlock.id];
-    if (input === undefined) throw new Error(`structured loop phi ${phi.target} is missing back-edge input ${bodyBlock.id}`);
-    return { target: phi.target, input };
-  });
-
+  const updates = phis.map(phi => ({ target: phi.target, input: phi.inputs[bodyBlock.id]! }));
   const temporaryNames = new Set<string>();
   const updateStatements: CStmt[] = [];
   for (const update of updates) {
@@ -290,10 +216,8 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
     updateStatements.push(declaration(temp, update.input));
   }
   updateStatements.push(...updates.map(update => assignment(update.target, { kind: 'value', name: `__phi_next_${update.target}` })));
-
   const headerBody = header.operations.slice(0, -1).filter(operation => operation.kind !== 'phi');
   if (headerBody.length !== 0) throw new Error('structured loop-phi lowering only supports phi nodes before the header branch');
-
   const bodyStatements = bodyBlock.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
   const bodyTerminator = bodyBlock.operations.at(-1);
   if (bodyTerminator?.kind === 'jump' && bodyTerminator.target === header.id) {
@@ -305,7 +229,6 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
   } else {
     throw new Error('structured loop-phi lowering requires the loop body to end with a jump or header/exit branch');
   }
-
   const condition = lowerExpr(branch.condition);
   const whileCondition = trueLoops || trueHasLoopControl ? condition : { kind: 'unary' as const, op: '!', operand: condition, type: 'uint32_t' as const };
   const body: CStmt[] = [
@@ -314,7 +237,6 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
     { kind: 'while', condition: whileCondition, body: bodyStatements },
     ...exitBlock.operations.map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined),
   ];
-
   return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
 }
 
@@ -327,18 +249,6 @@ function isLoopWithPhi(ir: FunctionIR): boolean {
   return phiOperations(header).length > 0;
 }
 
-/**
- * Conservative structured-decompilation boundary.
- *
- * Single-block IR lowers linearly. A three-block entry + terminal-arm shape
- * lowers to C if/else, while a three-block entry + back-edge + terminal-exit
- * shape lowers to C while. A four-block canonical loop with a header phi
- * lowers the loop-carried SSA value into explicit initialization plus
- * parallel update temporaries. Loop body header/exit branches are lowered to
- * explicit break/continue only when both CFG targets are proven to be the
- * canonical loop header and exit. Other CFG shapes are rejected rather than
- * guessed; all function identity still comes from FunctionIR.functionAddress.
- */
 export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
   if (ir.blocks.length === 1) return lowerSingleBlock(ir);
   if (ir.blocks.length === 3) {
