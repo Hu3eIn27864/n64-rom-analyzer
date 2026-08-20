@@ -1,0 +1,2 @@
+export interface CallParameterType { readonly callee:string; readonly parameterIndex:number; readonly type:string; readonly authoritative:boolean; }
+export function normalizeCallParameterType(value:CallParameterType):CallParameterType|undefined { if(!value.callee.trim()||value.parameterIndex<0||!value.authoritative)return undefined;return {...value,callee:value.callee.trim(),type:value.type.trim()||'UNKNOWN'}; }
