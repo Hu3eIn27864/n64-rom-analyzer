@@ -1,0 +1,2 @@
+export interface LoopCondition { readonly loopId:string; readonly conditionId:string; readonly bodyTarget:string; readonly exitTarget:string; readonly authoritative:boolean; }
+export function normalizeLoopCondition(value:LoopCondition):LoopCondition|undefined { if(!value.loopId.trim()||!value.conditionId.trim()||!value.bodyTarget.trim()||!value.exitTarget.trim()||!value.authoritative)return undefined;return {...value,loopId:value.loopId.trim(),conditionId:value.conditionId.trim(),bodyTarget:value.bodyTarget.trim(),exitTarget:value.exitTarget.trim()}; }
