@@ -2,61 +2,6 @@ import type { DecodedRomFunctionCfg, RomFunctionBasicBlock } from '../mips/romFu
 import { liftBasicBlocks } from '../ir/lifter';
 import type { FunctionIR } from '../ir/microC';
 import type { BasicBlock, TerminatorKind } from '../model/basicBlock';
-
-export interface RomCfgFunctionIRResult {
-  readonly functionIR: FunctionIR;
-  readonly blockCount: number;
-  readonly instructionCount: number;
-}
-
-function terminator(block: RomFunctionBasicBlock): TerminatorKind {
-  const last = block.instructions.at(-1);
-  if (!last) return 'unknown';
-  if (last.isReturn) return 'return';
-  if (last.isConditionalBranch) return 'conditional-branch';
-  if (last.isJump && last.isCall) return 'call';
-  if (last.isJump) return last.targetAddress === undefined ? 'indirect-jump' : 'jump';
-  return 'fallthrough';
-}
-
-export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunctionIRResult {
-  if (cfg.blocks.length === 0) throw new Error('cannot lower an empty ROM CFG');
-  if (cfg.instructionCount <= 0) throw new Error('ROM CFG contains no decoded instructions');
-
-  const orderedBlocks = [...cfg.blocks];
-  const entryIndex = orderedBlocks.findIndex(block => (block.startAddress >>> 0) === (cfg.entry.address >>> 0));
-  if (entryIndex < 0) throw new Error(`ROM CFG has no recovered entry block at 0x${(cfg.entry.address >>> 0).toString(16)}`);
-  if (entryIndex !== 0) {
-    const [entryBlock] = orderedBlocks.splice(entryIndex, 1);
-    orderedBlocks.unshift(entryBlock);
-  }
-
-  const idByAddress = new Map(orderedBlocks.map((block, index) => [block.startAddress >>> 0, index]));
-  const successorsById = orderedBlocks.map(block => block.successors.map(address => {
-    const id = idByAddress.get(address >>> 0);
-    if (id === undefined) throw new Error(`ROM CFG successor 0x${(address >>> 0).toString(16)} has no recovered block`);
-    return id;
-  }));
-
-  const predecessors: number[][] = orderedBlocks.map(() => []);
-  successorsById.forEach((successors, id) => {
-    for (const successor of successors) predecessors[successor].push(id);
-  });
-
-  const blocks: BasicBlock[] = orderedBlocks.map((block, id) => {
-    const first = block.instructions[0];
-    const last = block.instructions.at(-1)!;
-    return {
-      id,
-      start: first.address >>> 0,
-      end: (last.address + 4) >>> 0,
-      instructions: [...block.instructions],
-      predecessors: [...predecessors[id]].sort((a, b) => a - b),
-      successors: [...successorsById[id]],
-      terminator: terminator(block),
-    };
-  });
-
-  const functionIR = liftBasicBlocks(cfg.entry.address >>> 0, blocks);
-  return { functionIR, blockCount: blocks.length, instructionCount: cfg.instructionCount };
-}
+export interface RomCfgFunctionIRResult { readonly functionIR: FunctionIR; readonly blockCount: number; readonly instructionCount: number; }
+function terminator(block: RomFunctionBasicBlock): TerminatorKind { const last = block.instructions.at(-1); if (!last) return 'unknown'; if (last.isReturn) return 'return'; if (last.isConditionalBranch) return 'conditional-branch'; if (last.isJump && last.isCall) return 'call'; if (last.isJump) return last.targetAddress === undefined ? 'indirect-jump' : 'jump'; return 'fallthrough'; }
+export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunctionIRResult { if (!cfg.blocks.length) throw new Error('cannot lower an empty ROM CFG'); if (cfg.instructionCount <= 0) throw new Error('ROM CFG contains no decoded instructions'); const orderedBlocks = [...cfg.blocks]; const entryIndex = orderedBlocks.findIndex(b => (b.startAddress >>> 0) === (cfg.entry.address >>> 0)); if (entryIndex < 0) throw new Error(`ROM CFG has no recovered entry block at 0x${(cfg.entry.address >>> 0).toString(16)}`); if (entryIndex) { const [entryBlock] = orderedBlocks.splice(entryIndex, 1); orderedBlocks.unshift(entryBlock); } const idByAddress = new Map(orderedBlocks.map((b, i) => [b.startAddress >>> 0, i])); const successorsById = orderedBlocks.map(b => b.successors.map(a => { const id = idByAddress.get(a >>> 0); if (id === undefined) throw new Error(`ROM CFG successor 0x${(a >>> 0).toString(16)} has no recovered block`); return id; })); const predecessors: number[][] = orderedBlocks.map(() => []); successorsById.forEach((ss, id) => ss.forEach(s => predecessors[s].push(id))); const blocks: BasicBlock[] = orderedBlocks.map((b, id) => { const first=b.instructions[0], last=b.instructions.at(-1)!; return { id, start:first.address>>>0, end:(last.address+4)>>>0, instructions:[...b.instructions], predecessors:[...predecessors[id]].sort((a,b)=>a-b), successors:[...successorsById[id]], terminator:terminator(b) }; }); const functionIR = liftBasicBlocks(0, blocks); return { functionIR, blockCount:blocks.length, instructionCount:cfg.instructionCount }; }
