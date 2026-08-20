@@ -1,0 +1,3 @@
+import type { TypeRecoveryCandidate } from './typeRecoveryCandidateRanking';
+export interface TypeRecoveryConsensus<T> { readonly value:T|undefined;readonly conflict:boolean;readonly authoritative:boolean; }
+export function resolveTypeRecoveryConsensus<T>(candidates:readonly TypeRecoveryCandidate<T>[]):TypeRecoveryConsensus<T> { const valid=candidates.filter(c=>c.authoritative);if(!valid.length)return {value:undefined,conflict:false,authoritative:false};const max=Math.max(...valid.map(c=>c.confidence));const strongest=valid.filter(c=>c.confidence===max);const value=strongest[0].value;const conflict=strongest.some(c=>JSON.stringify(c.value)!==JSON.stringify(value));return {value:conflict?undefined:value,conflict,authoritative:!conflict}; }
