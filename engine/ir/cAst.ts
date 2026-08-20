@@ -67,9 +67,7 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
     case 'if': {
       const renderBranchBody = (branch: CStmt | undefined, branchIndent: string): string => {
         if (!branch) return `${branchIndent}    {}`;
-        if (branch.kind === 'block') {
-          return flattenBranchStatements(branch.body ?? []).map(s => renderStmt(s, `${branchIndent}    `)).join('\n');
-        }
+        if (branch.kind === 'block') return flattenBranchStatements(branch.body ?? []).map(s => renderStmt(s, `${branchIndent}    `)).join('\n');
         return renderStmt(branch, `${branchIndent}    `);
       };
       const thenText = renderBranchBody(stmt.thenBranch, indent);
@@ -82,7 +80,7 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
 }
 
 export function renderFunction(fn: CFunction): string {
-  const params = fn.parameters.length === 0 ? '()' : fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
+  const params = fn.parameters.length === 0 ? (fn.returnType === 'void' ? '()' : 'void') : fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
   const body = fn.body.map(stmt => renderStmt(stmt, '    ')).join('\n');
   return `${fn.returnType} ${fn.name}(${params})\n{\n${body}\n}`;
 }
