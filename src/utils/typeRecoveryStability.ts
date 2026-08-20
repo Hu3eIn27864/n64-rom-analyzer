@@ -1,0 +1,2 @@
+import type { TypeRecoveryCandidate } from './typeRecoveryCandidates';
+export function isTypeRecoveryStable<T>(previous:readonly TypeRecoveryCandidate<T>[],current:readonly TypeRecoveryCandidate<T>[]):boolean{return previous.length===current.length&&previous.every((candidate,index)=>{const next=current[index];return next?.source===candidate.source&&next.strength===candidate.strength&&JSON.stringify(next.value)===JSON.stringify(candidate.value)&&next.authoritative===candidate.authoritative;});}
