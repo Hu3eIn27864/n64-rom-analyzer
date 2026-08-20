@@ -20,6 +20,7 @@ export class PrototypeRegistryRefinement {
         calleeSymbol: prototype.calleeSymbol,
         declaration: prototype.declaration,
         parameterTypes: (prototype as any).parameterTypes ?? [],
+        returnType: (prototype as any).returnType ?? 'UNKNOWN',
         refined: true,
       }));
   }
