@@ -1,0 +1,3 @@
+import type { TypeRecoveryCandidate } from './typeRecoveryCandidates';
+export interface GlobalTypePropagation<T> { readonly values:ReadonlyMap<string,T>;readonly authoritative:boolean; }
+export function propagateGlobalTypes<T>(entries:ReadonlyMap<string,readonly TypeRecoveryCandidate<T>[]>):GlobalTypePropagation<T> { const values=new Map<string,T>();let authoritative=true;for(const [name,candidates] of entries){const strongest=[...candidates].sort((a,b)=>{const rank=(s:string)=>s==='direct'?3:s==='derived'?2:1;return rank(b.strength)-rank(a.strength);});if(!strongest.length||!strongest[0].authoritative){authoritative=false;continue;}values.set(name,strongest[0].value);}return {values,authoritative}; }
