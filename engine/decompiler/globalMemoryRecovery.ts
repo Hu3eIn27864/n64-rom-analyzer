@@ -1,21 +1,14 @@
 import type { GlobalMemoryAccess } from './globalMemoryModel';
 import { normalizeGlobalMemoryAccess } from './globalMemoryModel';
 import { GlobalMemoryIndex } from './globalMemoryIndex';
+import { inferGlobalValueType, type GlobalValueType } from './globalMemoryType';
+import { aggregateGlobalUsage, type GlobalUsage } from './globalUsageIndex';
 
-export interface GlobalMemoryRecoveryResult {
-  readonly symbols: ReturnType<GlobalMemoryIndex['all']>;
-  readonly rejected: number;
-  readonly complete: boolean;
-}
+export interface TypedGlobalRecovery { readonly symbol: string; readonly kind: 'global'|'static'; readonly offsets: readonly number[]; readonly type: GlobalValueType; readonly usage: readonly GlobalUsage[]; }
 
-export function recoverGlobalMemory(accesses: readonly GlobalMemoryAccess[]): GlobalMemoryRecoveryResult {
+export function recoverTypedGlobals(accesses: readonly GlobalMemoryAccess[], usage: readonly GlobalUsage[]): readonly TypedGlobalRecovery[] {
   const index = new GlobalMemoryIndex();
-  let rejected = 0;
-  for (const access of accesses) {
-    const normalized = normalizeGlobalMemoryAccess(access);
-    if (!normalized || !normalized.authoritative) { rejected++; continue; }
-    index.add(normalized);
-  }
-  const symbols = index.all();
-  return { symbols, rejected, complete: rejected === 0 && symbols.every(symbol => symbol.kind !== 'unknown') };
+  for (const access of accesses) { const normalized = normalizeGlobalMemoryAccess(access); if (normalized?.authoritative) index.add(normalized); }
+  const usages = aggregateGlobalUsage(usage);
+  return index.all().filter(s=>s.kind==='global'||s.kind==='static').map(s=>({symbol:s.symbol, kind:s.kind, offsets:s.offsets, type:inferGlobalValueType(accesses.filter(a=>a.symbol===s.symbol)), usage:usages.filter(u=>u.globalSymbol===s.symbol)}));
 }
