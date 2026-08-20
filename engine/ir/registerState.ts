@@ -83,8 +83,10 @@ export function propagateRegisterState(functionIR: FunctionIR): RegisterStatePro
         .filter((state): state is RegisterState => state !== undefined);
       if (incoming.length === 0 && block.predecessors.length > 0) continue;
       const merged = incoming.length === 0 ? cloneState(initial) : mergeStates(incoming);
-      if (merged.phi.length > 0) phiRegisters.set(block.id, merged.phi);
-      const nextEntry = merged.state;
+      const mergedAny = merged as any;
+      const phiList: string[] = mergedAny?.phi ?? [];
+      if (phiList.length > 0) phiRegisters.set(block.id, phiList);
+      const nextEntry: Map<string, RegisterValue> = mergedAny?.state ?? (merged as Map<string, RegisterValue>);
       const nextExit = transfer(nextEntry, block.operations);
       if (JSON.stringify([...nextEntry]) !== JSON.stringify([...(entry.get(block.id) ?? new Map())])) { entry.set(block.id, nextEntry); changed = true; }
       if (JSON.stringify([...nextExit]) !== JSON.stringify([...(exit.get(block.id) ?? new Map())])) { exit.set(block.id, nextExit); changed = true; }
