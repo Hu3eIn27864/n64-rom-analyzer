@@ -55,8 +55,15 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
     case 'break': return `${indent}break;`;
     case 'continue': return `${indent}continue;`;
     case 'if': {
-      const thenText = stmt.thenBranch ? renderStmt(stmt.thenBranch, `${indent}    `) : `${indent}    {}`;
-      const elseText = stmt.elseBranch ? ` else\n${renderStmt(stmt.elseBranch, indent)}` : '';
+      const renderBranchBody = (branch: CStmt | undefined, branchIndent: string): string => {
+        if (!branch) return `${branchIndent}    {}`;
+        if (branch.kind === 'block') {
+          return (branch.body ?? []).map(s => renderStmt(s, `${branchIndent}    `)).join('\n');
+        }
+        return renderStmt(branch, `${branchIndent}    `);
+      };
+      const thenText = renderBranchBody(stmt.thenBranch, indent);
+      const elseText = stmt.elseBranch ? ` else\n${indent}{\n${renderBranchBody(stmt.elseBranch, indent)}\n${indent}}` : '';
       return `${indent}if (${renderExpr(stmt.condition!)})\n${indent}{\n${thenText}\n${indent}}${elseText}`;
     }
     case 'while': return `${indent}while (${renderExpr(stmt.condition!)})\n${indent}{\n${(stmt.body ?? []).map(s => renderStmt(s, `${indent}    `)).join('\n')}\n${indent}}`;
@@ -65,7 +72,7 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
 }
 
 export function renderFunction(fn: CFunction): string {
-  const params = fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
+  const params = fn.parameters.length === 0 ? 'void' : fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
   const body = fn.body.map(stmt => renderStmt(stmt, '    ')).join('\n');
   return `${fn.returnType} ${fn.name}(${params})\n{\n${body}\n}`;
 }
