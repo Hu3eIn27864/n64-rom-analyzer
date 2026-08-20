@@ -1,0 +1,3 @@
+import type { TypedExpressionNode,TypedExpressionEdge } from './typedExpressionTree';
+export interface TypedExpressionValidation { readonly valid:boolean; readonly conflicts:readonly string[]; }
+export function validateTypedExpressionGraph(nodes:readonly TypedExpressionNode[],edges:readonly TypedExpressionEdge[]):TypedExpressionValidation { const byParent=new Map<string,Set<string>>();for(const edge of edges){const parent=nodes.find(n=>n.id===edge.from);const child=nodes.find(n=>n.id===edge.to);if(!parent||!child)continue;const set=byParent.get(parent.id)??new Set<string>();set.add(child.type);byParent.set(parent.id,set);}const conflicts=[...byParent.entries()].filter(([,types])=>types.size>1).map(([id])=>id).sort();return {valid:conflicts.length===0,conflicts}; }
