@@ -1,0 +1,2 @@
+export interface CallExpression { readonly id:string; readonly callee:string; readonly arguments:readonly string[]; readonly returnType:string; readonly authoritative:boolean; }
+export function normalizeCallExpression(value:CallExpression):CallExpression|undefined { if(!value.id.trim()||!value.callee.trim()||!value.authoritative)return undefined;return {...value,id:value.id.trim(),callee:value.callee.trim(),arguments:value.arguments.map(a=>a.trim()),returnType:value.returnType.trim()||'UNKNOWN'}; }
