@@ -38,7 +38,9 @@ export class CallArgumentTypeRefiner {
     argument: CallArgumentValue,
     prototype: PrototypeRegistryEntry,
   ): RefinedCallArgument {
-    const parameter = prototype.parameters.find((candidate) => candidate.index === argument.argumentIndex);
+    const parameter = ((prototype as any).parameters ?? (prototype as any).parameterTypes ?? []).find(
+      (candidate: any) => candidate.index === argument.argumentIndex,
+    );
     if (!parameter || !parameter.authoritative) {
       return {
         argumentIndex: argument.argumentIndex,

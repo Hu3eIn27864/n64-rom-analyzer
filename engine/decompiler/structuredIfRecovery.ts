@@ -20,8 +20,8 @@ export function recoverIfRegions(blocks: readonly BasicBlock[], condition: CExpr
       const header = byId.get(region.header);
       if (!header || header.successors.length !== 2) return undefined;
       const [thenStart, elseStart] = header.successors;
-      const thenBlocks = reachableUntil(byId, thenStart, region.join!);
-      const elseBlocks = reachableUntil(byId, elseStart, region.join!);
+      const thenBlocks: readonly number[] = reachableUntil(byId, thenStart, region.join!);
+      const elseBlocks: readonly number[] = reachableUntil(byId, elseStart, region.join!);
       const thenBranch: CStmt = { kind: 'block', body: [] };
       const elseBranch: CStmt = { kind: 'block', body: [] };
       return {
@@ -29,7 +29,7 @@ export function recoverIfRegions(blocks: readonly BasicBlock[], condition: CExpr
         condition,
         thenBlocks,
         elseBlocks,
-        statement: { kind: 'if', condition, thenBranch, elseBranch },
+        statement: { kind: 'if' as const, condition, thenBranch, elseBranch },
       };
     })
     .filter((value): value is RecoveredIfRegion => value !== undefined);

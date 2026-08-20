@@ -10,5 +10,5 @@ export interface StructAwareMemoryStatement {
 
 export function annotateMemoryExpression(layout: StructLayout, expression: MemoryExpression): StructAwareMemoryStatement {
   const access = resolveStructFieldAccess(layout, expression);
-  return { statement: { kind: 'unknown' } as CStmt, fieldAccess: access ? formatStructFieldAccess(access) : undefined };
+  return { statement: ({ kind: 'unknown' } as unknown as CStmt), fieldAccess: access ? formatStructFieldAccess(access) : undefined };
 }

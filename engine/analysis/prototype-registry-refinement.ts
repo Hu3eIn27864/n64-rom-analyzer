@@ -13,6 +13,14 @@ export class PrototypeRegistryRefinement {
   }
 
   public static changed(before: FunctionPrototypeRegistry, after: FunctionPrototypeRegistry): readonly RefinedPrototype[] {
-    return after.list().filter((prototype) => before.get(prototype.calleeSymbol)?.declaration !== prototype.declaration);
+    return after
+      .list()
+      .filter((prototype) => before.get(prototype.calleeSymbol)?.declaration !== prototype.declaration)
+      .map((prototype) => ({
+        calleeSymbol: prototype.calleeSymbol,
+        declaration: prototype.declaration,
+        parameterTypes: (prototype as any).parameterTypes ?? [],
+        refined: true,
+      }));
   }
 }

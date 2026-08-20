@@ -18,6 +18,6 @@ export function toTypedMemoryExpression(recovered: RecoveredMemoryAccess): Typed
   const base: CExpr = { kind: 'variable', value: recovered.expression.base, type: 'pointer' };
   const address = recovered.expression.offset === 0
     ? base
-    : { kind: 'binary' as const, op: recovered.expression.offset < 0 ? '-' : '+', left: base, right: { kind: 'literal' as const, value: Math.abs(recovered.expression.offset), type: 'int32_t' } };
+    : { kind: 'binary' as const, op: recovered.expression.offset < 0 ? '-' : '+', left: base, right: { kind: 'literal' as const, value: Math.abs(recovered.expression.offset), type: 'uint32_t' as CType } };
   return { expression: { kind: 'unary', op: '*', operand: address, type: valueType(recovered.expression.value) }, type: valueType(recovered.expression.value), resolved: recovered.resolved };
 }

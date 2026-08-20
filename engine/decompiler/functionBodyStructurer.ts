@@ -8,7 +8,7 @@ export interface StructuredFunctionResult { readonly function: CFunction; readon
 export function structureFunctionBody(base: CFunction, regions: readonly ControlFlowRegion[]): StructuredFunctionResult {
   const assembled = assembleStructuredBody(regions);
   return {
-    function: { ...base, body: assembled.statements },
+    function: { ...base, body: [...assembled.statements] },
     complete: assembled.complete,
     unresolvedRegions: assembled.unresolvedRegions,
   };

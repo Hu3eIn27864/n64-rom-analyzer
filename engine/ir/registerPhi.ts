@@ -25,18 +25,19 @@ export function materializeRegisterPhi(
     throw new Error(`phi for ${candidate.register} contains an empty incoming value`);
   }
 
-  const args: MicroCExpr[] = incoming.map((value) => ({
-    kind: 'variable',
-    name: value,
-  }));
+  const inputs: Record<number, MicroCExpr> = {};
+  incoming.forEach((val, idx) => {
+    inputs[idx] = { kind: 'value', name: String(val) };
+  });
+
   return {
     register: candidate.register,
     operation: {
       kind: 'phi',
       target: candidate.register,
-      args,
+      inputs,
     },
-  } as MaterializedPhi;
+  };
 }
 
 export function materializeRegisterPhis(

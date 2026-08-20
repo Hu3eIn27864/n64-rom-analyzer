@@ -4,10 +4,12 @@ import { materializeRegisterPhi, materializeRegisterPhis } from '../../engine/ir
 
 test('materializes a proven register merge as phi', () => {
   const result = materializeRegisterPhi({ register: 't0', incoming: ['v_then', 'v_else'] });
-  assert.equal(result.operation.kind, 'phi');
-  assert.deepEqual(result.operation.args, [
-    { kind: 'variable', name: 'v_then' },
-    { kind: 'variable', name: 'v_else' },
+  const operation = result.operation;
+  assert.equal(operation.kind, 'phi');
+  if (operation.kind !== 'phi') throw new Error('expected phi operation');
+  assert.deepEqual(Object.values(operation.inputs).map((i) => (i.kind === 'value' ? i.name : i)), [
+    'v_then',
+    'v_else',
   ]);
 });
 

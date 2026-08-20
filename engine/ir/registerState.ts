@@ -45,13 +45,13 @@ function transfer(state: RegisterState, operations: readonly MicroCOperation[]):
         if (operation.target !== 'rzero') next.set(operation.target, operation.value);
         break;
       case 'load':
-        if (operation.target !== 'rzero') next.set(operation.target, operation);
+        if (operation.target !== 'rzero') next.set(operation.target, { kind: 'value', name: operation.target });
         break;
       case 'call':
-        if (operation.result && operation.result !== 'rzero') next.set(operation.result, operation);
+        if (operation.result && operation.result !== 'rzero') next.set(operation.result, { kind: 'value', name: operation.result });
         break;
       case 'phi':
-        if (operation.target !== 'rzero') next.set(operation.target, operation);
+        if (operation.target !== 'rzero') next.set(operation.target, { kind: 'value', name: operation.target });
         break;
       default:
         break;

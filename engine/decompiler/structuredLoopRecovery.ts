@@ -37,7 +37,7 @@ export function recoverLoopRegions(blocks: readonly BasicBlock[], condition: CEx
       bodyBlocks: [...body].sort((a, b) => a - b),
       ...(region.exit === undefined ? {} : { exit: region.exit }),
       condition,
-      statement: { kind: 'while', condition, body: { kind: 'block', body: [] } },
+      statement: { kind: 'while', condition, body: [] },
     });
   }
   return result.sort((a, b) => a.header - b.header);
