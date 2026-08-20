@@ -1,0 +1,3 @@
+import { hasReachedFixedPoint,type AnalysisSnapshot } from './analysisFixedPoint';
+export interface GlobalRecoveryConvergence { readonly iterations:number;readonly converged:boolean;readonly authoritative:boolean; }
+export function evaluateGlobalRecoveryConvergence(history:readonly AnalysisSnapshot[]):GlobalRecoveryConvergence { if(history.length===0)return {iterations:0,converged:false,authoritative:false};const current=history[history.length-1];const previous=history.length>1?history[history.length-2]:undefined;return {iterations:history.length,converged:hasReachedFixedPoint(previous,current),authoritative:history.every(snapshot=>snapshot.fingerprint.trim().length>0)}; }
