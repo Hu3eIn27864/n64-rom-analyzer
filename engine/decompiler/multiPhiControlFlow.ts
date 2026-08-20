@@ -22,6 +22,8 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
     if (o.kind === 'call') { stores.length = 0; unknownStore = true; }
     if (o.kind === 'load') {
       const address = constantAddress(o.address);
+      const matchingStore = address === undefined ? undefined : stores.find((s) => s.address === address);
+      if (matchingStore) { if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`); if (matchingStore.size >= o.size) { if (target) available.add(target); continue; } }
       if (address === undefined && (unknownStore || stores.length > 0)) throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       if (address !== undefined) { const loadRange = { address, size: o.size } satisfies MemoryRange; if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`); if (!coherentWithKnownStores(loadRange, stores)) throw new Error(`multi-phi lowering cannot prove memory coherence for overlapping load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`); }
     }
