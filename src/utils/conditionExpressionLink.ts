@@ -1,0 +1,2 @@
+export interface ConditionExpressionLink { readonly branchId:string; readonly expressionId:string; readonly expression:string; readonly authoritative:boolean; }
+export function linkConditionExpression(branchId:string,expressionId:string,expression:string,authoritative=true):ConditionExpressionLink|undefined { if(!authoritative||!branchId.trim()||!expressionId.trim()||!expression.trim())return undefined;return {branchId:branchId.trim(),expressionId:expressionId.trim(),expression:expression.trim(),authoritative:true}; }
