@@ -1,0 +1,3 @@
+import type { CType } from './cType';
+export function compatibleCTypes(left:CType,right:CType):boolean { if(!left.authoritative||!right.authoritative)return false;if(left.kind!==right.kind)return false;if(left.kind==='pointer'&&right.kind==='pointer')return Boolean(left.element&&right.element&&compatibleCTypes(left.element,right.element));return left.name===right.name; }
+export function mergeCTypes(types:readonly CType[]):CType { const authoritative=types.filter(t=>t.authoritative);if(authoritative.length===0)return {kind:'unknown',name:'unknown',authoritative:false};const first=authoritative[0];return authoritative.every(t=>compatibleCTypes(first,t))?first:{kind:'unknown',name:'unknown',authoritative:false}; }
