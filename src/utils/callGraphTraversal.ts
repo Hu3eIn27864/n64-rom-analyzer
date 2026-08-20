@@ -1,0 +1,2 @@
+import type { FunctionCallGraph } from './functionCallGraph';
+export function traverseCallGraph(graph:FunctionCallGraph,roots:readonly string[]):readonly string[] { const adjacency=new Map<string,string[]>();for(const name of graph.functions)adjacency.set(name,[]);for(const edge of graph.edges)adjacency.get(edge.caller)?.push(edge.callee);const seen=new Set<string>();const visit=(name:string):void=>{if(seen.has(name))return;seen.add(name);for(const next of adjacency.get(name)??[])visit(next);};for(const root of roots)visit(root);return [...seen].sort(); }
