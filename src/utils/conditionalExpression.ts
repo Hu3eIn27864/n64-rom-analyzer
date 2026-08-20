@@ -1,0 +1,3 @@
+export interface ConditionalExpression { readonly condition:string; readonly whenTrue:string; readonly whenFalse:string; readonly authoritative:boolean; }
+export function normalizeConditionalExpression(value:ConditionalExpression):ConditionalExpression|undefined { if(!value.authoritative||!value.condition.trim()||!value.whenTrue.trim()||!value.whenFalse.trim())return undefined; return {...value,condition:value.condition.trim(),whenTrue:value.whenTrue.trim(),whenFalse:value.whenFalse.trim()}; }
+export function formatConditionalExpression(value:ConditionalExpression):string { return `(${value.condition} ? ${value.whenTrue} : ${value.whenFalse})`; }
