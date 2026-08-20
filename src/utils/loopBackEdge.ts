@@ -1,0 +1,2 @@
+export interface LoopBackEdge { readonly loopId:string; readonly bodyTarget:string; readonly conditionId:string; readonly authoritative:boolean; }
+export function recoverLoopBackEdge(loopId:string,bodyTarget:string,conditionId:string,authoritative=true):LoopBackEdge|undefined { if(!authoritative||!loopId.trim()||!bodyTarget.trim()||!conditionId.trim())return undefined;return {loopId:loopId.trim(),bodyTarget:bodyTarget.trim(),conditionId:conditionId.trim(),authoritative:true}; }
