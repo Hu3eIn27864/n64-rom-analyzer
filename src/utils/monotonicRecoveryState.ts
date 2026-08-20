@@ -1,0 +1,2 @@
+import type { AnalysisState,AnalysisStateEntry } from './analysisState';
+export function extendMonotonicRecoveryState(base:AnalysisState,evidence:readonly AnalysisStateEntry[]):AnalysisState { const merged=new Map(base.entries.map(e=>[e.key,e]));for(const entry of evidence){if(!entry.authoritative)continue;const current=merged.get(entry.key);if(!current||entry.confidence>=current.confidence)merged.set(entry.key,entry);}return {entries:[...merged.values()].sort((a,b)=>a.key.localeCompare(b.key)),version:base.version+1,authoritative:base.authoritative}; }
