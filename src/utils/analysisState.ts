@@ -1,0 +1,3 @@
+export interface AnalysisStateEntry { readonly key:string;readonly value:string;readonly confidence:number;readonly authoritative:boolean; }
+export interface AnalysisState { readonly entries:readonly AnalysisStateEntry[];readonly version:number;readonly authoritative:boolean; }
+export function createAnalysisState(entries:readonly AnalysisStateEntry[],version=0):AnalysisState { const normalized=entries.filter(e=>e.authoritative&&e.key.trim()).map(e=>({...e,key:e.key.trim(),confidence:Math.max(0,Math.min(1,e.confidence))})).sort((a,b)=>a.key.localeCompare(b.key));return {entries:normalized,version,authoritative:normalized.length===entries.length}; }
