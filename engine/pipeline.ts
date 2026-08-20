@@ -1,5 +1,6 @@
 import { parseRom, normalizeRom } from '../src/utils/n64Parser';
 import { disassembleMipsWord, extractSubroutines } from '../src/utils/mipsDisassembler';
+import { createMipsInstruction } from './model/instruction';
 import { buildControlFlowGraph } from './mips/cfgBuilder';
 import { runSemanticUltraLifterPipelineAsync } from '../src/utils/semanticUltraLifter';
 import { solveWholeProgramTypesAndLayouts } from '../src/utils/constraintTypeSolver';
@@ -29,6 +30,26 @@ function decodeRomInstructions(input: Uint8Array): { header: any; normalized: Ui
   return { header: parsed.header, normalized, instructions };
 }
 
+function canonicalCfgInstructions(instructions: readonly any[]) {
+  return instructions.map((instruction) => {
+    const raw = typeof instruction.rawHex === 'string'
+      ? Number.parseInt(instruction.rawHex, 16)
+      : typeof instruction.raw === 'number'
+        ? instruction.raw
+        : undefined;
+    if (raw === undefined || !Number.isFinite(raw)) {
+      throw new Error(`cannot build CFG from instruction at 0x${(instruction.address >>> 0).toString(16)} without a raw word`);
+    }
+    return createMipsInstruction({
+      address: instruction.address,
+      raw,
+      mnemonic: typeof instruction.opcodeName === 'string' ? instruction.opcodeName : 'UNKNOWN',
+      operands: Array.isArray(instruction.args) ? instruction.args : [],
+      targetAddress: instruction.targetAddress,
+    });
+  });
+}
+
 export async function analyzeRomReal(input: Uint8Array, onProgress?: (stage: string, percent: number) => void): Promise<RealAnalysisResult> {
   onProgress?.('Parsing ROM', 5);
   const { header, instructions } = decodeRomInstructions(input);
@@ -38,7 +59,7 @@ export async function analyzeRomReal(input: Uint8Array, onProgress?: (stage: str
   const cfgs = new Map<number, any>();
   for (const fn of functions) {
     const fnInstructions = instructions.filter((i) => i.address >= fn.entryAddress && i.address <= fn.endAddress);
-    cfgs.set(fn.entryAddress, buildControlFlowGraph(fn.entryAddress, fnInstructions));
+    cfgs.set(fn.entryAddress, buildControlFlowGraph(fn.entryAddress, canonicalCfgInstructions(fnInstructions)));
   }
   onProgress?.('Solving type constraints', 65);
   const typeAnalysis = solveWholeProgramTypesAndLayouts(functions, instructions);
