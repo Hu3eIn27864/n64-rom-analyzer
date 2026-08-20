@@ -1,0 +1,3 @@
+import type { TypeRecoveryCandidate } from './typeRecoveryCandidates';
+export interface TypeRecoveryInvariantResult { readonly authoritative:boolean;readonly nonEmpty:boolean;readonly strengthsValid:boolean; }
+export function checkTypeRecoveryInvariants<T>(candidates:readonly TypeRecoveryCandidate<T>[]):TypeRecoveryInvariantResult { const nonEmpty=candidates.every(c=>c.value!==undefined&&c.value!==null);const strengthsValid=candidates.every(c=>c.strength==='direct'||c.strength==='derived'||c.strength==='inferred');return {authoritative:candidates.length>0&&candidates.every(c=>c.authoritative)&&nonEmpty&&strengthsValid,nonEmpty,strengthsValid}; }
