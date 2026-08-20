@@ -23,20 +23,25 @@ export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunct
   if (cfg.blocks.length === 0) throw new Error('cannot lower an empty ROM CFG');
   if (cfg.instructionCount <= 0) throw new Error('ROM CFG contains no decoded instructions');
 
-  const orderedBlocks = [...cfg.blocks].sort((a, b) => {
-    const aEntry = (a.startAddress >>> 0) === (cfg.entry.address >>> 0) ? -1 : 0;
-    const bEntry = (b.startAddress >>> 0) === (cfg.entry.address >>> 0) ? -1 : 0;
-    return aEntry - bEntry || a.startAddress - b.startAddress;
-  });
+  const orderedBlocks = [...cfg.blocks];
+  const entryIndex = orderedBlocks.findIndex(block => (block.startAddress >>> 0) === (cfg.entry.address >>> 0));
+  if (entryIndex < 0) throw new Error(`ROM CFG has no recovered entry block at 0x${(cfg.entry.address >>> 0).toString(16)}`);
+  if (entryIndex !== 0) {
+    const [entryBlock] = orderedBlocks.splice(entryIndex, 1);
+    orderedBlocks.unshift(entryBlock);
+  }
+
   const idByAddress = new Map(orderedBlocks.map((block, index) => [block.startAddress >>> 0, index]));
-  const successorsById = orderedBlocks.map((block) => block.successors.map((address) => {
+  const successorsById = orderedBlocks.map(block => block.successors.map(address => {
     const id = idByAddress.get(address >>> 0);
     if (id === undefined) throw new Error(`ROM CFG successor 0x${(address >>> 0).toString(16)} has no recovered block`);
     return id;
   }));
 
   const predecessors: number[][] = orderedBlocks.map(() => []);
-  successorsById.forEach((successors, id) => { for (const successor of successors) predecessors[successor].push(id); });
+  successorsById.forEach((successors, id) => {
+    for (const successor of successors) predecessors[successor].push(id);
+  });
 
   const blocks: BasicBlock[] = orderedBlocks.map((block, id) => {
     const first = block.instructions[0];
