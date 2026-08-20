@@ -1,0 +1,3 @@
+export type ExitKind='return'|'break'|'continue';
+export interface ExitControlFlow { readonly id:string; readonly kind:ExitKind; readonly target?:string; readonly value?:string; readonly authoritative:boolean; }
+export function normalizeExitControlFlow(value:ExitControlFlow):ExitControlFlow|undefined { if(!value.id.trim()||!value.authoritative)return undefined;if(value.kind==='return'&&value.value===undefined)return {...value,id:value.id.trim()};if((value.kind==='break'||value.kind==='continue')&&!value.target?.trim())return undefined;return {...value,id:value.id.trim(),target:value.target?.trim(),value:value.value?.trim()}; }
