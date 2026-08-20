@@ -25,7 +25,7 @@ export class FunctionSignatureProjector {
     const ordered = [...parameters].sort((left, right) => left.parameterIndex - right.parameterIndex);
     const projected = ordered.map((parameter) => ({
       index: parameter.parameterIndex,
-      name: normalizeParameterName(parameter.parameterIndex, parameter.calleeSymbol),
+      name: `param_${parameter.parameterIndex}`,
       cType: parameter.cType,
       authoritative: parameter.authoritative,
     }));
@@ -37,10 +37,4 @@ export class FunctionSignatureProjector {
       declaration,
     };
   }
-}
-
-function normalizeParameterName(index: number, calleeSymbol: string): string {
-  const candidate = calleeSymbol.trim().replace(/[^A-Za-z0-9_$]/g, '_');
-  if (candidate.length === 0) return `param_${index}`;
-  return `param_${index}`;
 }
