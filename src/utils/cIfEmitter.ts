@@ -1,0 +1,2 @@
+import type { CIfStatement } from './cControlFlowStatement';
+export function emitCIfStatement(value:CIfStatement,indent=''):string { const pad=indent;const child=`${indent}    `;const thenBody=value.thenBranch.map(s=>`${child}${s.text}`).join('\n');const elseBody=value.elseBranch.map(s=>`${child}${s.text}`).join('\n');let out=`${pad}if (${value.condition}) {\n${thenBody}\n${pad}}`;if(value.elseBranch.length)out+=` else {\n${elseBody}\n${pad}}`;return out; }
