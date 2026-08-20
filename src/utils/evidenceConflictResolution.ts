@@ -1,0 +1,4 @@
+import type { EvidenceStrength } from './evidenceStrength';
+export interface EvidenceCandidate<T> { readonly value:T;readonly strength:EvidenceStrength;readonly authoritative:boolean; }
+export interface EvidenceResolution<T> { readonly value:T|undefined;readonly conflict:boolean;readonly authoritative:boolean; }
+export function resolveEvidenceConflict<T>(candidates:readonly EvidenceCandidate<T>[]):EvidenceResolution<T> { const valid=candidates.filter(c=>c.authoritative);if(!valid.length)return {value:undefined,conflict:false,authoritative:false};const max=Math.max(...valid.map(c=>c.strength==='direct'?3:c.strength==='derived'?2:1));const strongest=valid.filter(c=>(c.strength==='direct'?3:c.strength==='derived'?2:1)===max);const first=strongest[0].value;const conflict=strongest.some(c=>JSON.stringify(c.value)!==JSON.stringify(first));return {value:conflict?undefined:first,conflict,authoritative:!conflict}; }
