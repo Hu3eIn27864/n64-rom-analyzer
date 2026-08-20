@@ -32,7 +32,7 @@ export function recoverIfRegions(blocks: readonly BasicBlock[], condition: CExpr
         statement: { kind: 'if' as const, condition, thenBranch, elseBranch },
       };
     })
-    .filter((value): value is RecoveredIfRegion => value !== undefined);
+    .filter((value): value is NonNullable<typeof value> => value !== undefined);
 }
 
 function reachableUntil(byId: Map<number, BasicBlock>, start: number, stop: number): number[] {
