@@ -1,0 +1,3 @@
+import type { EvidenceProvenance } from './evidenceProvenance';
+export interface EvidencePropagationDiagnostic { readonly source:string;readonly depth:number;readonly authoritative:boolean; }
+export function diagnoseEvidencePropagation(provenance:readonly EvidenceProvenance[]):readonly EvidencePropagationDiagnostic[] { const depth=new Map<string,number>();const visit=(p:EvidenceProvenance,seen:Set<string>):number=>{if(seen.has(p.source))return 0;seen.add(p.source);const value=p.parents.length?p.parents.reduce((m,parent)=>Math.max(m,depth.get(parent)??0),0)+1:0;depth.set(p.source,value);return value;};return provenance.map(p=>({source:p.source,depth:visit(p,new Set()),authoritative:p.authoritative})).sort((a,b)=>a.depth-b.depth||a.source.localeCompare(b.source)); }
