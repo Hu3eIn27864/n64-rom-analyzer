@@ -1,0 +1,2 @@
+import type { CTranslationUnit } from './cTranslationUnit';
+export function emitCTranslationUnit(unit:CTranslationUnit):string|undefined { if(!unit.authoritative)return undefined;const declarations=unit.declarations.map(d=>`${d.type.name} ${d.name}${d.initializer?` = ${d.initializer}`:''};`);const prototypes=unit.prototypes.map(p=>`${p.type.returnType.name} ${p.name}(${p.type.parameters.map(x=>`${x.type.name} ${x.name}`).join(', ')});`);return [...declarations,...prototypes].join('\n'); }
