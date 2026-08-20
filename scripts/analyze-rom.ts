@@ -15,28 +15,38 @@ function formatBytes(value: number): string {
 const file = process.argv[2];
 if (!file) usage();
 
+const startedAt = Date.now();
 const input = new Uint8Array(await readFile(file));
 let lastStage = '';
+let lastPercent = 0;
 
-const result = await analyzeRomReal(input, (stage, percent) => {
-  if (stage !== lastStage) {
+try {
+  const result = await analyzeRomReal(input, (stage, percent) => {
     lastStage = stage;
+    lastPercent = percent;
     console.error(`[${percent.toString().padStart(3, ' ')}%] ${stage}`);
-  }
-});
+  });
 
-const header = result.header;
-console.log(JSON.stringify({
-  file,
-  inputBytes: input.byteLength,
-  romSize: header.romSize,
-  romSizeFormatted: formatBytes(header.romSize),
-  entryPoint: `0x${(header.entryPoint >>> 0).toString(16).padStart(8, '0')}`,
-  instructionCount: result.instructions.length,
-  recoveredFunctionCount: result.functions.length,
-  cfgCount: result.cfgs.size,
-  semanticAnalysis: {
-    stage: result.semanticAnalysis?.stage ?? 'unknown',
-    status: result.semanticAnalysis?.status ?? 'unknown',
-  },
-}, null, 2));
+  const header = result.header;
+  console.log(JSON.stringify({
+    file,
+    inputBytes: input.byteLength,
+    romSize: header.romSize,
+    romSizeFormatted: formatBytes(header.romSize),
+    entryPoint: `0x${(header.entryPoint >>> 0).toString(16).padStart(8, '0')}`,
+    instructionCount: result.instructions.length,
+    recoveredFunctionCount: result.functions.length,
+    cfgCount: result.cfgs.size,
+    semanticAnalysis: {
+      stage: result.semanticAnalysis?.stage ?? 'unknown',
+      status: result.semanticAnalysis?.status ?? 'unknown',
+    },
+    durationMs: Date.now() - startedAt,
+  }, null, 2));
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[${lastPercent.toString().padStart(3, ' ')}%] analysis failed during ${lastStage || 'startup'}`);
+  console.error(message);
+  if (error instanceof Error && error.stack) console.error(error.stack);
+  process.exitCode = 1;
+}
