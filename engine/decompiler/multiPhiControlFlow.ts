@@ -15,7 +15,6 @@ function addressKey(e: MicroCExpr): string { return JSON.stringify(e); }
 function overlaps(a: MemoryRange, b: MemoryRange): boolean { const aEnd = a.address + a.size - 1, bEnd = b.address + b.size - 1; return a.address <= bEnd && b.address <= aEnd; }
 function contains(container: MemoryRange, value: MemoryRange): boolean { return container.address <= value.address && container.address + container.size >= value.address + value.size; }
 function coherentWithKnownStores(load: MemoryRange, stores: MemoryRange[]): boolean { for (const store of stores) { if (!overlaps(store, load)) continue; if (!contains(store, load)) return false; } return true; }
-function resolvedAddressKey(e: MicroCExpr, definitions: Map<string, MicroCExpr>): string { const seen = new Set<string>(); const resolve = (x: MicroCExpr): MicroCExpr => { if (x.kind !== 'value' || seen.has(x.name)) return x; const definition = definitions.get(x.name); if (!definition) return x; seen.add(x.name); return resolve(definition); }; return addressKey(resolve(e)); }
 function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
   const available = new Set(phiTargets); const stores: MemoryRange[] = []; const provenAddresses = new Map<string, 1 | 2 | 4 | 8>(); const dynamicStoreAddresses = new Map<string, 1 | 2 | 4 | 8>(); const addressDefinitions = new Map<string, MicroCExpr>(); let unknownStore = false;
   for (const o of operations) {
@@ -25,15 +24,15 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
     if (o.kind === 'assign') addressDefinitions.set(o.target, o.value);
     if (o.kind === 'load') {
       const address = constantAddress(o.address); const key = addressKey(o.address); const exactSize = address === undefined ? dynamicStoreAddresses.get(key) : provenAddresses.get(key); const matchingStore = address === undefined ? undefined : stores.find(s => s.address === address && s.size >= o.size);
-      if (!unknownStore && stores.length === 0 && address === undefined && exactSize !== undefined) { if (target) available.add(target); continue; }
-      if (!unknownStore && address !== undefined && ((exactSize !== undefined && exactSize >= o.size) || matchingStore)) { if (target) available.add(target); continue; }
       if (!unknownStore && address === undefined && exactSize !== undefined && exactSize >= o.size) { if (target) available.add(target); continue; }
+      if (!unknownStore && address !== undefined && ((exactSize !== undefined && exactSize >= o.size) || matchingStore)) { if (target) available.add(target); continue; }
       if (address === undefined) throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+      if (!unknownStore && dynamicStoreAddresses.size > 0) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       const loadRange = { address, size: o.size } satisfies MemoryRange;
       if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       if (!coherentWithKnownStores(loadRange, stores)) throw new Error(`multi-phi lowering cannot prove memory coherence for overlapping load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
     }
-    if (o.kind === 'store') { const address = constantAddress(o.address); const key = resolvedAddressKey(o.address, addressDefinitions); if (address === undefined) { dynamicStoreAddresses.set(key, o.size); } else { stores.push({ address, size: o.size }); provenAddresses.set(key, o.size); } }
+    if (o.kind === 'store') { const address = constantAddress(o.address); const key = addressKey(o.address); if (address === undefined) dynamicStoreAddresses.set(key, o.size); else { stores.push({ address, size: o.size }); provenAddresses.set(key, o.size); } }
     if (target) available.add(target);
   }
   return available;
