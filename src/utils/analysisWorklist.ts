@@ -1,0 +1,3 @@
+export interface AnalysisWorkItem { readonly functionName:string;readonly priority:number;readonly authoritative:boolean; }
+export interface AnalysisWorklist { readonly items:readonly AnalysisWorkItem[];readonly authoritative:boolean; }
+export function createAnalysisWorklist(items:readonly AnalysisWorkItem[]):AnalysisWorklist { const normalized=items.filter(i=>i.authoritative&&i.functionName.trim()).map(i=>({...i,functionName:i.functionName.trim()})).sort((a,b)=>a.priority-b.priority||a.functionName.localeCompare(b.functionName));return {items:normalized,authoritative:normalized.length===items.length}; }
