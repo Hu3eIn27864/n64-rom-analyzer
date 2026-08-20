@@ -1,0 +1,3 @@
+import type { AnalysisSnapshot } from './analysisFixedPoint';
+export function fingerprintAnalysisState(value:unknown):AnalysisSnapshot { const text=stableSerialize(value);let hash=2166136261;for(let i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619);}return {version:1,fingerprint:(hash>>>0).toString(16)}; }
+function stableSerialize(value:unknown):string { if(value===null||typeof value!=='object')return JSON.stringify(value);if(Array.isArray(value))return `[${value.map(stableSerialize).join(',')}]`;const record=value as Record<string,unknown>;return `{${Object.keys(record).sort().map(key=>`${JSON.stringify(key)}:${stableSerialize(record[key])}`).join(',')}}`; }
