@@ -1,0 +1,3 @@
+import type { AnalysisStateEntry } from './analysisState';
+export interface Evidence { readonly key:string;readonly value:string;readonly confidence:number;readonly authoritative:boolean; }
+export function accumulateEvidence(evidence:readonly Evidence[]):readonly AnalysisStateEntry[] { const best=new Map<string,AnalysisStateEntry>();for(const item of evidence){if(!item.authoritative||!item.key.trim())continue;const candidate={key:item.key.trim(),value:item.value,confidence:item.confidence,authoritative:true};const current=best.get(candidate.key);if(!current||candidate.confidence>current.confidence)best.set(candidate.key,candidate);}return [...best.values()].sort((a,b)=>a.key.localeCompare(b.key)); }
