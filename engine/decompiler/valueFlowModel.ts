@@ -1,0 +1,3 @@
+export type ValueFlowKind = 'constant' | 'stack' | 'global' | 'struct-field' | 'parameter' | 'unknown';
+export interface ValueFlowEvidence { readonly functionSymbol:string; readonly sourceKind:ValueFlowKind; readonly source:string; readonly target:string; readonly type:'void*'|'uint32_t'|'UNKNOWN'; readonly authoritative:boolean; }
+export function normalizeValueFlowEvidence(value:ValueFlowEvidence):ValueFlowEvidence|undefined { if(!value.functionSymbol.trim()||!value.source.trim()||!value.target.trim())return undefined; return {...value,functionSymbol:value.functionSymbol.trim(),source:value.source.trim(),target:value.target.trim()}; }
