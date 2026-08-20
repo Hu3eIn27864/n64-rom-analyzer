@@ -1,0 +1,2 @@
+import type { TypeEvidence } from './typeEvidenceBridge';
+export function resolveTypeEvidence<T>(evidence:readonly TypeEvidence<T>[]):T|undefined { const rank=(s:TypeEvidence<T>['strength'])=>s==='direct'?3:s==='derived'?2:1;const valid=evidence.filter(e=>e.authoritative);if(!valid.length)return undefined;const strongest=valid.filter(e=>rank(e.strength)===Math.max(...valid.map(x=>rank(x.strength))));const value=strongest[0].value;return strongest.every(e=>JSON.stringify(e.value)===JSON.stringify(value))?value:undefined; }
