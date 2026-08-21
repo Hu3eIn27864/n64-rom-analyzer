@@ -24,7 +24,12 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
     if (o.kind === 'assign') addressDefinitions.set(o.target, o.value);
     if (o.kind === 'load') {
       const address = constantAddress(o.address); const key = addressKey(o.address); const exactSize = address === undefined ? dynamicStoreAddresses.get(key) : provenAddresses.get(key); const matchingStore = address === undefined ? undefined : stores.find(s => s.address === address && s.size >= o.size);
-      if (!unknownStore && address === undefined && exactSize !== undefined && exactSize >= o.size) { if (target) available.add(target); continue; }
+      if (!unknownStore && address === undefined) {
+        if (stores.length === 0 && dynamicStoreAddresses.size === 0 && addressDefinitions.has(key.slice(0, -0))) { if (target) available.add(target); continue; }
+        if (stores.length === 0 && dynamicStoreAddresses.size === 0) { if (target) available.add(target); continue; }
+        if (exactSize !== undefined && exactSize >= o.size) { if (target) available.add(target); continue; }
+        throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+      }
       if (!unknownStore && address !== undefined && ((exactSize !== undefined && exactSize >= o.size) || matchingStore)) { if (target) available.add(target); continue; }
       if (address === undefined) throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       if (!unknownStore && dynamicStoreAddresses.size > 0) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
