@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "test:unit": "node --import tsx --test \"tests/**/*.test.ts\"",
-    "test:analysis": "node --import tsx --test \"tests/analysis/**/*.test.ts\""
+    "test:analysis": "node --import tsx --test \"tests/analysis/**/*.test.ts\"",
+    "typecheck:core": "tsc --noEmit -p tsconfig.core.json"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
