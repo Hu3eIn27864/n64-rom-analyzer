@@ -102,6 +102,7 @@ function lowerSingleBlock(ir: FunctionIR): CFunction {
     name: hexAddress(ir.functionAddress),
     returnType: 'uint32_t',
     parameters: [],
+    useVoidForEmptyParameters: true,
     body,
   };
 }
@@ -130,7 +131,7 @@ function lowerTwoWayBranch(ir: FunctionIR): CFunction {
 
   body.push({ kind: 'if', condition: lowerExpr(branch.condition), thenBranch, elseBranch });
 
-  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
+  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], useVoidForEmptyParameters: true, body };
 }
 
 function phiAssignments(join: FunctionIR['blocks'][number], predecessorId: number): CStmt[] {
@@ -181,7 +182,7 @@ function lowerDiamond(ir: FunctionIR): CFunction {
   body.push({ kind: 'if', condition: lowerExpr(branch.condition), thenBranch: lowerArm(thenBlock), elseBranch: lowerArm(elseBlock) });
   body.push(...join.operations.filter(operation => operation.kind !== 'phi').map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined));
 
-  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
+  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], useVoidForEmptyParameters: true, body };
 }
 
 function controlFlowArm(condition: CExpr, whenTrue: CStmt, whenFalse: CStmt): CStmt {
@@ -265,7 +266,7 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
   const exitBlock = bodyBlock.id === trueBlock.id ? falseBlock : trueBlock;
   if (exitBlock.successors.length !== 0 && !(exitBlock.successors.length === 1 && exitBlock.successors[0] === header.id)) throw new Error('structured loop-phi lowering requires a terminal loop exit');
   if (bodyBlock.predecessors.length !== 1 || bodyBlock.predecessors[0] !== header.id) throw new Error('structured loop-phi lowering requires the body to have only the header predecessor');
-  if (!exitBlock.predecessors.includes(header.id) || !exitBlock.predecessors.includes(bodyBlock.id)) throw new Error('structured loop-phi lowering requires the exit to be reachable from the header and loop-control arm');
+  if (!exitBlock.predecessors.includes(header.id)) throw new Error('structured loop-phi lowering requires the exit to be reachable from the header');
 
   const phis = phiOperations(header);
   if (phis.length === 0) throw new Error('structured loop-phi lowering requires at least one loop-carried phi');
