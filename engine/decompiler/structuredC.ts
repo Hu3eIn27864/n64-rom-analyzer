@@ -241,7 +241,7 @@ function lowerWhile(ir: FunctionIR): CFunction {
   }
 
   body.push(...exitBlock.operations.map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined));
-  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
+  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], useVoidForEmptyParameters: true, body };
 }
 
 function lowerLoopWithPhi(ir: FunctionIR): CFunction {
@@ -316,7 +316,7 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
     ...exitBlock.operations.map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined),
   ];
 
-  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], body };
+  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], useVoidForEmptyParameters: true, body };
 }
 
 function isLoopWithPhi(ir: FunctionIR): boolean {
