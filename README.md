@@ -57,7 +57,8 @@ The scripts are defined in package.json. Tests include a deterministic synthetic
 - engine/rom/ — ROM byte order, header and segment/address mapping.
 - engine/mips/ — canonical instruction model, decoder and classification.
 - engine/analysis/ — function, call-graph and evidence-driven type analysis.
-- engine/decompiler/ and engine/decompiler/ — IR lowering, memory and C-generation experiments.
+- engine/decompilation/ — function-body recovery and lowering.
+- engine/decompiler/ — IR, memory analysis and C-generation experiments.
 - src/utils/ — legacy/experimental analysis implementations retained during migration.
 - src/components/ — browser UI.
 - tests/ — deterministic fixtures and regression coverage.
