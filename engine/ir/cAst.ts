@@ -59,11 +59,11 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
       const renderBranch = (branch: CStmt | undefined): string => {
         if (!branch) return '';
         const statements = branch.kind === 'block' ? (branch.body ?? []) : [branch];
-        return statements.map(child => renderStmt(child, `${indent}    `)).join('\\n');
+        return statements.map(child => renderStmt(child, `${indent}    `)).join('\n');
       };
       const thenText = renderBranch(stmt.thenBranch);
-      const elseText = stmt.elseBranch ? ` else\\n${indent}{\\n${renderBranch(stmt.elseBranch)}\\n${indent}}` : '';
-      return `${indent}if (${renderExpr(stmt.condition!)})\\n${indent}{\\n${thenText}\\n${indent}}${elseText}`;
+      const elseText = stmt.elseBranch ? ` else\n${indent}{\n${renderBranch(stmt.elseBranch)}\n${indent}}` : '';
+      return `${indent}if (${renderExpr(stmt.condition!)})\n${indent}{\n${thenText}\n${indent}}${elseText}`;
     }
     case 'while': return `${indent}while (${renderExpr(stmt.condition!)})\n${indent}{\n${(stmt.body ?? []).map(s => renderStmt(s, `${indent}    `)).join('\n')}\n${indent}}`;
     case 'block': return `${indent}{\n${(stmt.body ?? []).map(s => renderStmt(s, `${indent}    `)).join('\n')}\n${indent}}`;
