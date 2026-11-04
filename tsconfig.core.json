@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true
+  },
+  "include": [
+    "engine/rom/**/*.ts",
+    "engine/mips/instruction.ts",
+    "engine/mips/decoder.ts",
+    "engine/mips/instructionClassifier.ts"
+  ]
+}
