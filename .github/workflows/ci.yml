@@ -25,8 +25,8 @@ jobs:
       - name: Typecheck canonical ROM and decoder layer
         run: npm run typecheck:core
 
-      - name: Unit tests
-        run: npm test
+      - name: Canonical analysis regression tests
+        run: npm run test:analysis
 
       - name: Production build
         run: npm run build
