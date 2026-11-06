@@ -306,7 +306,7 @@ test('lowers VR4300 FPU memory and transfer operations with defined FR-aware C h
   assert.match(c, /vr4300_fpu_check_d/);
   assert.match(c, /cop1_usable/);
   assert.match(c, /vr4300_fpu_read_be32/);
-  assert.match(c, /address \\^= 4u/);
+  assert.ok(c.includes('address ^= 4u'));
   assert.match(c, /status & \(1u << 26\)/);
 });
 
