@@ -568,3 +568,34 @@ test('restores host floating-point state around signaling-NaN widening conversio
   assert.match(singleToDouble, /vr4300_fpu_end_host_fenv/);
   assert.match(singleToDouble, /vr4300_fpu_commit_arithmetic_exceptions/);
 });
+
+test('models VR4300 FS-dependent denormal and underflow result handling', () => {
+  const commitSingle = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_commit_result_s\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
+  const commitDouble = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_commit_result_d\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
+  const flushSingle = VR4300_FPU_C_RUNTIME.match(/static inline uint32_t vr4300_fpu_flush_result_s\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
+  const flushDouble = VR4300_FPU_C_RUNTIME.match(/static inline uint64_t vr4300_fpu_flush_result_d\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
+
+  assert.match(commitSingle, /FE_UNDERFLOW/);
+  assert.match(commitDouble, /FE_UNDERFLOW/);
+  assert.match(commitSingle, /1u << 24/); // FCSR.FS
+  assert.match(commitDouble, /1u << 24/);
+  assert.match(commitSingle, /1u << 8/); // Underflow Enable
+  assert.match(commitSingle, /1u << 7/); // Inexact Enable
+  assert.match(commitSingle, /vr4300_fpu_raise_unimplemented/);
+  assert.match(commitDouble, /vr4300_fpu_raise_unimplemented/);
+  assert.match(commitSingle, /1u << 13/); // Underflow Cause
+  assert.match(commitSingle, /1u << 12/); // Inexact Cause
+  assert.match(commitSingle, /1u << 3/); // Underflow Flag
+  assert.match(commitSingle, /1u << 2/); // Inexact Flag
+  assert.match(flushSingle, /rounding == 2u && !negative/);
+  assert.match(flushSingle, /rounding == 3u && negative/);
+  assert.match(flushSingle, /0x00800000/);
+  assert.match(flushDouble, /0x0010000000000000/);
+
+  const arithmeticS = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_arithmetic_s\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
+  const arithmeticD = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_arithmetic_d\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
+  const convertDToS = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_d_to_s\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
+  assert.match(arithmeticS, /vr4300_fpu_commit_result_s/);
+  assert.match(arithmeticD, /vr4300_fpu_commit_result_d/);
+  assert.match(convertDToS, /vr4300_fpu_commit_result_s/);
+});
