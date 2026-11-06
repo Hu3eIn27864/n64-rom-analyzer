@@ -12,9 +12,12 @@
  * generated code returns immediately so later operations do not execute.
  */
 export const VR4300_FPU_C_RUNTIME = `#include <stdbool.h>
+#include <fenv.h>
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+
+#pragma STDC FENV_ACCESS ON
 
 typedef struct vr4300_fpu_state {
     uint32_t words[32];
@@ -238,6 +241,134 @@ static inline bool vr4300_fpu_compare_d(
     bool unordered = isnan(left) || isnan(right);
     return vr4300_fpu_commit_compare(
         fpu, cc, predicate, unordered, !unordered && left == right, !unordered && left < right);
+}
+
+
+/* NaN classification and IEEE exception flags are modeled. For arithmetic NaN
+ * results, payload selection follows the host C implementation and is not
+ * guaranteed to be bit-identical to every VR4300 silicon revision. */
+static inline bool vr4300_fpu_commit_arithmetic_exceptions(vr4300_fpu_state *fpu, int raised)
+{
+    static const int host_flags[5] = { FE_INEXACT, FE_UNDERFLOW, FE_OVERFLOW, FE_DIVBYZERO, FE_INVALID };
+    const uint32_t cause_mask = UINT32_C(0x1f) << 12;
+    fpu->fcsr &= ~cause_mask;
+    bool enabled = false;
+    for (unsigned i = 0; i < 5; ++i) {
+        if ((raised & host_flags[i]) == 0) continue;
+        fpu->fcsr |= UINT32_C(1) << (12 + i);
+        fpu->fcsr |= UINT32_C(1) << (2 + i);
+        if (fpu->fcsr & (UINT32_C(1) << (7 + i))) enabled = true;
+    }
+    if (enabled) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 15u; /* Floating Point */
+        return false;
+    }
+    return true;
+}
+
+static inline int vr4300_fpu_host_rounding(uint32_t fcsr)
+{
+    switch (fcsr & 3u) {
+        case 0: return FE_TONEAREST;
+        case 1: return FE_TOWARDZERO;
+        case 2: return FE_UPWARD;
+        default: return FE_DOWNWARD;
+    }
+}
+
+static inline bool vr4300_fpu_arithmetic_s(
+    vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned ft, unsigned fd)
+{
+    if (!vr4300_fpu_check_cop1(fpu)) return false;
+    uint32_t left_bits = vr4300_fpu_read_s(fpu, fs);
+    uint32_t right_bits = vr4300_fpu_read_s(fpu, ft);
+    if (operation == 5u || operation == 6u || operation == 7u) {
+        if (operation == 5u) left_bits &= UINT32_C(0x7fffffff);
+        else if (operation == 7u) left_bits ^= UINT32_C(0x80000000);
+        return vr4300_fpu_write_s(fpu, fd, left_bits);
+    }
+    float left, right;
+    memcpy(&left, &left_bits, sizeof(left));
+    memcpy(&right, &right_bits, sizeof(right));
+    int old_round = fegetround();
+    if (old_round == -1 || fesetround(vr4300_fpu_host_rounding(fpu->fcsr)) != 0) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u;
+        return false;
+    }
+    feclearexcept(FE_ALL_EXCEPT);
+    volatile float result;
+    switch (operation) {
+        case 0: result = left + right; break;
+        case 1: result = left - right; break;
+        case 2: result = left * right; break;
+        case 3: result = left / right; break;
+        case 4: result = sqrtf(left); break;
+        default:
+            fesetround(old_round);
+            fpu->exception_pending = true;
+            fpu->exception_code = 10u;
+            return false;
+    }
+    int raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
+    fesetround(old_round);
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
+    uint32_t result_bits;
+    float rounded = result;
+    memcpy(&result_bits, &rounded, sizeof(result_bits));
+    return vr4300_fpu_write_s(fpu, fd, result_bits);
+}
+
+static inline bool vr4300_fpu_arithmetic_d(
+    vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned ft, unsigned fd)
+{
+    if (!vr4300_fpu_check_cop1(fpu)) return false;
+    uint64_t left_bits, right_bits;
+    if (!vr4300_fpu_read_compare_d(fpu, fs, &left_bits) ||
+        !vr4300_fpu_read_compare_d(fpu, ft, &right_bits)) return false;
+    if (operation == 5u || operation == 6u || operation == 7u) {
+        if (operation == 5u) left_bits &= UINT64_C(0x7fffffffffffffff);
+        else if (operation == 7u) left_bits ^= UINT64_C(0x8000000000000000);
+        return vr4300_fpu_write_d_register(fpu, fd, left_bits);
+    }
+    double left, right;
+    memcpy(&left, &left_bits, sizeof(left));
+    memcpy(&right, &right_bits, sizeof(right));
+    int old_round = fegetround();
+    if (old_round == -1 || fesetround(vr4300_fpu_host_rounding(fpu->fcsr)) != 0) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u;
+        return false;
+    }
+    feclearexcept(FE_ALL_EXCEPT);
+    volatile double result;
+    switch (operation) {
+        case 0: result = left + right; break;
+        case 1: result = left - right; break;
+        case 2: result = left * right; break;
+        case 3: result = left / right; break;
+        case 4: result = sqrt(left); break;
+        default:
+            fesetround(old_round);
+            fpu->exception_pending = true;
+            fpu->exception_code = 10u;
+            return false;
+    }
+    int raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
+    fesetround(old_round);
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
+    uint64_t result_bits;
+    double rounded = result;
+    memcpy(&result_bits, &rounded, sizeof(result_bits));
+    return vr4300_fpu_write_d_register(fpu, fd, result_bits);
+}
+
+static inline bool vr4300_fpu_read_fcsr(vr4300_fpu_state *fpu, uint32_t *value)
+{
+    if (!vr4300_fpu_check_cop1(fpu)) return false;
+    *value = fpu->fcsr;
+    return true;
 }
 
 static inline bool vr4300_fpu_write_fcsr(vr4300_fpu_state *fpu, uint32_t value)

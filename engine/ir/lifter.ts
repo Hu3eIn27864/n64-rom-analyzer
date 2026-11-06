@@ -192,9 +192,13 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
-      case 'CFC1':
-        // FCR reads, including FCSR, are not modeled as plain GPR values.
+      case 'CFC1': {
+        const controlRegister = parseControlRegister(b);
+        if (a && controlRegister === 31) {
+          operations.push({ kind: 'fpuControlRead', controlRegister, gpr: normalizeRegister(a), gprSemantics: 'mode-dependent' });
+        }
         break;
+      }
       case 'JAL': {
         const targetAddress = parseBranchTarget(instruction);
         if (targetAddress !== undefined) operations.push({ kind: 'call', target: constant(targetAddress), args: [], result: 'rra' });
@@ -253,7 +257,27 @@ export function liftInstructionsToMicroC(
         break;
       }
       default: {
-        if (instruction.fpuCompareConditionCode !== undefined
+        const [arithmeticMnemonic, arithmeticFormat] = instruction.mnemonic.toUpperCase().split('.');
+        const arithmeticOperations = new Set(['ADD', 'SUB', 'MUL', 'DIV', 'SQRT', 'ABS', 'MOV', 'NEG']);
+        const isArithmetic = arithmeticOperations.has(arithmeticMnemonic)
+          && (arithmeticFormat === 'S' || arithmeticFormat === 'D')
+          && instruction.fpuFormat === (arithmeticFormat === 'S' ? 0x10 : 0x11)
+          && instruction.fpuSourceRegister !== undefined
+          && instruction.fpuTargetRegister !== undefined
+          && instruction.fpuDestinationRegister !== undefined;
+        if (isArithmetic) {
+          const operation = arithmeticMnemonic.toLowerCase() as 'add' | 'sub' | 'mul' | 'div' | 'sqrt' | 'abs' | 'mov' | 'neg';
+          operations.push({
+            kind: 'fpuArithmetic',
+            operation,
+            format: arithmeticFormat as 'S' | 'D',
+            sourceRegister: instruction.fpuSourceRegister!,
+            targetRegister: instruction.fpuTargetRegister!,
+            destinationRegister: instruction.fpuDestinationRegister!,
+            ...(arithmeticFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
+            registerMode: 'status-fr',
+          });
+        } else if (instruction.fpuCompareConditionCode !== undefined
           && instruction.fpuComparePredicate !== undefined
           && (instruction.fpuFormat === 0x10 || instruction.fpuFormat === 0x11)
           && instruction.fpuSourceRegister !== undefined
