@@ -396,3 +396,29 @@ test('lowers BC1 predicates by reading the selected FCSR condition-code bit', ()
   assert.match(c, /vr4300_fpu_check_cop1/);
   assert.match(c, />> 27/);
 });
+
+
+test('lifts COP1 word conversions and fixed-rounding operations with FR-aware sources', () => {
+  const make = (mnemonic: string, format: 0x10 | 0x11, fs: number, fd: number) => createMipsInstruction({
+    address: 0x80009000 + fs * 4, raw: 0, mnemonic, operands: [`$f${fd}`, `$f${fs}`],
+    fpuFormat: format, fpuSourceRegister: fs, fpuTargetRegister: 0, fpuDestinationRegister: fd,
+  });
+  const ir = liftInstructionsToMicroC(0x80009000, [
+    make('CVT.W.S', 0x10, 2, 4),
+    make('ROUND.W.D', 0x11, 6, 8),
+    make('TRUNC.W.S', 0x10, 10, 12),
+    make('CEIL.W.D', 0x11, 14, 16),
+    make('FLOOR.W.S', 0x10, 18, 20),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind), Array(5).fill('fpuConvertWord'));
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_fpu_convert_word_s\(fpu, 0, 2, 4\)/);
+  assert.match(c, /vr4300_fpu_convert_word_d\(fpu, 1, 6, 8\)/);
+  assert.match(c, /vr4300_fpu_convert_word_s\(fpu, 2, 10, 12\)/);
+  assert.match(c, /vr4300_fpu_convert_word_d\(fpu, 3, 14, 16\)/);
+  assert.match(c, /vr4300_fpu_convert_word_s\(fpu, 4, 18, 20\)/);
+  assert.match(c, /FE_TONEAREST/);
+  assert.match(c, /INT32_MIN/);
+  assert.match(c, /vr4300_fpu_commit_arithmetic_exceptions/);
+});
