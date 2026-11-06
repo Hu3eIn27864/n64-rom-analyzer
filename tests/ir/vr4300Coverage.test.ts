@@ -56,6 +56,8 @@ test('decoder-to-lifter audit retains diagnostics for privileged and ordering in
     ['$t0', 'c0_reg12_sel3'], ['$t0', 'c0_reg12_sel3'],
   ]);
   assert.deepEqual(decoded.at(-1)?.operands, ['0x1c', '-4($zero)']);
+  assert.deepEqual(ir.unsupportedInstructions?.at(-1)?.operands, decoded.at(-1)?.operands);
+  assert.equal(ir.unsupportedInstructions?.[2]?.operands, undefined);
 });
 
 test('reports architectural prerequisites in unsupported privileged-instruction diagnostics', () => {
@@ -65,8 +67,8 @@ test('reports architectural prerequisites in unsupported privileged-instruction 
   assert.equal(reasons.length, mnemonics.length);
   assert.match(reasons[0], /CP0 register access.*privilege checks.*masks.*side effects/);
   assert.match(reasons[1], /TLB operation.*TLB state/);
-  assert.match(reasons[2], /ERET.*EXL\/ERL.*EPC\/ErrorEPC/);
-  assert.match(reasons[3], /Trap\/exception.*EPC.*delay-slot BD/);
+  assert.match(reasons[2], /ERET.*EXL\\/ERL.*EPC\\/ErrorEPC/);
+  assert.match(reasons[3], /Trap\\/exception.*EPC.*delay-slot BD/);
   assert.match(reasons[4], /SYNC.*memory ordering.*concurrent observer/);
   assert.match(reasons[5], /CACHE.*cacheability.*cache-operation effects/);
 });
