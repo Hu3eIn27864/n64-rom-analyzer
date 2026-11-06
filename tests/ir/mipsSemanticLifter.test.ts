@@ -607,7 +607,7 @@ test('lifts VR4300 long fixed-point conversions with mode and even-register cons
     fpuFormat: format, fpuSourceRegister: fs, fpuTargetRegister: 0, fpuDestinationRegister: fd,
   });
   const instructions = [
-    make('CVT.L.S', 0x10, 2, 4),
+    make('CVT.L.S', 0x10, 3, 4),
     make('ROUND.L.D', 0x11, 6, 8),
     make('TRUNC.L.S', 0x10, 10, 12),
     make('CEIL.L.D', 0x11, 14, 16),
@@ -615,7 +615,7 @@ test('lifts VR4300 long fixed-point conversions with mode and even-register cons
   ];
   const ir = liftInstructionsToMicroC(0x8000a000, instructions);
   assert.deepEqual(ir.blocks[0].operations, [
-    { kind: 'fpuConvertLong', operation: 'cvt', format: 'S', sourceRegister: 2, destinationRegister: 4, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'cvt', format: 'S', sourceRegister: 3, destinationRegister: 4, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
     { kind: 'fpuConvertLong', operation: 'round', format: 'D', sourceRegister: 6, destinationRegister: 8, modeConstraint: 'kernel-or-64bit', sourceRegisterConstraint: 'even-when-fr0', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
     { kind: 'fpuConvertLong', operation: 'trunc', format: 'S', sourceRegister: 10, destinationRegister: 12, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
     { kind: 'fpuConvertLong', operation: 'ceil', format: 'D', sourceRegister: 14, destinationRegister: 16, modeConstraint: 'kernel-or-64bit', sourceRegisterConstraint: 'even-when-fr0', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
@@ -625,7 +625,7 @@ test('lifts VR4300 long fixed-point conversions with mode and even-register cons
   const lowered = decompileStructuredFunctionIR(ir);
   assert.deepEqual(lowered.parameters, [{ name: 'fpu', type: 'vr4300_fpu_state *' }]);
   const c = renderFunction(lowered);
-  assert.match(c, /vr4300_fpu_convert_long_s\(fpu, 0, 2, 4\)/);
+  assert.match(c, /vr4300_fpu_convert_long_s\(fpu, 0, 3, 4\)/);
   assert.match(c, /vr4300_fpu_convert_long_d\(fpu, 1, 6, 8\)/);
   assert.match(c, /vr4300_fpu_convert_long_s\(fpu, 2, 10, 12\)/);
   assert.match(c, /vr4300_fpu_convert_long_d\(fpu, 3, 14, 16\)/);
