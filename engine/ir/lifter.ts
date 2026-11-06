@@ -154,14 +154,21 @@ export function liftInstructionsToMicroC(
       case 'BLTZAL':
       case 'BGEZAL':
       case 'BLTZALL':
-      case 'BGEZALL': {
+      case 'BGEZALL':
+      case 'BC1F':
+      case 'BC1T':
+      case 'BC1FL':
+      case 'BC1TL': {
         const targetAddress = parseBranchTarget(instruction);
+        const fpuBranch = instruction.isFpuBranch;
         const zeroCompare = instruction.mnemonic.startsWith('BLEZ') || instruction.mnemonic.startsWith('BGTZ')
           || instruction.mnemonic.startsWith('BLTZ') || instruction.mnemonic.startsWith('BGEZ');
-        if (targetAddress !== undefined && a && (zeroCompare || b) && !(instruction.isLinkBranch && a === '$ra')) {
-          const left = value(normalizeRegister(a));
-          const right = zeroCompare ? constant(0) : value(normalizeRegister(b));
-          const conditionOp = instruction.mnemonic.startsWith('BEQ') ? '=='
+        const left = fpuBranch ? value(`fcc${instruction.branchConditionCode ?? 0}`) : (a ? value(normalizeRegister(a)) : undefined);
+        const right = fpuBranch || zeroCompare ? constant(0) : (b ? value(normalizeRegister(b)) : undefined);
+        if (targetAddress !== undefined && left && right && (fpuBranch || a && (zeroCompare || b)) && !(instruction.isLinkBranch && a === '$ra')) {
+          const conditionOp = instruction.mnemonic === 'BC1T' || instruction.mnemonic === 'BC1TL' ? '!='
+            : instruction.mnemonic === 'BC1F' || instruction.mnemonic === 'BC1FL' ? '=='
+            : instruction.mnemonic.startsWith('BEQ') ? '=='
             : instruction.mnemonic.startsWith('BNE') ? '!='
             : instruction.mnemonic.startsWith('BLEZ') ? '<='
             : instruction.mnemonic.startsWith('BGTZ') ? '>'
@@ -172,6 +179,11 @@ export function liftInstructionsToMicroC(
             condition: binary(conditionOp, left, right),
             trueTarget: targetAddress,
             ...(instruction.isLinkBranch ? { linkOnTaken: { target: 'rra', value: constant((instruction.address + 8) >>> 0) } } : {}),
+          });
+          if (fpuBranch) unsupportedInstructions.push({
+            address: instruction.address >>> 0,
+            mnemonic: instruction.mnemonic,
+            reason: 'COP1 condition-code provenance is not yet modeled',
           });
         }
         break;

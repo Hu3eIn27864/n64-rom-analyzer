@@ -10,6 +10,9 @@ export interface MipsInstruction {
   isBranchLikely: boolean;
   /** Branch-and-link instructions write the return address only when taken. */
   isLinkBranch: boolean;
+  /** COP1 condition-code branch (BC1F/T and likely variants). */
+  isFpuBranch: boolean;
+  branchConditionCode?: number;
   isJump: boolean;
   isCall: boolean;
   isReturn: boolean;
@@ -18,9 +21,9 @@ export interface MipsInstruction {
 const CONDITIONAL_BRANCHES = new Set([
   'BEQ', 'BNE', 'BLEZ', 'BGTZ', 'BLTZ', 'BGEZ',
   'BEQL', 'BNEL', 'BLEZL', 'BGTZL', 'BLTZL', 'BGEZL',
-  'BLTZAL', 'BGEZAL', 'BLTZALL', 'BGEZALL',
+  'BLTZAL', 'BGEZAL', 'BLTZALL', 'BGEZALL', 'BC1F', 'BC1T', 'BC1FL', 'BC1TL',
 ]);
-const BRANCH_LIKELY = new Set(['BEQL', 'BNEL', 'BLEZL', 'BGTZL', 'BLTZL', 'BGEZL', 'BLTZALL', 'BGEZALL']);
+const BRANCH_LIKELY = new Set(['BEQL', 'BNEL', 'BLEZL', 'BGTZL', 'BLTZL', 'BGEZL', 'BLTZALL', 'BGEZALL', 'BC1FL', 'BC1TL']);
 const JUMPS = new Set(['J', 'JAL', 'JR', 'JALR']);
 
 /** Build a complete canonical instruction without exposing legacy decoder fields. */
@@ -30,6 +33,7 @@ export function createMipsInstruction(input: {
   mnemonic: string;
   operands?: readonly string[];
   targetAddress?: number;
+  branchConditionCode?: number;
 }): MipsInstruction {
   const mnemonic = input.mnemonic.toUpperCase();
   const operands = [...(input.operands ?? [])];
@@ -46,6 +50,8 @@ export function createMipsInstruction(input: {
     isConditionalBranch,
     isBranchLikely: BRANCH_LIKELY.has(mnemonic),
     isLinkBranch: ['BLTZAL', 'BGEZAL', 'BLTZALL', 'BGEZALL'].includes(mnemonic),
+    isFpuBranch: ['BC1F', 'BC1T', 'BC1FL', 'BC1TL'].includes(mnemonic),
+    branchConditionCode: input.branchConditionCode,
     isJump,
     isCall: mnemonic === 'JAL' || mnemonic === 'JALR',
     isReturn: mnemonic === 'JR' && operands[0] === '$ra',
