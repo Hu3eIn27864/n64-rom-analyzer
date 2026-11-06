@@ -169,3 +169,16 @@ test('decodes COP0 transfers with explicit GPR and CP0 register operands', () =>
     assert.deepEqual(instruction.operands, ['$t0', 'c0_reg12']);
   }
 });
+
+test('decodes CACHE operands and privileged VR4300 encodings without losing raw instruction identity', () => {
+  const cache = decodeInstruction(((0x2f << 26) | (8 << 21) | (0x1c << 16) | 0xfffc) >>> 0, 0x80005000);
+  assert.equal(cache.mnemonic, 'CACHE');
+  assert.deepEqual(cache.operands, ['0x1c', '-4($t0)']);
+  const syscall = decodeInstruction(0x0000000c, 0x80005004);
+  const breakpoint = decodeInstruction(0x0000000d, 0x80005008);
+  const sync = decodeInstruction(0x0000000f, 0x8000500c);
+  assert.deepEqual([syscall.mnemonic, breakpoint.mnemonic, sync.mnemonic], ['SYSCALL', 'BREAK', 'SYNC']);
+  const tlbp = decodeInstruction(((0x10 << 26) | (0x10 << 21) | 0x08) >>> 0, 0x80005010);
+  const eret = decodeInstruction(((0x10 << 26) | (0x10 << 21) | 0x18) >>> 0, 0x80005014);
+  assert.deepEqual([tlbp.mnemonic, eret.mnemonic], ['TLBP', 'ERET']);
+});
