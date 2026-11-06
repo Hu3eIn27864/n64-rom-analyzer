@@ -37,8 +37,7 @@ function parseBranchTarget(instruction: MipsInstruction): number | undefined {
   return instruction.targetAddress === undefined ? undefined : instruction.targetAddress >>> 0;
 }
 
-/**
- * Lift the supported VR4300 core subset into Micro-C semantics. Unsupported
+/** Lift the supported VR4300 core subset into Micro-C semantics. Unsupported
  * instructions are intentionally omitted here; callers that require complete
  * semantic coverage must reject them rather than treating them as no-ops.
  */
@@ -141,11 +140,30 @@ export function liftInstructionsToMicroC(
         if (a === '$ra') operations.push({ kind: 'return' });
         break;
       case 'BEQ':
-      case 'BNE': {
+      case 'BEQL':
+      case 'BNE':
+      case 'BNEL':
+      case 'BLEZ':
+      case 'BLEZL':
+      case 'BGTZ':
+      case 'BGTZL':
+      case 'BLTZ':
+      case 'BLTZL':
+      case 'BGEZ':
+      case 'BGEZL': {
         const targetAddress = parseBranchTarget(instruction);
-        if (targetAddress !== undefined && a && b) {
-          const condition = binary(instruction.mnemonic.startsWith('BEQ') ? '==' : '!=', value(normalizeRegister(a)), value(normalizeRegister(b)));
-          operations.push({ kind: 'branch', condition, trueTarget: targetAddress });
+        const zeroCompare = instruction.mnemonic.startsWith('BLEZ') || instruction.mnemonic.startsWith('BGTZ')
+          || instruction.mnemonic.startsWith('BLTZ') || instruction.mnemonic.startsWith('BGEZ');
+        if (targetAddress !== undefined && a && (zeroCompare || b)) {
+          const left = value(normalizeRegister(a));
+          const right = zeroCompare ? constant(0) : value(normalizeRegister(b));
+          const conditionOp = instruction.mnemonic.startsWith('BEQ') ? '=='
+            : instruction.mnemonic.startsWith('BNE') ? '!='
+            : instruction.mnemonic.startsWith('BLEZ') ? '<='
+            : instruction.mnemonic.startsWith('BGTZ') ? '>'
+            : instruction.mnemonic.startsWith('BLTZ') ? '<'
+            : '>=';
+          operations.push({ kind: 'branch', condition: binary(conditionOp, left, right), trueTarget: targetAddress });
         }
         break;
       }
