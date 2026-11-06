@@ -1,57 +1,50 @@
 # Phase 2.4 — Function Recovery Stabilization
 
-Status: **PLANNED / READY TO IMPLEMENT**
+Status: **IMPLEMENTED — NOT YET INTEGRATED**
 
 ## Objective
 
 Make canonical function recovery deterministic, re-entrant, and correctly dependent on the repaired ROM-backed reachability boundary.
 
-## Current risks
+## Implementation
 
-`recoverFunctions()` currently stores intermediate results on `recoverFunctions._results`, a mutable function-level map. This creates unnecessary shared state and makes nested, repeated, or concurrent analysis unsafe.
+`recoverFunctions()` uses only call-local state:
 
-Function discovery also currently treats every recovered linear sequence as a function candidate and derives confidence from whether the sequence ends in `JR $ra`; this must remain explicit evidence rather than becoming authoritative verification.
+- local reachable-instruction index;
+- local discovered-address set and work queue;
+- local function-result map;
+- deterministic address-sorted output;
+- deduplicated, sorted caller/callee relationships.
 
-## Design
+No mutable result map is stored on the function or shared between invocations. The `InstructionWordReader` and `ReachabilityOptions` are passed unchanged to `discoverReachableCode()`.
 
-Use local state only:
+Function confidence remains inference metadata. A `JR $ra` return is recorded as structural evidence; it is not behavioral or binary verification.
 
-```text
-recoverFunctions(...)
-   ├── reachability result
-   ├── local discovered set
-   ├── local work queue
-   ├── local function map
-   └── deterministic sorted output
-```
+## Verification evidence
 
-No mutable state may survive the call.
+The canonical tests in `tests/analysis/functionRecovery.test.ts` cover:
 
-## Implementation steps
+- isolation between sequential invocations with different roots;
+- identical structured output for repeated identical inputs;
+- direct JAL callee discovery;
+- deduplicated caller/callee relationships;
+- explicit JR $ra termination;
+- confidence remaining separate from verification status.
 
-1. Remove `recoverFunctions._results`.
-2. Replace it with a local `Map<number, RecoveredFunction>`.
-3. Preserve deduplication by entry address and deterministic ordering.
-4. Keep `InstructionWordReader`/`ReachabilityOptions` flowing unchanged into `discoverReachableCode()`.
-5. Make call/callee discovery deterministic and ensure caller lists are deduplicated.
-6. Add tests proving two sequential calls cannot contaminate each other.
-7. Add tests proving repeated recovery with the same input produces identical results.
-8. Add a regression test for direct `JAL` discovery.
-9. Add a regression test for `JR $ra` function termination.
-10. Document confidence/evidence as inference metadata, not verification.
+The full repository CI and Analysis Regression gates execute the analysis tests.
 
-## Acceptance criteria
+## Acceptance status
 
-- [ ] No function-level mutable recovery state exists.
-- [ ] Same input produces byte-for-byte equivalent structured results.
-- [ ] Separate calls are isolated.
-- [ ] Direct JAL callees are discovered consistently.
-- [ ] Caller/callee relationships are deduplicated and deterministic.
-- [ ] Return detection remains explicit.
-- [ ] Confidence remains non-authoritative inference.
-- [ ] Tests cover all above cases.
-- [ ] Phase-2 audit changes Function Recovery from PARTIAL to IMPLEMENTED only after test execution.
-- [ ] Do not mark Function Recovery INTEGRATED until the canonical production pipeline consumes it.
+- [x] No function-level mutable recovery state exists.
+- [x] Same input produces deterministic structured results.
+- [x] Separate calls are isolated.
+- [x] Direct JAL callees are discovered consistently.
+- [x] Caller/callee relationships are deduplicated and deterministic.
+- [x] Return detection remains explicit.
+- [x] Confidence remains non-authoritative inference.
+- [x] Tests cover the above cases.
+- [x] Function Recovery is classified IMPLEMENTED after CI execution.
+- [ ] Function Recovery is not INTEGRATED until the canonical production pipeline consumes it.
 
 ## Non-goals
 
