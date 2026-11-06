@@ -11,21 +11,40 @@ export interface ResolvedRomAddress {
   vram?: number;
 }
 
+function hasLinearVramMapping(segment: RomSegment): boolean {
+  return Number.isInteger(segment.romStart)
+    && Number.isInteger(segment.romEnd)
+    && segment.romStart >= 0
+    && segment.romEnd > segment.romStart
+    && Number.isInteger(segment.vramStart)
+    && Number.isInteger(segment.vramEnd)
+    && segment.vramStart! >= 0
+    && segment.vramEnd! > segment.vramStart!
+    && segment.vramEnd! <= 0x100000000
+    && segment.vramEnd! - segment.vramStart! === segment.romEnd - segment.romStart;
+}
+
 export class RomAddressMap {
   constructor(private readonly segments: readonly RomSegment[]) {}
 
   findSegmentByRomOffset(offset: number): RomSegment | undefined {
+    if (!Number.isInteger(offset)) return undefined;
     return this.segments.find((segment) =>
-      offset >= segment.romStart && offset < segment.romEnd,
+      Number.isInteger(segment.romStart)
+      && Number.isInteger(segment.romEnd)
+      && segment.romStart >= 0
+      && segment.romEnd > segment.romStart
+      && offset >= segment.romStart
+      && offset < segment.romEnd,
     );
   }
 
   findSegmentByVramAddress(vram: number): RomSegment | undefined {
+    if (!Number.isInteger(vram)) return undefined;
     return this.segments.find((segment) =>
-      segment.vramStart !== undefined &&
-      segment.vramEnd !== undefined &&
-      vram >= segment.vramStart &&
-      vram < segment.vramEnd,
+      hasLinearVramMapping(segment)
+      && vram >= segment.vramStart!
+      && vram < segment.vramEnd!,
     );
   }
 
@@ -35,25 +54,21 @@ export class RomAddressMap {
     return {
       segment,
       offset: offset - segment.romStart,
-      vram: segment.vramStart === undefined || segment.vramEnd === undefined
-        ? undefined
-        : segment.vramStart + (offset - segment.romStart) < segment.vramEnd
-          ? segment.vramStart + (offset - segment.romStart)
-          : undefined,
+      vram: hasLinearVramMapping(segment)
+        ? segment.vramStart! + (offset - segment.romStart)
+        : undefined,
     };
   }
 
   romToVram(offset: number): number | undefined {
     const segment = this.findSegmentByRomOffset(offset);
-    if (!segment || segment.vramStart === undefined || segment.vramEnd === undefined) return undefined;
-    const mapped = segment.vramStart + (offset - segment.romStart);
-    return mapped < segment.vramEnd ? mapped : undefined;
+    if (!segment || !hasLinearVramMapping(segment)) return undefined;
+    return segment.vramStart! + (offset - segment.romStart);
   }
 
   vramToRom(vram: number): number | undefined {
     const segment = this.findSegmentByVramAddress(vram);
-    if (!segment || segment.vramStart === undefined) return undefined;
-    const mapped = segment.romStart + (vram - segment.vramStart);
-    return mapped < segment.romEnd ? mapped : undefined;
+    if (!segment) return undefined;
+    return segment.romStart + (vram - segment.vramStart!);
   }
 }

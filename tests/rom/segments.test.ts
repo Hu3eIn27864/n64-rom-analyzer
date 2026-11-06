@@ -130,6 +130,8 @@ test('address map refuses partial or out-of-range VRAM translations', () => {
   assert.equal(partialMap.romToVram(0x1010), undefined);
   assert.equal(partialMap.resolveRomOffset(0x1010)?.vram, undefined);
   assert.equal(partialMap.vramToRom(0x80001010), undefined);
+  assert.equal(partialMap.romToVram(0x1010 + 0.5), undefined);
+  assert.equal(partialMap.vramToRom(0x80001010 + 0.5), undefined);
 
   const short = createRomSegments([{
     romStart: 0x1000,
@@ -138,7 +140,7 @@ test('address map refuses partial or out-of-range VRAM translations', () => {
     vramEnd: 0x80001800,
   }]);
   const shortMap = new RomAddressMap(short);
-  assert.equal(shortMap.romToVram(0x17ff), 0x800017ff);
+  assert.equal(shortMap.romToVram(0x17ff), undefined);
   assert.equal(shortMap.romToVram(0x1800), undefined);
-  assert.equal(shortMap.vramToRom(0x80001800), undefined);
+  assert.equal(shortMap.vramToRom(0x800017ff), undefined);
 });

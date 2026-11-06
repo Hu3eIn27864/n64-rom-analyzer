@@ -68,11 +68,20 @@ export function validateRomSegments(segments: readonly RomSegment[]): string[] {
 }
 
 export function containsRomOffset(segment: RomSegment, offset: number): boolean {
-  return offset >= segment.romStart && offset < segment.romEnd;
+  return Number.isInteger(offset)
+    && Number.isInteger(segment.romStart)
+    && Number.isInteger(segment.romEnd)
+    && segment.romStart >= 0
+    && segment.romEnd > segment.romStart
+    && offset >= segment.romStart
+    && offset < segment.romEnd;
 }
 
 export function romToVram(segment: RomSegment, offset: number): number | undefined {
   if (segment.vramStart === undefined || segment.vramEnd === undefined || !containsRomOffset(segment, offset)) return undefined;
-  const mapped = segment.vramStart + (offset - segment.romStart);
-  return mapped < segment.vramEnd ? mapped : undefined;
+  if (!Number.isInteger(segment.vramStart) || !Number.isInteger(segment.vramEnd)
+    || segment.vramStart < 0 || segment.vramEnd > 0x100000000
+    || segment.vramEnd <= segment.vramStart
+    || segment.vramEnd - segment.vramStart !== segment.romEnd - segment.romStart) return undefined;
+  return segment.vramStart + (offset - segment.romStart);
 }
