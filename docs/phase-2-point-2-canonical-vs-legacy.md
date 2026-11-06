@@ -2,79 +2,60 @@
 
 Status: **COMPLETE — AUDIT ONLY**
 
-Branch: `phase-2-point-2`
-
 ## Objective
 
-Inventory the competing analysis implementations and determine which one is actually authoritative at runtime. This phase does **not** delete or replace legacy code yet. It establishes the migration boundary from observed repository usage.
+Inventory the competing analysis implementations and determine which one is actually authoritative at runtime. This phase does **not** delete or replace legacy code. It establishes the migration boundary from observed repository usage.
 
-## Findings
+## Current findings
 
-| Capability | Legacy implementation | Canonical implementation | Runtime status | Decision |
+| Capability | Legacy implementation | Canonical implementation | Current status | Decision |
 |---|---|---|---|---|
-| ROM parsing | `src/utils/romParser.ts` | canonical ROM/segment model under `engine/` | Legacy path is active in `engine/pipeline.ts` | Preserve parser contract; migrate output into canonical model before replacing consumers. |
-| MIPS decoding | `src/utils/mipsDisassembler.ts` | `engine/mips/decoder.ts` | Legacy decoder is active; canonical decoder is an adapter over it | Canonical API becomes the future boundary; do not remove legacy decoder until corpus parity is demonstrated. |
-| Reachability | linear sweep / legacy extraction | `engine/mips/reachability.ts` | Canonical reachability is not in runtime path and currently has a ROM-word input defect | Repair first, then integrate. |
-| Function recovery | `src/utils/subroutineExtractor.ts` | `engine/mips/functionRecovery.ts` | Legacy extractor is active; canonical recovery is isolated | Canonical recovery becomes authoritative only after reachability correctness tests. |
-| CFG | `src/utils/controlFlowGraph.ts` | `engine/mips/cfgBuilder.ts` | Legacy CFG is active in `engine/pipeline.ts` | Migrate behind a compatibility boundary; compare graphs before cutover. |
-| Call graph | legacy-derived function relationships | canonical call-graph layer | Not yet proven as runtime authority | Keep isolated until function/CFG cutover. |
-| IR / Micro-C | existing decompiler/lifting infrastructure | `engine/ir/*` | Canonical layer exists but is not the complete runtime source of truth | Integrate after CFG/function recovery. |
-| Semantics | existing semantic/lifting utilities | `engine/semantics/*` | Downstream analysis is present but not the canonical source path | Preserve as downstream stage; evidence must distinguish inferred/unverified output. |
-| Types | existing type inference | `engine/types/*` | Downstream/partial integration | Do not label authoritative until evidence is wired. |
-| Evidence | N/A in legacy path | `engine/analysis/evidence.ts` | Exists but isolated from API/runtime | Make this the single status vocabulary for all analysis results. |
+| ROM parsing | src/utils/n64Parser.ts and legacy parser helpers | engine/rom/* | Legacy parser remains active in the production API path; canonical header/address components are tested | Preserve compatibility and add parity fixtures before cutover. |
+| MIPS decoding | src/utils/mipsDisassembler.ts | engine/mips/decoder.ts | Canonical API is an adapter over legacy decoding; it is not yet the production boundary | Keep the adapter and require corpus parity before replacement. |
+| Reachability | Linear sweep / legacy extraction | engine/mips/reachability.ts | Implemented with an explicit ROM-word reader and bounds checks; isolated from production API | Integration remains open. |
+| Function recovery | src/utils/subroutineExtractor.ts | engine/mips/functionRecovery.ts | Deterministic local-state implementation with isolation, JAL, return and deduplication tests; isolated | Integration remains open. |
+| CFG | src/utils/controlFlowGraph.ts | engine/mips/cfgBuilder.ts | Canonical builder exists and is tested; production API still uses legacy extraction/CFG | Compare canonical and legacy graphs before cutover. |
+| Call graph | Legacy-derived relationships | engine/mips/callGraph.ts | Canonical call-graph builder exists; isolated from the production API | Require relationship parity tests. |
+| IR / Micro-C | Existing decompiler/lifting infrastructure | engine/ir/* | Canonical IR and a growing VR4300 semantic subset exist; unsupported operations remain explicit | Continue semantic coverage and fail-closed diagnostics. |
+| Formal semantics | Legacy semantic utilities | engine/mips/formalSemantics.ts | Partial descriptive metadata; not a complete ISA semantics engine and not wired as runtime authority | Expand by instruction family with architecture-specific tests. |
+| Memory/data flow | Legacy alias-analysis utilities | engine/ir/memoryState.ts, memoryPhi.ts, memorySsa.ts | Small isolated primitives/prototypes exist; no complete CFG-driven Memory SSA or general alias analysis | Do not mark M3 complete. |
+| Structured C | Existing experimental C/decompiler paths | engine/ir/cAst.ts, engine/decompiler/structuredC.ts and proof modules | AST/rendering and narrow proof-gated lowering exist; general control-flow structuring is incomplete | Keep unsupported CFG shapes rejected. |
+| Evidence | N/A in legacy path | engine/analysis/evidence.ts | Evidence types/helper exist but are not constructed and exposed by the production API | Wire only after the canonical pipeline boundary is authoritative. |
 
-## Architectural conclusion
+## Runtime authority
 
-There are currently **two layers of truth**:
+The HTTP endpoint in server.ts imports the synchronous analyzeRom() export from engine/pipeline.ts. That function currently calls the legacy ROM parser, linear-sweep disassembler and subroutine extractor. The separate asynchronous analyzeRomReal() path also uses legacy parser/disassembler/extractor/type and semantic utilities.
 
-1. The mature `src/utils/*` implementation that still performs most real analysis work.
-2. The newer `engine/*` architecture that defines canonical interfaces and progressively reimplements the analysis stages.
+Therefore the canonical engine components are **not production-integrated** merely because they exist under engine/ or have passing tests.
 
-The correct Phase-2 strategy is **not** a destructive rewrite. The legacy implementation is the currently working execution substrate, while the canonical engine is the target authority. We therefore migrate one boundary at a time and require parity evidence before each cutover.
+## Migration order
 
-## Required migration order
+1. Preserve ROM parser/decoder compatibility and build parity fixtures.
+2. Integrate ROM-backed reachability and deterministic function recovery behind a non-default analysis path.
+3. Compare canonical and legacy CFG/call-graph output on synthetic fixtures.
+4. Integrate Micro-C and formal semantics only for explicitly supported instruction families.
+5. Add memory data-flow with explicit alias uncertainty and CFG join semantics.
+6. Wire evidence aggregation into the analysis result and API.
+7. Promote the canonical path only after parity and regression gates pass.
 
-```text
-legacy parser
-   ↓
-canonical ROM model
-   ↓
-canonical decoder
-   ↓
-canonical reachability
-   ↓
-canonical function recovery
-   ↓
-canonical CFG
-   ↓
-canonical call graph
-   ↓
-canonical IR / semantics / types
-   ↓
-canonical evidence
-   ↓
-API/UI
-```
-
-## Rules for cutover
+## Cutover rules
 
 - No legacy module is deleted merely because a canonical replacement exists.
 - A canonical module is not authoritative merely because it has tests.
-- Each migration must have input/output parity tests against the current mature implementation where applicable.
-- Any result that is inferred or unverified remains non-authoritative through the evidence layer.
-- Runtime imports are the deciding factor for `INTEGRATED`; directory placement alone is not.
+- Each migration requires input/output parity tests against the current mature implementation where applicable.
+- Inferred or unverified results remain non-authoritative through the evidence layer.
+- Runtime imports decide INTEGRATED; directory placement does not.
 
-## Phase 2.2 acceptance criteria
+## Acceptance status
 
-- [x] Legacy implementations identified.
-- [x] Canonical implementations identified.
+- [x] Legacy and canonical implementations identified.
 - [x] Runtime consumers identified.
-- [x] Canonical-vs-legacy boundary documented.
-- [x] Migration order defined.
-- [x] Cutover rules defined.
-- [ ] Reachability repaired.
+- [x] Migration order and cutover rules documented.
+- [x] Reachability repaired and tested (Phase 2.3), but isolated.
+- [x] Function recovery stabilized and tested (Phase 2.4), but isolated.
 - [ ] Canonical pipeline cutover performed.
+- [ ] Evidence exposed through the production API/UI.
 
 ## Next
 
-Proceed to **Phase 2.3 — Repair the reachability input boundary**. The current implementation passes an instruction word of `0` to the decoder rather than reading the corresponding ROM word, so reachability cannot yet be treated as authoritative.
+Proceed to **Phase 2.5 — Canonical pipeline integration and parity**. Do not switch the production API wholesale; first introduce a side-by-side canonical analysis result on deterministic synthetic fixtures and compare it with the legacy output.
