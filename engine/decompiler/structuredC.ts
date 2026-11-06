@@ -564,6 +564,7 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     || operation.kind === 'fpuControlWrite'
     || operation.kind === 'fpuControlRead'
     || operation.kind === 'fpuArithmetic'
+    || operation.kind === 'fpuConvertFormat'
     || operation.kind === 'fpuConvertWord');
   const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
