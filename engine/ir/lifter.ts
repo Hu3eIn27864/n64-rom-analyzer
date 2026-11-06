@@ -151,7 +151,7 @@ export function liftInstructionsToMicroC(
         const register = parseFpuRegister(a);
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'LWC1' ? 4 : 8;
-        if (register !== undefined && address) operations.push({ kind: 'fpuLoad', register, address, size, registerMode: 'status-fr' });
+        if (register !== undefined && address) operations.push({ kind: 'fpuLoad', register, address, size, ...(size === 8 ? { modeConstraint: 'kernel-or-64bit' as const } : {}), registerMode: 'status-fr' });
         break;
       }
       case 'SWC1':
@@ -159,7 +159,7 @@ export function liftInstructionsToMicroC(
         const register = parseFpuRegister(a);
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'SWC1' ? 4 : 8;
-        if (register !== undefined && address) operations.push({ kind: 'fpuStore', register, address, size, registerMode: 'status-fr' });
+        if (register !== undefined && address) operations.push({ kind: 'fpuStore', register, address, size, ...(size === 8 ? { modeConstraint: 'kernel-or-64bit' as const } : {}), registerMode: 'status-fr' });
         break;
       }
       case 'MFC1':
@@ -178,6 +178,7 @@ export function liftInstructionsToMicroC(
             gprSemantics: instruction.mnemonic === 'MFC1' ? 'sign-extend'
               : instruction.mnemonic === 'MTC1' ? 'truncate'
               : 'full-width',
+            ...(instruction.mnemonic.startsWith('D') ? { modeConstraint: 'kernel-or-64bit' as const } : {}),
             registerMode: 'status-fr',
           });
         }
