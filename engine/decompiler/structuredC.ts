@@ -133,7 +133,7 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       const call = operation.size === 4
         ? cCall('vr4300_fpu_store_s', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t')
         : cCall('vr4300_fpu_store_d', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t');
-      return operation.size === 4 ? { kind: 'expr', expr: call } : returnIfFalse(call);
+      return returnIfFalse(call);
     }
     case 'fpuTransfer': {
       if (operation.direction === 'from-fpu' && operation.width === 32) {
