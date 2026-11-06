@@ -127,3 +127,35 @@ test('retains COP1 register fields and compare predicate metadata', () => {
   assert.equal(compare.fpuCompareConditionCode, 0);
   assert.equal(compare.fpuDestinationRegister, undefined);
 });
+
+
+test('decodes COP1 memory operations with explicit FPR and effective-address operands', () => {
+  const fixtures = [
+    [0xc7a60008, 'LWC1', ['$f6', '8($sp)']],
+    [0xd7a60008, 'LDC1', ['$f6', '8($sp)']],
+    [0xe7a60008, 'SWC1', ['$f6', '8($sp)']],
+    [0xf7a60008, 'SDC1', ['$f6', '8($sp)']],
+  ] as const;
+  for (const [raw, mnemonic, operands] of fixtures) {
+    const instruction = decodeInstruction(raw, 0x80003000);
+    assert.equal(instruction.mnemonic, mnemonic);
+    assert.deepEqual(instruction.operands, operands);
+  }
+});
+
+test('decodes COP1 GPR/FPR and control-register transfer operands', () => {
+  const encode = (fmt: number, rt: number, fs: number) =>
+    ((0x11 << 26) | (fmt << 21) | (rt << 16) | (fs << 11)) >>> 0;
+  for (const [fmt, mnemonic, operands] of [
+    [0x00, 'MFC1', ['$a0', '$f3']],
+    [0x01, 'DMFC1', ['$a0', '$f3']],
+    [0x04, 'MTC1', ['$a0', '$f3']],
+    [0x05, 'DMTC1', ['$a0', '$f3']],
+    [0x02, 'CFC1', ['$a0', 'fcr3']],
+    [0x06, 'CTC1', ['$a0', 'fcr3']],
+  ] as const) {
+    const instruction = decodeInstruction(encode(fmt, 4, 3), 0x80003000);
+    assert.equal(instruction.mnemonic, mnemonic);
+    assert.deepEqual(instruction.operands, operands);
+  }
+});
