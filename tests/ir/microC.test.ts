@@ -15,10 +15,16 @@ test('lifts register arithmetic into canonical Micro-C operations', () => {
     kind: 'assign',
     target: 'rv0',
     value: {
-      kind: 'binary',
-      op: '+',
-      left: { kind: 'value', name: 'ra0' },
-      right: { kind: 'value', name: 'ra1' },
+      kind: 'cast',
+      type: 'sext32',
+      width: 64,
+      value: {
+        kind: 'binary',
+        op: '+',
+        width: 32,
+        left: { kind: 'value', name: 'ra0', width: 32 },
+        right: { kind: 'value', name: 'ra1', width: 32 },
+      },
     },
   });
   assert.deepEqual(ir.blocks[0].operations[1], { kind: 'return' });
