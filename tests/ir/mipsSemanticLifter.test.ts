@@ -422,3 +422,42 @@ test('lifts COP1 word conversions and fixed-rounding operations with FR-aware so
   assert.match(c, /INT32_MIN/);
   assert.match(c, /vr4300_fpu_commit_arithmetic_exceptions/);
 });
+
+
+test('lifts CVT.S.D and CVT.D.S with source and destination format constraints', () => {
+  const dToS = createMipsInstruction({
+    address: 0x80009100, raw: 0, mnemonic: 'CVT.S.D', operands: ['$f6', '$f4'],
+    fpuFormat: 0x11, fpuSourceRegister: 4, fpuTargetRegister: 0, fpuDestinationRegister: 6,
+  });
+  const sToD = createMipsInstruction({
+    address: 0x80009104, raw: 0, mnemonic: 'CVT.D.S', operands: ['$f10', '$f8'],
+    fpuFormat: 0x10, fpuSourceRegister: 8, fpuTargetRegister: 0, fpuDestinationRegister: 10,
+  });
+  const ir = liftInstructionsToMicroC(0x80009100, [dToS, sToD]);
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'fpuConvertFormat', sourceFormat: 'D', destinationFormat: 'S', sourceRegister: 4, destinationRegister: 6, registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertFormat', sourceFormat: 'S', destinationFormat: 'D', sourceRegister: 8, destinationRegister: 10, registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+  ]);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_fpu_convert_d_to_s\(fpu, 4, 6\)/);
+  assert.match(c, /vr4300_fpu_convert_s_to_d\(fpu, 8, 10\)/);
+  assert.match(c, /fesetround/);
+  assert.match(c, /vr4300_fpu_commit_arithmetic_exceptions/);
+});
+
+test('lifts CFC1 reads of both FIR and FCSR while leaving other control registers unsupported', () => {
+  const ir = liftInstructionsToMicroC(0x80009200, [
+    instruction('CFC1', ['$t0', 'fcr0']),
+    instruction('CFC1', ['$t1', 'fcr31']),
+    instruction('CFC1', ['$t2', 'fcr25']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'fpuControlRead', controlRegister: 0, gpr: 'rt0', gprSemantics: 'mode-dependent' },
+    { kind: 'fpuControlRead', controlRegister: 31, gpr: 'rt1', gprSemantics: 'mode-dependent' },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['CFC1']);
+  const c = renderFunction(decompileStructuredFunctionIR({ ...ir, unsupportedInstructions: [] }));
+  assert.match(c, /vr4300_fpu_read_fir/);
+  assert.match(c, /vr4300_fpu_read_fcsr/);
+  assert.match(c, /uint32_t fir/);
+});
