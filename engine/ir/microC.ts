@@ -13,7 +13,9 @@ export type MicroCOperation =
   | { kind: 'hiloTransfer'; direction: 'from-hi' | 'from-lo' | 'to-hi' | 'to-lo'; register: string }
   | { kind: 'hiloMultiply'; left: MicroCExpr; right: MicroCExpr; signed: boolean }
   | { kind: 'load'; target: string; address: MicroCExpr; size: 1 | 2 | 4 | 8; signed: boolean }
+  | { kind: 'mergeLoad'; target: string; address: MicroCExpr; direction: 'left' | 'right' }
   | { kind: 'store'; address: MicroCExpr; value: MicroCExpr; size: 1 | 2 | 4 | 8 }
+  | { kind: 'mergeStore'; address: MicroCExpr; value: MicroCExpr; direction: 'left' | 'right' }
   | { kind: 'fpuLoad'; register: number; address: MicroCExpr; size: 4 | 8; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuStore'; register: number; address: MicroCExpr; size: 4 | 8; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuTransfer'; direction: 'from-fpu' | 'to-fpu'; gpr: string; fpr: number; width: 32 | 64; gprSemantics: 'mode-dependent' | 'truncate' | 'full-width'; modeConstraint?: 'kernel-or-64bit'; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
