@@ -59,12 +59,6 @@ static inline void vr4300_hilo_write_lo(vr4300_fpu_state *fpu, uint64_t value)
 
 static inline bool vr4300_hilo_divide64(vr4300_fpu_state *fpu, uint64_t dividend, uint64_t divisor, bool is_signed)
 {
-    if (!fpu->mode64_or_kernel) {
-        fpu->exception_pending = true;
-        fpu->exception_code = 10u; /* Reserved Instruction */
-        return false;
-    }
-
     /* Division by zero has architecturally undefined HI/LO results. Keep the
      * prior values rather than invoking undefined behavior in host C. */
     if (divisor == 0u) return true;
@@ -342,6 +336,14 @@ static inline bool vr4300_memory_store_conditional(vr4300_fpu_state *fpu, uintpt
     if (succeeded && !vr4300_memory_store(fpu, address, size, value)) return false;
     *success = succeeded ? 1u : 0u;
     return true;
+}
+
+static inline bool vr4300_require_mode64_or_kernel(vr4300_fpu_state *fpu)
+{
+    if (fpu->mode64_or_kernel) return true;
+    fpu->exception_pending = true;
+    fpu->exception_code = 10u; /* Reserved Instruction */
+    return false;
 }
 
 static inline bool vr4300_signed_overflow(vr4300_fpu_state *fpu)
