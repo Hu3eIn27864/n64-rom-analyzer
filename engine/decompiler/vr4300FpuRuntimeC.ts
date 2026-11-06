@@ -368,10 +368,15 @@ static inline bool vr4300_fpu_arithmetic_s(
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
     uint32_t left_bits = vr4300_fpu_read_s(fpu, fs);
-    uint32_t right_bits = vr4300_fpu_read_s(fpu, ft);
-    if (operation == 5u || operation == 6u || operation == 7u) {
+    uint32_t right_bits = 0;
+    if (operation <= 3u) right_bits = vr4300_fpu_read_s(fpu, ft);
+    if (operation == 6u) return vr4300_fpu_write_s(fpu, fd, left_bits); /* MOV is a bitwise transfer. */
+    if (!vr4300_fpu_check_operand_s(fpu, left_bits) ||
+        (operation <= 3u && !vr4300_fpu_check_operand_s(fpu, right_bits))) return false;
+    if (operation == 5u || operation == 7u) {
+        fpu->fcsr &= ~(UINT32_C(0x3f) << 12);
         if (operation == 5u) left_bits &= UINT32_C(0x7fffffff);
-        else if (operation == 7u) left_bits ^= UINT32_C(0x80000000);
+        else left_bits ^= UINT32_C(0x80000000);
         return vr4300_fpu_write_s(fpu, fd, left_bits);
     }
     float left, right;
@@ -407,12 +412,16 @@ static inline bool vr4300_fpu_arithmetic_d(
     vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned ft, unsigned fd)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
-    uint64_t left_bits, right_bits;
-    if (!vr4300_fpu_read_compare_d(fpu, fs, &left_bits) ||
-        !vr4300_fpu_read_compare_d(fpu, ft, &right_bits)) return false;
-    if (operation == 5u || operation == 6u || operation == 7u) {
+    uint64_t left_bits, right_bits = 0;
+    if (!vr4300_fpu_read_compare_d(fpu, fs, &left_bits)) return false;
+    if (operation <= 3u && !vr4300_fpu_read_compare_d(fpu, ft, &right_bits)) return false;
+    if (operation == 6u) return vr4300_fpu_write_d_register(fpu, fd, left_bits); /* MOV is a bitwise transfer. */
+    if (!vr4300_fpu_check_operand_d(fpu, left_bits) ||
+        (operation <= 3u && !vr4300_fpu_check_operand_d(fpu, right_bits))) return false;
+    if (operation == 5u || operation == 7u) {
+        fpu->fcsr &= ~(UINT32_C(0x3f) << 12);
         if (operation == 5u) left_bits &= UINT64_C(0x7fffffffffffffff);
-        else if (operation == 7u) left_bits ^= UINT64_C(0x8000000000000000);
+        else left_bits ^= UINT64_C(0x8000000000000000);
         return vr4300_fpu_write_d_register(fpu, fd, left_bits);
     }
     double left, right;
