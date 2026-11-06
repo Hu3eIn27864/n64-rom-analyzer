@@ -12,23 +12,35 @@ export interface ResolvedRomAddress {
 }
 
 function hasLinearVramMapping(segment: RomSegment): boolean {
-  return segment.vramStart !== undefined
-    && segment.vramEnd !== undefined
-    && segment.vramEnd > segment.vramStart
+  return Number.isInteger(segment.romStart)
+    && Number.isInteger(segment.romEnd)
+    && segment.romStart >= 0
     && segment.romEnd > segment.romStart
-    && segment.vramEnd - segment.vramStart === segment.romEnd - segment.romStart;
+    && Number.isInteger(segment.vramStart)
+    && Number.isInteger(segment.vramEnd)
+    && segment.vramStart! >= 0
+    && segment.vramEnd! > segment.vramStart!
+    && segment.vramEnd! <= 0x100000000
+    && segment.vramEnd! - segment.vramStart! === segment.romEnd - segment.romStart;
 }
 
 export class RomAddressMap {
   constructor(private readonly segments: readonly RomSegment[]) {}
 
   findSegmentByRomOffset(offset: number): RomSegment | undefined {
+    if (!Number.isInteger(offset)) return undefined;
     return this.segments.find((segment) =>
-      offset >= segment.romStart && offset < segment.romEnd,
+      Number.isInteger(segment.romStart)
+      && Number.isInteger(segment.romEnd)
+      && segment.romStart >= 0
+      && segment.romEnd > segment.romStart
+      && offset >= segment.romStart
+      && offset < segment.romEnd,
     );
   }
 
   findSegmentByVramAddress(vram: number): RomSegment | undefined {
+    if (!Number.isInteger(vram)) return undefined;
     return this.segments.find((segment) =>
       hasLinearVramMapping(segment)
       && vram >= segment.vramStart!
