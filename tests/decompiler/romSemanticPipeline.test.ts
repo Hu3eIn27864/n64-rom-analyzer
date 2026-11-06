@@ -36,7 +36,7 @@ test('does not hide an unresolved CFG failure behind the pipeline', () => {
 });
 
 
-test('accepts ROM functions with supported conditional branch-and-link semantics', () => {
+test('rejects ROM functions whose branch-and-link comparison lacks 64-bit GPR semantics', () => {
   const rom = new Uint8Array([
     ...bigEndianWord(0x05100003), // BLTZAL $t0, 0x80001010
     ...bigEndianWord(0x00000000),
@@ -49,6 +49,8 @@ test('accepts ROM functions with supported conditional branch-and-link semantics
   const result = validateDecodedRomFunction(cfg);
 
   assert.equal(result.validation.cfg, 'pass');
-  assert.equal(result.validation.confidence, 'proven');
-  assert.deepEqual(result.validation.reasons, []);
+  assert.equal(result.validation.confidence, 'rejected');
+  assert.ok(result.validation.reasons.some(reason =>
+    reason.includes('BLTZAL') && reason.includes('64-bit GPR comparison semantics are not yet modeled'),
+  ));
 });
