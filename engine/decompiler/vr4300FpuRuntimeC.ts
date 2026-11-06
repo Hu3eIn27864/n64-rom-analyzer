@@ -17,6 +17,8 @@ export const VR4300_FPU_C_RUNTIME = `#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
+#pragma STDC FENV_ACCESS ON
+
 typedef struct vr4300_fpu_state {
     uint32_t words[32];
     uint64_t wide[32];
@@ -242,6 +244,9 @@ static inline bool vr4300_fpu_compare_d(
 }
 
 
+/* NaN classification and IEEE exception flags are modeled. For arithmetic NaN
+ * results, payload selection follows the host C implementation and is not
+ * guaranteed to be bit-identical to every VR4300 silicon revision. */
 static inline bool vr4300_fpu_commit_arithmetic_exceptions(vr4300_fpu_state *fpu, int raised)
 {
     static const int host_flags[5] = { FE_INEXACT, FE_UNDERFLOW, FE_OVERFLOW, FE_DIVBYZERO, FE_INVALID };
