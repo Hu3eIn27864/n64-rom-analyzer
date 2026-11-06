@@ -74,6 +74,12 @@ export function liftInstructionsToMicroC(
   const unsupportedInstructions: UnsupportedInstruction[] = [];
   const knownFcc = new Set<number>();
 
+  const modeRestrictedDoubleword = new Set([
+    'DADD', 'DADDI', 'DSUB', 'DADDU', 'DADDIU', 'DSUBU',
+    'DSLL', 'DSRL', 'DSRA', 'DSLL32', 'DSRL32', 'DSRA32',
+    'DSLLV', 'DSRLV', 'DSRAV', 'DMULT', 'DMULTU', 'DDIV', 'DDIVU',
+  ]);
+
   for (const instruction of instructions) {
     const operationCount = operations.length;
     const [a, b, c] = instruction.operands;
@@ -615,11 +621,6 @@ export function liftInstructionsToMicroC(
         break;
       }
     }
-    const modeRestrictedDoubleword = new Set([
-      'DADD', 'DADDI', 'DSUB', 'DADDU', 'DADDIU', 'DSUBU',
-      'DSLL', 'DSRL', 'DSRA', 'DSLL32', 'DSRL32', 'DSRA32',
-      'DSLLV', 'DSRLV', 'DSRAV', 'DMULT', 'DMULTU', 'DDIV', 'DDIVU',
-    ]);
     if (operations.length > operationCount && modeRestrictedDoubleword.has(instruction.mnemonic)) {
       operations.splice(operationCount, 0, { kind: 'modeCheck', mode: '64-or-kernel' });
     }
