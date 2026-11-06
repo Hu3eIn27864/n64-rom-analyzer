@@ -274,6 +274,6 @@ test('refuses to silently drop FPU IR during structured C lowering', () => {
   ]);
   assert.throws(
     () => decompileStructuredFunctionIR(ir),
-    /Status\\.FR-dependent FPR storage or FCSR compare side effects/,
+    /Status\.FR-dependent FPR storage or FCSR compare side effects/,
   );
 });
