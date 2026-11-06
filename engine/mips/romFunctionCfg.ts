@@ -34,9 +34,9 @@ function nextAddress(address: number): number { return (address + 4) >>> 0; }
 
 /**
  * Recover a bounded control-flow graph from an evidenced ROM function entry.
- * Branch and jump targets are followed only when the decoder provides a
- * concrete target. Delay slots are included in the originating block. Unknown
- * indirect jumps terminate the block without inventing a successor.
+ * Ordinary branches execute their delay slot on both paths. Branch-likely
+ * instructions are split into an explicit delay-slot block on the taken path;
+ * the not-taken edge skips that block, modeling the architectural annul rule.
  */
 export function decodeRomFunctionCfg(
   rom: Uint8Array,
@@ -79,6 +79,7 @@ export function decodeRomFunctionCfg(
 
       if (instruction.isReturn) {
         const delay = decodeAt(after);
+        if (isControlTransfer(delay)) throw new Error(`control transfer in delay slot at 0x${after.toString(16)} is unsupported`);
         instructions.push(delay);
         instructionCount += 1;
         successors = [];
@@ -88,27 +89,38 @@ export function decodeRomFunctionCfg(
       if (instruction.isConditionalBranch) {
         if (instruction.targetAddress === undefined || instruction.targetAddress === after) throw new Error(`conditional branch at 0x${address.toString(16)} has no resolved target`);
         const delay = decodeAt(after);
-        instructions.push(delay);
+        if (isControlTransfer(delay)) throw new Error(`control transfer in delay slot at 0x${after.toString(16)} is unsupported`);
         instructionCount += 1;
         const fallthrough = nextAddress(after);
-        successors = [instruction.targetAddress >>> 0, fallthrough];
-        pending.push(fallthrough, instruction.targetAddress >>> 0);
+        const target = instruction.targetAddress >>> 0;
+
+        if (instruction.isBranchLikely) {
+          // The delay instruction is its own block, reachable only when taken.
+          if (visited.has(after)) {
+            throw new Error(`branch-likely delay slot at 0x${after.toString(16)} overlaps an already recovered block`);
+          }
+          visited.add(after);
+          blocks.set(after, { startAddress: after, instructions: [delay], successors: [target] });
+          successors = [after, fallthrough];
+          pending.push(fallthrough, target);
+        } else {
+          instructions.push(delay);
+          successors = [target, fallthrough];
+          pending.push(fallthrough, target);
+        }
         break;
       }
 
       if (instruction.isJump) {
         const delay = decodeAt(after);
+        if (isControlTransfer(delay)) throw new Error(`control transfer in delay slot at 0x${after.toString(16)} is unsupported`);
         instructions.push(delay);
         instructionCount += 1;
         if (instruction.isCall) {
-          // Calls return to the instruction after the delay slot; the callee is
-          // not merged into this function's CFG.
           const fallthrough = nextAddress(after);
           successors = [fallthrough];
           pending.push(fallthrough);
         } else if (instruction.targetAddress !== undefined) {
-          // Validate a direct target against the evidenced ROM extent, but do
-          // not import the destination into this function's recovered CFG.
           decodeAt(instruction.targetAddress >>> 0);
           successors = [];
         } else {
