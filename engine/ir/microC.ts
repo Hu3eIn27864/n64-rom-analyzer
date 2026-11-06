@@ -16,6 +16,8 @@ export type MicroCOperation =
   | { kind: 'fpuTransfer'; direction: 'from-fpu' | 'to-fpu'; gpr: string; fpr: number; width: 32 | 64; gprSemantics: 'mode-dependent' | 'truncate' | 'full-width'; modeConstraint?: 'kernel-or-64bit'; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuCompare'; conditionCode: number; format: 'S' | 'D'; predicate: number; leftRegister: number; rightRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuControlWrite'; controlRegister: number; value: MicroCExpr }
+  | { kind: 'fpuControlRead'; controlRegister: number; gpr: string; gprSemantics: 'mode-dependent' }
+  | { kind: 'fpuArithmetic'; operation: 'add' | 'sub' | 'mul' | 'div' | 'sqrt' | 'abs' | 'mov' | 'neg'; format: 'S' | 'D'; sourceRegister: number; targetRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'call'; target: MicroCExpr; args: MicroCExpr[]; result?: string }
   | { kind: 'branch'; condition: MicroCExpr; trueTarget: number; falseTarget?: number; linkOnTaken?: { target: string; value: MicroCExpr } }
   | { kind: 'jump'; target: number }
