@@ -526,7 +526,7 @@ test('clears stale unimplemented causes and traps when CTC1 writes enabled FCSR 
   const arithmeticCommit = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_commit_arithmetic_exceptions\([\s\S]*?\n\}/)?.[0] ?? '';
   const fcsrWrite = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_write_fcsr\([\s\S]*?\n\}/)?.[0] ?? '';
   assert.match(arithmeticCommit, /UINT32_C\(0x3f\) << 12/);
-  assert.match(fcsrWrite, /enabled_ieee_causes = \(value & \(UINT32_C\(0x1f\) << 7\)\) << 5/);
+  assert.match(fcsrWrite, /enabled_ieee_causes = \(fpu->fcsr & \(UINT32_C\(0x1f\) << 7\)\) << 5/);
   assert.match(fcsrWrite, /cause & enabled_ieee_causes/);
   assert.match(fcsrWrite, /cause & \(UINT32_C\(1\) << 17\)/);
   assert.match(fcsrWrite, /exception_code = 15u/);
