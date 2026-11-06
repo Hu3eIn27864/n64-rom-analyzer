@@ -18,6 +18,7 @@ export type MicroCOperation =
   | { kind: 'fpuControlWrite'; controlRegister: number; value: MicroCExpr }
   | { kind: 'fpuControlRead'; controlRegister: number; gpr: string; gprSemantics: 'mode-dependent' }
   | { kind: 'fpuArithmetic'; operation: 'add' | 'sub' | 'mul' | 'div' | 'sqrt' | 'abs' | 'mov' | 'neg'; format: 'S' | 'D'; sourceRegister: number; targetRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
+  | { kind: 'fpuConvertWord'; operation: 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor'; format: 'S' | 'D'; sourceRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'call'; target: MicroCExpr; args: MicroCExpr[]; result?: string }
   | { kind: 'branch'; condition: MicroCExpr; trueTarget: number; falseTarget?: number; linkOnTaken?: { target: string; value: MicroCExpr } }
   | { kind: 'jump'; target: number }
