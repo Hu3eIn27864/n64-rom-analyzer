@@ -472,3 +472,18 @@ test('restores the complete host floating-point environment after VR4300 operati
   assert.doesNotMatch(VR4300_FPU_C_RUNTIME, /fegetround\(\)|fesetround\(old_round\)/);
   assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 4);
 });
+
+
+test('compares COP1 values by IEEE bit ordering without changing host floating-point flags', () => {
+  const singleCompare = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_compare_s\([\s\S]*?\n\}/)?.[0] ?? '';
+  const doubleCompare = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_compare_d\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_compare_bits32/);
+  assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_compare_bits64/);
+  assert.match(VR4300_FPU_C_RUNTIME, /UINT32_C\(0x7f800000\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /UINT64_C\(0x7ff0000000000000\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /\(left & magnitude\) == 0 && \(right & magnitude\) == 0/);
+  assert.doesNotMatch(singleCompare, /isnan|memcpy|float left|left < right/);
+  assert.doesNotMatch(doubleCompare, /isnan|memcpy|double left|left < right/);
+  assert.match(singleCompare, /vr4300_fpu_compare_bits32/);
+  assert.match(doubleCompare, /vr4300_fpu_compare_bits64/);
+});

@@ -215,18 +215,53 @@ static inline bool vr4300_fpu_commit_compare(
     return true;
 }
 
+/* Compare IEEE-754 encodings as integers. Using host floating-point
+ * comparisons here can raise FE_INVALID for signaling NaNs and leak that
+ * host exception into the embedding process. The sign/magnitude ordering
+ * below is exact for all non-NaN values, including infinities and signed zero. */
+static inline void vr4300_fpu_compare_bits32(
+    uint32_t left, uint32_t right, bool *unordered, bool *equal, bool *less)
+{
+    const uint32_t exponent = UINT32_C(0x7f800000);
+    const uint32_t fraction = UINT32_C(0x007fffff);
+    const uint32_t sign = UINT32_C(0x80000000);
+    const uint32_t magnitude = UINT32_C(0x7fffffff);
+    *unordered = ((left & exponent) == exponent && (left & fraction) != 0) ||
+        ((right & exponent) == exponent && (right & fraction) != 0);
+    *equal = !*unordered && (left == right ||
+        ((left & magnitude) == 0 && (right & magnitude) == 0));
+    if (*unordered || *equal) { *less = false; return; }
+    if ((left & sign) != (right & sign)) *less = (left & sign) != 0;
+    else if (left & sign) *less = left > right;
+    else *less = left < right;
+}
+
+static inline void vr4300_fpu_compare_bits64(
+    uint64_t left, uint64_t right, bool *unordered, bool *equal, bool *less)
+{
+    const uint64_t exponent = UINT64_C(0x7ff0000000000000);
+    const uint64_t fraction = UINT64_C(0x000fffffffffffff);
+    const uint64_t sign = UINT64_C(0x8000000000000000);
+    const uint64_t magnitude = UINT64_C(0x7fffffffffffffff);
+    *unordered = ((left & exponent) == exponent && (left & fraction) != 0) ||
+        ((right & exponent) == exponent && (right & fraction) != 0);
+    *equal = !*unordered && (left == right ||
+        ((left & magnitude) == 0 && (right & magnitude) == 0));
+    if (*unordered || *equal) { *less = false; return; }
+    if ((left & sign) != (right & sign)) *less = (left & sign) != 0;
+    else if (left & sign) *less = left > right;
+    else *less = left < right;
+}
+
 static inline bool vr4300_fpu_compare_s(
     vr4300_fpu_state *fpu, unsigned cc, unsigned predicate, unsigned left_reg, unsigned right_reg)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
     uint32_t left_bits = vr4300_fpu_read_s(fpu, left_reg);
     uint32_t right_bits = vr4300_fpu_read_s(fpu, right_reg);
-    float left, right;
-    memcpy(&left, &left_bits, sizeof(left));
-    memcpy(&right, &right_bits, sizeof(right));
-    bool unordered = isnan(left) || isnan(right);
-    return vr4300_fpu_commit_compare(
-        fpu, cc, predicate, unordered, !unordered && left == right, !unordered && left < right);
+    bool unordered, equal, less;
+    vr4300_fpu_compare_bits32(left_bits, right_bits, &unordered, &equal, &less);
+    return vr4300_fpu_commit_compare(fpu, cc, predicate, unordered, equal, less);
 }
 
 static inline bool vr4300_fpu_compare_d(
@@ -236,12 +271,9 @@ static inline bool vr4300_fpu_compare_d(
     if (!vr4300_fpu_check_cop1(fpu)) return false;
     if (!vr4300_fpu_read_compare_d(fpu, left_reg, &left_bits) ||
         !vr4300_fpu_read_compare_d(fpu, right_reg, &right_bits)) return false;
-    double left, right;
-    memcpy(&left, &left_bits, sizeof(left));
-    memcpy(&right, &right_bits, sizeof(right));
-    bool unordered = isnan(left) || isnan(right);
-    return vr4300_fpu_commit_compare(
-        fpu, cc, predicate, unordered, !unordered && left == right, !unordered && left < right);
+    bool unordered, equal, less;
+    vr4300_fpu_compare_bits64(left_bits, right_bits, &unordered, &equal, &less);
+    return vr4300_fpu_commit_compare(fpu, cc, predicate, unordered, equal, less);
 }
 
 
