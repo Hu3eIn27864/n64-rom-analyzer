@@ -65,6 +65,23 @@ function transfer(
         continue;
       }
 
+      // A definite ordinary/FPU store re-establishes bytes covered by the
+      // store. Conditional and merge stores are excluded because they may
+      // not overwrite every byte of their nominal aligned range.
+      if (operation.kind === 'store' || operation.kind === 'fpuStore') {
+        const storeAddress = constantAddress(operation.address);
+        if (storeAddress !== undefined) {
+          const storeRange: MemoryEffectRange = {
+            address: storeAddress >>> 0,
+            size: operation.size,
+          };
+          state.invalidatedRanges = state.invalidatedRanges.filter(write =>
+            !(storeRange.address <= write.address
+              && storeRange.address + storeRange.size >= write.address + write.size));
+        }
+        continue;
+      }
+
       let addressExpression: MicroCExpr | undefined;
       let size: MemoryEffectRange['size'] | undefined;
       let alignment = 1;
