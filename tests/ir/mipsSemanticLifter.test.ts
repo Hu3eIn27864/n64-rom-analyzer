@@ -291,7 +291,7 @@ test('uses VR4300 reverse-endian lane XORs for byte, halfword, and word accesses
   assert.match(adjust, /size == 1u\) return address \^ 7u/);
   assert.match(adjust, /size == 2u \|\| size == 4u\) return address \^ 4u/);
   assert.doesNotMatch(adjust, /size == 2u\) return address \^ 2u/);
-  assert.match(adjust, /if \(size == 8u\)/, { message: 'eight-byte accesses retain their aligned address lane' });
+  assert.match(adjust, /size == 2u \|\| size == 4u\) return address \^ 4u;\\s*return address;/);
 });
 
 test('sign-extends signed byte, halfword, and word loads without host signed casts', () => {
