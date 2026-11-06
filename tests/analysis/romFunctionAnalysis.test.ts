@@ -104,3 +104,39 @@ test('refuses invalid segment maps and virtual entries without a ROM mapping', (
     type: 'code',
   }], 0x80002000), /no validated ROM segment maps virtual entry/);
 });
+
+
+test('decodes a function across non-contiguous ROM segments using each virtual address mapping', () => {
+  const rom = new Uint8Array(0x188);
+  const view = new DataView(rom.buffer);
+  const mappedWords = [
+    [0x100, 0x108503ff], // beq a0,a1,0x80002000
+    [0x104, 0x00000000], // branch delay slot
+    [0x108, 0x03e00008], // fallthrough return
+    [0x10c, 0x00000000],
+    [0x180, 0x03e00008], // target return in another ROM segment
+    [0x184, 0x00000000],
+  ] as const;
+  for (const [offset, word] of mappedWords) view.setUint32(offset, word, false);
+
+  const result = analyzeMappedRomFunction(rom, [
+    {
+      romStart: 0x100,
+      romEnd: 0x110,
+      vramStart: 0x80001000,
+      vramEnd: 0x80001010,
+      type: 'code',
+    },
+    {
+      romStart: 0x180,
+      romEnd: 0x188,
+      vramStart: 0x80002000,
+      vramEnd: 0x80002008,
+      type: 'code',
+    },
+  ], 0x80001000);
+
+  assert.equal(result.cfg.blocks.length, 3);
+  assert.ok(result.cfg.blocks.some(block => block.startAddress === 0x80002000));
+  assert.equal(result.instructionCount, 6);
+});
