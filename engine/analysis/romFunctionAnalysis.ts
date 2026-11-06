@@ -136,6 +136,11 @@ export function analyzeMappedRomProgram(
     throw new Error('invalid ROM segment map: ' + errors.join('; '));
   }
 
+  if (options.maxReachableInstructions !== undefined
+    && (!Number.isInteger(options.maxReachableInstructions) || options.maxReachableInstructions <= 0)) {
+    throw new Error('maxReachableInstructions must be a positive integer');
+  }
+
   const addressMap = new RomAddressMap(segments);
   const byteOrder = options.byteOrder ?? 'big';
   const readWord = (address: number): number => {
@@ -153,7 +158,10 @@ export function analyzeMappedRomProgram(
       : {}),
   });
 
-  const { maxReachableInstructions: _maxReachableInstructions, ...functionOptions } = options;
+  const functionOptions: RomFunctionCfgOptions = {
+    ...(options.maxInstructions !== undefined ? { maxInstructions: options.maxInstructions } : {}),
+    ...(options.byteOrder !== undefined ? { byteOrder: options.byteOrder } : {}),
+  };
   const functions: Array<{ address: number; analysis: RomFunctionAnalysisResult }> = [];
   const failures: MappedRomFunctionFailure[] = [];
   for (const fn of structural.functions) {
