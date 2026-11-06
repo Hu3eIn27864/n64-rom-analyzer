@@ -640,6 +640,58 @@ static inline bool vr4300_fpu_convert_s_to_d(vr4300_fpu_state *fpu, unsigned fs,
     return vr4300_fpu_write_d_register(fpu, fd, result);
 }
 
+/* CVT.[S,D].L accepts a signed 64-bit FPR value only when bits 63:55
+ * are all zero or all one. Other patterns raise Unimplemented Operation
+ * (NEC VR4300 UM §§7.5.2, 17.5, Appendix D). */
+static inline bool vr4300_fpu_read_long_source(
+    vr4300_fpu_state *fpu, unsigned fs, int64_t *value)
+{
+    uint64_t bits;
+    if (!vr4300_fpu_read_d_register(fpu, fs, &bits)) return false;
+    const uint64_t upper = bits >> 55;
+    if (upper != 0u && upper != UINT64_C(0x1ff))
+        return vr4300_fpu_raise_unimplemented(fpu);
+    if ((bits & UINT64_C(0x8000000000000000)) != 0)
+        *value = -1 - (int64_t)(~bits);
+    else
+        *value = (int64_t)bits;
+    return true;
+}
+
+static inline bool vr4300_fpu_convert_long_to_s(
+    vr4300_fpu_state *fpu, unsigned fs, unsigned fd)
+{
+    int64_t input;
+    if (!vr4300_fpu_read_long_source(fpu, fs, &input)) return false;
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, vr4300_fpu_host_rounding(fpu->fcsr))) return false;
+    volatile float converted = (float)input;
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
+    uint32_t result;
+    float value = converted;
+    memcpy(&result, &value, sizeof(result));
+    return vr4300_fpu_write_s(fpu, fd, result);
+}
+
+static inline bool vr4300_fpu_convert_long_to_d(
+    vr4300_fpu_state *fpu, unsigned fs, unsigned fd)
+{
+    int64_t input;
+    if (!vr4300_fpu_read_long_source(fpu, fs, &input)) return false;
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, vr4300_fpu_host_rounding(fpu->fcsr))) return false;
+    volatile double converted = (double)input;
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
+    uint64_t result;
+    double value = converted;
+    memcpy(&result, &value, sizeof(result));
+    return vr4300_fpu_write_d_register(fpu, fd, result);
+}
+
 /* The VR4300 implements 64-bit fixed-point conversions only in 64-bit
  * mode or 32-bit Kernel mode. Out-of-range, infinite, and NaN inputs use
  * Unimplemented Operation (NEC VR4300 UM §17.5 and Appendix D). */

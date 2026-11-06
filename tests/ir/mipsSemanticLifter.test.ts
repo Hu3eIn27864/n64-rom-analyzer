@@ -503,7 +503,7 @@ test('restores the complete host floating-point environment after VR4300 operati
   assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_end_host_fenv\(fpu, &saved_env, &raised\)/);
   assert.doesNotMatch(VR4300_FPU_C_RUNTIME, /fesetround\(old_round\)/);
   assert.equal((VR4300_FPU_C_RUNTIME.match(/fegetround\(\)/g) ?? []).length, 2);
-  assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 8);
+  assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 10);
 });
 
 
@@ -653,4 +653,42 @@ test('guards VR4300 long conversions by mode and unimplemented range cases', () 
   assert.match(double, /vr4300_fpu_check_operand_d/);
   assert.match(single, /0x7f800000/);
   assert.match(double, /0x7ff0000000000000/);
+});
+
+test('lifts CVT.S.L and CVT.D.L with 64-bit source pairing constraints', () => {
+  const single = createMipsInstruction({
+    address: 0x8000b000, raw: 0, mnemonic: 'CVT.S.L', operands: ['$f5', '$f2'],
+    fpuFormat: 0x15, fpuSourceRegister: 2, fpuTargetRegister: 0, fpuDestinationRegister: 5,
+  });
+  const double = createMipsInstruction({
+    address: 0x8000b004, raw: 0, mnemonic: 'CVT.D.L', operands: ['$f8', '$f6'],
+    fpuFormat: 0x15, fpuSourceRegister: 6, fpuTargetRegister: 0, fpuDestinationRegister: 8,
+  });
+  const ir = liftInstructionsToMicroC(0x8000b000, [single, double]);
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'fpuConvertFromLong', destinationFormat: 'S', sourceRegister: 2, destinationRegister: 5, sourceRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertFromLong', destinationFormat: 'D', sourceRegister: 6, destinationRegister: 8, sourceRegisterConstraint: 'even-when-fr0', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const lowered = decompileStructuredFunctionIR(ir);
+  assert.deepEqual(lowered.parameters, [{ name: 'fpu', type: 'vr4300_fpu_state *' }]);
+  const c = renderFunction(lowered);
+  assert.match(c, /vr4300_fpu_convert_long_to_s\(fpu, 2, 5\)/);
+  assert.match(c, /vr4300_fpu_convert_long_to_d\(fpu, 6, 8\)/);
+});
+
+test('enforces VR4300 signed long source extension and preserves conversion exceptions', () => {
+  const readLong = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_read_long_source\([\s\S]*?\n\}/)?.[0] ?? '';
+  const toSingle = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_long_to_s\([\s\S]*?\n\}/)?.[0] ?? '';
+  const toDouble = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_long_to_d\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(readLong, /bits >> 55/);
+  assert.match(readLong, /UINT64_C\(0x1ff\)/);
+  assert.match(readLong, /vr4300_fpu_raise_unimplemented/);
+  assert.match(readLong, /vr4300_fpu_read_d_register/);
+  assert.match(toSingle, /vr4300_fpu_host_rounding\(fpu->fcsr\)/);
+  assert.match(toDouble, /vr4300_fpu_host_rounding\(fpu->fcsr\)/);
+  assert.match(toSingle, /vr4300_fpu_commit_arithmetic_exceptions/);
+  assert.match(toDouble, /vr4300_fpu_commit_arithmetic_exceptions/);
+  assert.match(toSingle, /vr4300_fpu_write_s/);
+  assert.match(toDouble, /vr4300_fpu_write_d_register/);
 });
