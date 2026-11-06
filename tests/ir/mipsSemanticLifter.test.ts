@@ -501,7 +501,8 @@ test('restores the complete host floating-point environment after VR4300 operati
   assert.match(VR4300_FPU_C_RUNTIME, /fesetenv\(saved\)/);
   assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_begin_host_fenv\(fpu, &saved_env/);
   assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_end_host_fenv\(fpu, &saved_env, &raised\)/);
-  assert.doesNotMatch(VR4300_FPU_C_RUNTIME, /fegetround\(\)|fesetround\(old_round\)/);
+  assert.doesNotMatch(VR4300_FPU_C_RUNTIME, /fesetround\(old_round\)/);
+  assert.equal((VR4300_FPU_C_RUNTIME.match(/fegetround\(\)/g) ?? []).length, 2);
   assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 7);
 });
 
