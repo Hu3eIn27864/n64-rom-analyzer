@@ -364,6 +364,67 @@ static inline bool vr4300_fpu_arithmetic_d(
     return vr4300_fpu_write_d_register(fpu, fd, result_bits);
 }
 
+
+/* Convert S/D to the 32-bit integer format stored in an FPR. Operations:
+ * 0 CVT.W (FCSR RM), 1 ROUND.W (nearest-even), 2 TRUNC.W,
+ * 3 CEIL.W, 4 FLOOR.W. Out-of-range and non-finite inputs raise Invalid.
+ * The destination is not committed when an enabled exception traps. */
+static inline bool vr4300_fpu_convert_word(
+    vr4300_fpu_state *fpu, unsigned operation, double input, unsigned fd)
+{
+    int old_round = fegetround();
+    int requested = operation == 0u ? vr4300_fpu_host_rounding(fpu->fcsr)
+        : operation == 1u ? FE_TONEAREST
+        : operation == 2u ? FE_TOWARDZERO
+        : operation == 3u ? FE_UPWARD
+        : operation == 4u ? FE_DOWNWARD : -1;
+    if (old_round == -1 || requested == -1 || fesetround(requested) != 0) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u;
+        return false;
+    }
+    feclearexcept(FE_ALL_EXCEPT);
+    volatile double rounded;
+    switch (operation) {
+        case 0: case 1: rounded = rint(input); break;
+        case 2: rounded = trunc(input); break;
+        case 3: rounded = ceil(input); break;
+        case 4: rounded = floor(input); break;
+        default:
+            fesetround(old_round);
+            fpu->exception_pending = true;
+            fpu->exception_code = 10u;
+            return false;
+    }
+    int raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
+    fesetround(old_round);
+    if (!isfinite(input) || rounded < -2147483648.0 || rounded >= 2147483648.0)
+        raised |= FE_INVALID;
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
+    int32_t integer = (raised & FE_INVALID) ? INT32_MIN : (int32_t)rounded;
+    return vr4300_fpu_write_s(fpu, fd, (uint32_t)integer);
+}
+
+static inline bool vr4300_fpu_convert_word_s(
+    vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned fd)
+{
+    if (!vr4300_fpu_check_cop1(fpu)) return false;
+    uint32_t bits = vr4300_fpu_read_s(fpu, fs);
+    float value;
+    memcpy(&value, &bits, sizeof(value));
+    return vr4300_fpu_convert_word(fpu, operation, (double)value, fd);
+}
+
+static inline bool vr4300_fpu_convert_word_d(
+    vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned fd)
+{
+    uint64_t bits;
+    if (!vr4300_fpu_read_compare_d(fpu, fs, &bits)) return false;
+    double value;
+    memcpy(&value, &bits, sizeof(value));
+    return vr4300_fpu_convert_word(fpu, operation, value, fd);
+}
+
 static inline bool vr4300_fpu_read_fcsr(vr4300_fpu_state *fpu, uint32_t *value)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
