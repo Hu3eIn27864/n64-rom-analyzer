@@ -19,8 +19,8 @@ Inventory the competing analysis implementations and determine which one is actu
 | Structural pipeline | Legacy parser/disassembler/extractor path | engine/analysis/structuralPipeline.ts | Composes canonical function recovery, CFG and call graph using explicit entry points and word reader | Expand side-by-side parity; do not cut over yet. |
 | IR / Micro-C | Existing decompiler/lifting infrastructure | engine/ir/* | Canonical IR and a growing VR4300 semantic subset exist; unsupported operations remain explicit | Continue semantic coverage and fail-closed diagnostics. |
 | Formal semantics | Legacy semantic utilities | engine/mips/formalSemantics.ts | Partial descriptive metadata; not a complete ISA semantics engine and not wired as runtime authority | Expand by instruction family with architecture-specific tests. |
-| Memory/data flow | Legacy alias-analysis utilities | engine/ir/memoryState.ts, memoryPhi.ts, memorySsa.ts | Block-local def-use and loop-capable CFG Memory SSA now exist for exact stack/frame locations; general alias analysis remains open | Continue M3 without overstating completion. |
-| Structured C | Existing experimental C/decompiler paths | engine/ir/cAst.ts, engine/decompiler/structuredC.ts and proof modules | AST/rendering and narrow proof-gated lowering exist; unsupported semantic diagnostics now fail closed | Keep unsupported CFG shapes rejected. |
+| Memory/data flow | Legacy alias-analysis utilities | engine/ir/memoryState.ts, memoryPhi.ts, memorySsa.ts, memorySsaBuilder.ts | Loop-capable CFG Memory SSA is derived from Micro-C memory operations for exact stack/frame locations; general alias analysis remains open | Continue M3 without overstating completion. |
+| Structured C | Existing experimental C/decompiler paths | engine/ir/cAst.ts, engine/decompiler/structuredC.ts and proof modules | AST/rendering and narrow proof-gated lowering exist; omitted semantic diagnostics now fail closed | Keep unsupported CFG shapes rejected. |
 | Evidence | N/A in legacy path | engine/analysis/evidence.ts | Evidence types/helper exist but are not constructed and exposed by the production API | Wire only after the canonical pipeline boundary is authoritative. |
 
 ## Runtime authority
@@ -35,7 +35,7 @@ Therefore the canonical engine components are **not production-integrated** mere
 2. Compose canonical ROM-backed reachability, function recovery, CFG and call graph behind a non-default analysis path.
 3. Compare canonical and legacy function boundaries, CFG edges and call-graph relationships on synthetic fixtures.
 4. Integrate Micro-C and formal semantics only for explicitly supported instruction families.
-5. Extend memory data-flow to pointer aliases, byte-range overlap and interprocedural effects.
+5. Extend memory data-flow from exact stack/frame locations to byte-range overlap, aliases and interprocedural effects.
 6. Wire evidence aggregation into the analysis result and API.
 7. Promote the canonical path only after parity and regression gates pass.
 
