@@ -689,10 +689,12 @@ static inline bool vr4300_fpu_convert_long(
     if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
     if (rounded < -9223372036854775808.0 || rounded >= 9223372036854775808.0)
         return vr4300_fpu_raise_unimplemented(fpu);
-    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     const int64_t integer = (int64_t)rounded;
-    uint64_t result_bits;
-    result_bits = (uint64_t)integer;
+    const uint64_t result_bits = (uint64_t)integer;
+    /* VR4300 Appendix D: any set bit in result[62:53] is unimplemented. */
+    if ((result_bits & UINT64_C(0x7fe0000000000000)) != 0)
+        return vr4300_fpu_raise_unimplemented(fpu);
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     return vr4300_fpu_write_d_register(fpu, fd, result_bits);
 }
 
