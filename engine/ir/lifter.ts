@@ -272,6 +272,17 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
+      case 'LDL':
+      case 'LDR': {
+        const address = b ? memoryAddress(b) : undefined;
+        if (a && address) operations.push({
+          kind: 'mergeLoad',
+          target: normalizeRegister(a),
+          address,
+          direction: instruction.mnemonic === 'LDL' ? 'left' : 'right',
+        });
+        break;
+      }
       case 'LW':
       case 'LH':
       case 'LB':
@@ -284,6 +295,17 @@ export function liftInstructionsToMicroC(
           : instruction.mnemonic === 'LH' || instruction.mnemonic === 'LHU' ? 2
           : instruction.mnemonic === 'LD' ? 8 : 4;
         if (target && address) operations.push({ kind: 'load', target, address, size: size as 1 | 2 | 4 | 8, signed: !['LBU', 'LHU', 'LWU', 'LD'].includes(instruction.mnemonic) });
+        break;
+      }
+      case 'SDL':
+      case 'SDR': {
+        const address = b ? memoryAddress(b) : undefined;
+        if (a && address) operations.push({
+          kind: 'mergeStore',
+          address,
+          value: value(normalizeRegister(a), 64),
+          direction: instruction.mnemonic === 'SDL' ? 'left' : 'right',
+        });
         break;
       }
       case 'SW':
