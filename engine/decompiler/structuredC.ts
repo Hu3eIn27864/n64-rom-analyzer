@@ -162,6 +162,10 @@ function lowerDiamond(ir: FunctionIR): CFunction {
 
   const thenBlock = blockById(ir, thenId);
   const elseBlock = blockById(ir, elseId);
+  for (const block of [thenBlock, elseBlock]) {
+    const last = block.operations.at(-1);
+    if (!last || last.kind !== 'jump' || last.target !== join.id) throw new Error(`structured diamond lowering requires branch arm ${block.id} to end with a jump to the join`);
+  }
   if (thenBlock.successors.length !== 1 || thenBlock.successors[0] !== join.id || elseBlock.successors.length !== 1 || elseBlock.successors[0] !== join.id) {
     throw new Error('structured diamond lowering requires both branch arms to terminate at the join block');
   }
@@ -186,15 +190,16 @@ function lowerDiamond(ir: FunctionIR): CFunction {
 }
 
 function controlFlowArm(condition: CExpr, whenTrue: CStmt, whenFalse: CStmt): CStmt {
-  return { kind: 'if', condition, thenBranch: { kind: 'block', body: [whenTrue] }, elseBranch: { kind: 'block', body: [whenFalse] } };
+  const asBlock = (statement: CStmt): CStmt => statement.kind === 'block' ? statement : { kind: 'block', body: [statement] };
+  return { kind: 'if', condition, thenBranch: asBlock(whenTrue), elseBranch: asBlock(whenFalse) };
 }
 
 function loopControlStatements(condition: CExpr, bodyTarget: number, exitTarget: number, headerId: number, exitId: number, updates: CStmt[] = []): CStmt[] {
   if (bodyTarget === headerId && exitTarget === exitId) {
-    return [controlFlowArm(condition, { kind: 'block', body: [...updates, { kind: 'continue' }] }, { kind: 'break' })];
+    return [controlFlowArm(condition, { kind: 'block', body: updates }, { kind: 'break' })];
   }
   if (bodyTarget === exitId && exitTarget === headerId) {
-    return [controlFlowArm(condition, { kind: 'break' }, { kind: 'block', body: [...updates, { kind: 'continue' }] })];
+    return [controlFlowArm(condition, { kind: 'break' }, { kind: 'block', body: updates })];
   }
   throw new Error('structured loop control requires branch targets to be exactly header and exit');
 }
@@ -298,7 +303,7 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
   const bodyStatements = bodyBlock.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
   const bodyTerminator = bodyBlock.operations.at(-1);
   if (bodyTerminator?.kind === 'jump' && bodyTerminator.target === header.id) {
-    bodyStatements.push(...updateStatements, { kind: 'continue' });
+    bodyStatements.push(...updateStatements);
   } else if (bodyTerminator?.kind === 'branch' && bodyTerminator.falseTarget !== undefined) {
     const targets = [bodyTerminator.trueTarget, bodyTerminator.falseTarget];
     if (!targets.includes(header.id) || !targets.includes(exitBlock.id)) throw new Error('structured loop-phi lowering requires body branch targets to be exactly header and exit');
