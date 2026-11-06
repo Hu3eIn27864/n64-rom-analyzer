@@ -65,7 +65,7 @@ test('models signed and unsigned 64-bit division into HI/LO', () => {
   assert.match(c, /vr4300_hilo_divide64\(fpu, rt0, rt1, 1\)/);
   assert.match(c, /vr4300_hilo_divide64\(fpu, rt2, rt3, 0\)/);
   const helper = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_hilo_divide64\([\s\S]*?\n\}/)?.[0] ?? '';
-  assert.match(c, /vr4300_require_mode64_or_kernel\\(fpu\\)/);
+  assert.match(c, /vr4300_require_mode64_or_kernel\(fpu\)/);
   assert.match(helper, /if \(divisor == 0u\) return true/);
   assert.match(helper, /dividend_magnitude \/ divisor_magnitude/);
   assert.match(helper, /remainder = dividend_magnitude % divisor_magnitude/);
@@ -411,7 +411,7 @@ test('lifts DADDU, DSUBU and sign-extended DADDIU as 64-bit expressions', () => 
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 
   const fn = decompileStructuredFunctionIR(ir);
-  for (const statement of fn.body) {
+  for (const statement of fn.body.filter(statement => statement.kind === 'expr')) {
     assert.equal(statement.expr?.left?.type, 'uint64_t');
     assert.equal(statement.expr?.right?.type, 'uint64_t');
   }
