@@ -7,6 +7,12 @@ export interface MemoryAccess {
   size: 1 | 2 | 4 | 8;
   blockId: number;
   confidence: MemoryConfidence;
+  /** Definition version identified by this access (exact, block-local locations only). */
+  version?: number;
+  /** Previous exact definition of the same location in this block. */
+  previousVersion?: number;
+  /** Nearest preceding exact definition of this location in this block. */
+  reachingVersion?: number;
 }
 
 export interface MemoryPhi {
@@ -26,15 +32,44 @@ function classifyAddress(address: string): MemoryConfidence {
   return 'unknown';
 }
 
+function exactLocationKey(access: MemoryAccess): string | undefined {
+  if (access.confidence !== 'exact') return undefined;
+  return `${access.address.toLowerCase()}|${access.size}`;
+}
+
+/**
+ * Build conservative block-local memory versions.
+ *
+ * A use is linked only to an earlier definition in the same block with the
+ * same exact stack/frame address and access width. Cross-block reaching
+ * definitions, alias overlap and CFG MemoryPhi inputs are intentionally not
+ * inferred here; those require predecessor and fixed-point information.
+ */
 export function buildMemorySSA(
-  accesses: readonly Omit<MemoryAccess, 'id' | 'confidence'>[],
+  accesses: readonly Omit<MemoryAccess, 'id' | 'confidence' | 'version' | 'previousVersion' | 'reachingVersion'>[],
   phiBlocks: readonly number[] = [],
 ): MemorySSA {
-  const normalized: MemoryAccess[] = accesses.map((access, index) => ({
-    ...access,
-    id: index,
-    confidence: classifyAddress(access.address),
-  }));
+  const lastDefinition = new Map<string, number>();
+  const normalized: MemoryAccess[] = accesses.map((access, index) => {
+    const current: MemoryAccess = {
+      ...access,
+      id: index,
+      confidence: classifyAddress(access.address),
+    };
+    const location = exactLocationKey(current);
+    if (location === undefined) return current;
+
+    const key = `${current.blockId}|${location}`;
+    const previousVersion = lastDefinition.get(key);
+    if (current.kind === 'def') {
+      current.version = current.id;
+      if (previousVersion !== undefined) current.previousVersion = previousVersion;
+      lastDefinition.set(key, current.version);
+    } else if (previousVersion !== undefined) {
+      current.reachingVersion = previousVersion;
+    }
+    return current;
+  });
 
   const phis: MemoryPhi[] = phiBlocks.map((blockId, index) => ({
     id: index,
