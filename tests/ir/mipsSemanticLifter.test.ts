@@ -198,6 +198,15 @@ test('models signed and unsigned 64-bit SLT comparisons and sign-extended immedi
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
+test('guards LWU, LD, and SD outside VR4300 64-bit or Kernel mode', () => {
+  const load = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_load\([\s\S]*?\n\}/)?.[0] ?? '';
+  const store = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_store\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(load, /size == 8u \|\| \(size == 4u && !is_signed\)/);
+  assert.match(load, /exception_code = 10u/);
+  assert.match(store, /size == 8u && !fpu->mode64_or_kernel/);
+  assert.match(store, /exception_code = 10u/);
+});
+
 test('sign-extends 16-bit memory offsets before 64-bit effective-address addition', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LD', ['$t0', '0xffff($sp)']),
