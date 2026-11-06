@@ -206,6 +206,11 @@ static inline bool vr4300_memory_merge_store64(vr4300_fpu_state *fpu, uintptr_t 
 
 static inline bool vr4300_memory_load(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, bool is_signed, uint64_t *result)
 {
+    if ((size == 8u || (size == 4u && !is_signed)) && !fpu->mode64_or_kernel) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u; /* Reserved Instruction: LD/LWU */
+        return false;
+    }
     address = vr4300_memory_adjust_address(fpu, address, size);
     if (size > 1u && !vr4300_fpu_memory_alignment(fpu, address, size, false)) return false;
 
@@ -236,6 +241,11 @@ static inline bool vr4300_memory_load(vr4300_fpu_state *fpu, uintptr_t address, 
 
 static inline bool vr4300_memory_store(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, uint64_t value)
 {
+    if (size == 8u && !fpu->mode64_or_kernel) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u; /* Reserved Instruction: SD */
+        return false;
+    }
     address = vr4300_memory_adjust_address(fpu, address, size);
     if (size > 1u && !vr4300_fpu_memory_alignment(fpu, address, size, true)) return false;
 
