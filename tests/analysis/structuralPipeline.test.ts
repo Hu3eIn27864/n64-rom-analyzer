@@ -107,3 +107,67 @@ test('canonical function boundaries match the legacy extractor on a conditional-
     })),
   );
 });
+
+
+test('canonical and legacy recovery agree on multiple direct calls', () => {
+  const addresses = [0x00, 0x04, 0x08, 0x0c, 0x10, 0x14, 0x100, 0x104, 0x200, 0x204];
+  const words = [JAL_100, NOP, 0x0c000080, NOP, JR_RA, NOP, JR_RA, NOP, JR_RA, NOP];
+  const wordMap = new Map(addresses.map((address, index) => [address, words[index]]));
+  const legacyInstructions = words.map((word, index) =>
+    disassembleMipsWord(word, addresses[index]));
+  const legacyFunctions = extractSubroutines(legacyInstructions, 0);
+  const canonical = analyzeCanonicalStructure([0], {
+    readWord: address => {
+      const word = wordMap.get(address);
+      if (word === undefined) throw new RangeError('missing synthetic word');
+      return word;
+    },
+  });
+
+  assert.deepEqual(
+    canonical.functions.map(fn => ({
+      address: fn.address,
+      endAddress: fn.endAddress,
+      instructionCount: fn.instructions.length,
+    })),
+    legacyFunctions.map(fn => ({
+      address: fn.entryAddress,
+      endAddress: fn.endAddress,
+      instructionCount: fn.instructionCount,
+    })),
+  );
+  assert.deepEqual(canonical.callGraph.edges, [
+    { from: 0, to: 0x100, kind: 'direct-jal' },
+    { from: 0, to: 0x200, kind: 'direct-jal' },
+  ]);
+});
+
+test('canonical and legacy function boundaries agree for branch-likely delay slots', () => {
+  const addresses = [0x00, 0x04, 0x08, 0x0c, 0x10, 0x14];
+  const words = [0x50000003, NOP, NOP, NOP, JR_RA, NOP]; // BEQL to 0x10
+  const wordMap = new Map(addresses.map((address, index) => [address, words[index]]));
+  const legacyInstructions = words.map((word, index) =>
+    disassembleMipsWord(word, addresses[index]));
+  const legacyFunctions = extractSubroutines(legacyInstructions, 0);
+  const canonical = analyzeCanonicalStructure([0], {
+    readWord: address => {
+      const word = wordMap.get(address);
+      if (word === undefined) throw new RangeError('missing synthetic word');
+      return word;
+    },
+  });
+
+  assert.deepEqual(
+    canonical.functions.map(fn => ({
+      address: fn.address,
+      endAddress: fn.endAddress,
+      instructionCount: fn.instructions.length,
+    })),
+    legacyFunctions.map(fn => ({
+      address: fn.entryAddress,
+      endAddress: fn.endAddress,
+      instructionCount: fn.instructionCount,
+    })),
+  );
+  assert.equal(canonical.cfgs.get(0)?.blocks[0].terminator, 'branch-likely');
+});
