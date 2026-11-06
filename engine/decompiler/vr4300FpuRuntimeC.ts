@@ -114,41 +114,36 @@ static inline bool vr4300_fpu_check_d(vr4300_fpu_state *fpu, unsigned reg)
     return true;
 }
 
-static inline bool vr4300_fpu_read_d(vr4300_fpu_state *fpu, unsigned reg, uint64_t *bits)
-{
-    if (!vr4300_fpu_check_d(fpu, reg)) return false;
-    if (!vr4300_fpu_check_cop1(fpu)) return false;
-    if (fpu->status & (1u << 26)) {
-        *bits = fpu->wide[reg];
-    } else {
-        *bits = ((uint64_t)fpu->words[reg + 1] << 32) | fpu->words[reg];
-    }
-    return true;
-}
-
-static inline bool vr4300_fpu_read_compare_d(vr4300_fpu_state *fpu, unsigned reg, uint64_t *bits)
+static inline bool vr4300_fpu_read_d_register(vr4300_fpu_state *fpu, unsigned reg, uint64_t *bits)
 {
     if (!vr4300_fpu_check_d_register(fpu, reg)) return false;
-    if (fpu->status & (1u << 26)) {
-        *bits = fpu->wide[reg];
-    } else {
-        *bits = ((uint64_t)fpu->words[reg + 1] << 32) | fpu->words[reg];
-    }
+    if (fpu->status & (1u << 26)) *bits = fpu->wide[reg];
+    else *bits = ((uint64_t)fpu->words[reg + 1] << 32) | fpu->words[reg];
     return true;
 }
 
-static inline bool vr4300_fpu_write_d(vr4300_fpu_state *fpu, unsigned reg, uint64_t bits)
+static inline bool vr4300_fpu_write_d_register(vr4300_fpu_state *fpu, unsigned reg, uint64_t bits)
 {
-    if (!vr4300_fpu_check_d(fpu, reg)) return false;
-    if (fpu->status & (1u << 26)) {
-        fpu->wide[reg] = bits;
-    } else {
+    if (!vr4300_fpu_check_d_register(fpu, reg)) return false;
+    if (fpu->status & (1u << 26)) fpu->wide[reg] = bits;
+    else {
         fpu->words[reg] = (uint32_t)bits;
         fpu->words[reg + 1] = (uint32_t)(bits >> 32);
     }
     return true;
 }
 
+static inline bool vr4300_fpu_read_d(vr4300_fpu_state *fpu, unsigned reg, uint64_t *bits)
+{
+    if (!vr4300_fpu_check_d(fpu, reg)) return false;
+    return vr4300_fpu_read_d_register(fpu, reg, bits);
+}
+
+static inline bool vr4300_fpu_write_d(vr4300_fpu_state *fpu, unsigned reg, uint64_t bits)
+{
+    if (!vr4300_fpu_check_d(fpu, reg)) return false;
+    return vr4300_fpu_write_d_register(fpu, reg, bits);
+}
 static inline bool vr4300_fpu_load_s(vr4300_fpu_state *fpu, unsigned reg, uintptr_t address)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
@@ -159,9 +154,9 @@ static inline bool vr4300_fpu_load_s(vr4300_fpu_state *fpu, unsigned reg, uintpt
 
 static inline bool vr4300_fpu_load_d(vr4300_fpu_state *fpu, unsigned reg, uintptr_t address)
 {
-    if (!vr4300_fpu_check_d(fpu, reg)) return false;
+    if (!vr4300_fpu_check_d_register(fpu, reg)) return false;
     if (!vr4300_fpu_memory_alignment(fpu, address, 8, false)) return false;
-    return vr4300_fpu_write_d(fpu, reg, vr4300_fpu_read_be64(address));
+    return vr4300_fpu_write_d_register(fpu, reg, vr4300_fpu_read_be64(address));
 }
 
 static inline bool vr4300_fpu_store_s(vr4300_fpu_state *fpu, unsigned reg, uintptr_t address)
@@ -176,7 +171,7 @@ static inline bool vr4300_fpu_store_s(vr4300_fpu_state *fpu, unsigned reg, uintp
 static inline bool vr4300_fpu_store_d(vr4300_fpu_state *fpu, unsigned reg, uintptr_t address)
 {
     uint64_t bits;
-    if (!vr4300_fpu_read_d(fpu, reg, &bits)) return false;
+    if (!vr4300_fpu_read_d_register(fpu, reg, &bits)) return false;
     if (!vr4300_fpu_memory_alignment(fpu, address, 8, true)) return false;
     vr4300_fpu_write_be64(address, bits);
     return true;
