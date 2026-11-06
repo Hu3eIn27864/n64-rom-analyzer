@@ -439,6 +439,13 @@ test('lifts CVT.S.D and CVT.D.S with source and destination format constraints',
     { kind: 'fpuConvertFormat', sourceFormat: 'D', destinationFormat: 'S', sourceRegister: 4, destinationRegister: 6, registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
     { kind: 'fpuConvertFormat', sourceFormat: 'S', destinationFormat: 'D', sourceRegister: 8, destinationRegister: 10, registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
   ]);
+  for (const conversion of [dToS, sToD]) {
+    const singleConversion = decompileStructuredFunctionIR(
+      liftInstructionsToMicroC(0x80009100, [conversion]),
+    );
+    assert.deepEqual(singleConversion.parameters, [{ name: 'fpu', type: 'vr4300_fpu_state *' }]);
+    assert.ok(singleConversion.preamble?.includes(VR4300_FPU_C_RUNTIME));
+  }
   const c = renderFunction(decompileStructuredFunctionIR(ir));
   assert.match(c, /vr4300_fpu_convert_d_to_s\(fpu, 4, 6\)/);
   assert.match(c, /vr4300_fpu_convert_s_to_d\(fpu, 8, 10\)/);
