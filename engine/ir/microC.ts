@@ -18,9 +18,11 @@ export type MicroCOperation =
   | { kind: 'hiloDivideWord'; left: MicroCExpr; right: MicroCExpr; signed: boolean }
   | { kind: 'load'; target: string; address: MicroCExpr; size: 1 | 2 | 4 | 8; signed: boolean }
   | { kind: 'mergeLoad'; target: string; address: MicroCExpr; direction: 'left' | 'right' }
+  | { kind: 'mergeLoadWord'; target: string; address: MicroCExpr; direction: 'left' | 'right' }
   | { kind: 'linkedLoad'; target: string; address: MicroCExpr; size: 4 | 8; signed: boolean }
   | { kind: 'store'; address: MicroCExpr; value: MicroCExpr; size: 1 | 2 | 4 | 8 }
   | { kind: 'mergeStore'; address: MicroCExpr; value: MicroCExpr; direction: 'left' | 'right' }
+  | { kind: 'mergeStoreWord'; address: MicroCExpr; value: MicroCExpr; direction: 'left' | 'right' }
   | { kind: 'conditionalStore'; target: string; address: MicroCExpr; value: MicroCExpr; size: 4 | 8 }
   | { kind: 'fpuLoad'; register: number; address: MicroCExpr; size: 4 | 8; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuStore'; register: number; address: MicroCExpr; size: 4 | 8; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
