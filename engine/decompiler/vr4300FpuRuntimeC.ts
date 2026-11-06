@@ -499,6 +499,7 @@ static inline bool vr4300_fpu_convert_word_s(
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
     uint32_t bits = vr4300_fpu_read_s(fpu, fs);
+    if (!vr4300_fpu_check_operand_s(fpu, bits)) return false;
     float value;
     memcpy(&value, &bits, sizeof(value));
     return vr4300_fpu_convert_word(fpu, operation, (double)value, fd);
@@ -509,6 +510,7 @@ static inline bool vr4300_fpu_convert_word_d(
 {
     uint64_t bits;
     if (!vr4300_fpu_read_compare_d(fpu, fs, &bits)) return false;
+    if (!vr4300_fpu_check_operand_d(fpu, bits)) return false;
     double value;
     memcpy(&value, &bits, sizeof(value));
     return vr4300_fpu_convert_word(fpu, operation, value, fd);
@@ -554,6 +556,7 @@ static inline bool vr4300_fpu_convert_d_to_s(vr4300_fpu_state *fpu, unsigned fs,
 {
     uint64_t bits;
     if (!vr4300_fpu_read_compare_d(fpu, fs, &bits)) return false;
+    if (!vr4300_fpu_check_operand_d(fpu, bits)) return false;
     double input;
     memcpy(&input, &bits, sizeof(input));
     fenv_t saved_env;
@@ -571,6 +574,7 @@ static inline bool vr4300_fpu_convert_d_to_s(vr4300_fpu_state *fpu, unsigned fs,
 static inline bool vr4300_fpu_convert_s_to_d(vr4300_fpu_state *fpu, unsigned fs, unsigned fd)
 {
     uint32_t bits = vr4300_fpu_read_s(fpu, fs);
+    if (!vr4300_fpu_check_operand_s(fpu, bits)) return false;
     float input;
     memcpy(&input, &bits, sizeof(input));
     /* Every finite binary32 value is exactly representable as binary64. */
