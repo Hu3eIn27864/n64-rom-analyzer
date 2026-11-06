@@ -577,16 +577,16 @@ test('models VR4300 FS-dependent denormal and underflow result handling', () => 
 
   assert.match(commitSingle, /FE_UNDERFLOW/);
   assert.match(commitDouble, /FE_UNDERFLOW/);
-  assert.match(commitSingle, /1u << 24/); // FCSR.FS
+  assert.match(commitSingle, /UINT32_C\\(1\\) << 24/); // FCSR.FS
   assert.match(commitDouble, /1u << 24/);
-  assert.match(commitSingle, /1u << 8/); // Underflow Enable
-  assert.match(commitSingle, /1u << 7/); // Inexact Enable
+  assert.match(commitSingle, /UINT32_C\\(1\\) << 8/); // Underflow Enable
+  assert.match(commitSingle, /UINT32_C\\(1\\) << 7/); // Inexact Enable
   assert.match(commitSingle, /vr4300_fpu_raise_unimplemented/);
   assert.match(commitDouble, /vr4300_fpu_raise_unimplemented/);
-  assert.match(commitSingle, /1u << 13/); // Underflow Cause
-  assert.match(commitSingle, /1u << 12/); // Inexact Cause
-  assert.match(commitSingle, /1u << 3/); // Underflow Flag
-  assert.match(commitSingle, /1u << 2/); // Inexact Flag
+  assert.match(commitSingle, /UINT32_C\\(1\\) << 13/); // Underflow Cause
+  assert.match(commitSingle, /UINT32_C\\(1\\) << 12/); // Inexact Cause
+  assert.match(commitSingle, /UINT32_C\\(1\\) << 3/); // Underflow Flag
+  assert.match(commitSingle, /UINT32_C\\(1\\) << 2/); // Inexact Flag
   assert.match(flushSingle, /rounding == 2u && !negative/);
   assert.match(flushSingle, /rounding == 3u && negative/);
   assert.match(flushSingle, /0x00800000/);
