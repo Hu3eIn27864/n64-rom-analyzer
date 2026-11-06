@@ -40,7 +40,7 @@ test('VR4300 decoder corpus', () => {
     assert.equal(instruction.mnemonic, fixture.mnemonic, fixture.name);
     assert.deepEqual(instruction.operands, fixture.operands, fixture.name);
     assert.equal(instruction.address, fixture.address, fixture.name);
-    assert.equal(instruction.isConditionalBranch, ['branch', 'likely'].includes(fixture.controlFlow), fixture.name);
+    assert.equal(instruction.isConditionalBranch, ['branch', 'likely', 'link', 'link-likely'].includes(fixture.controlFlow), fixture.name);
     assert.equal(instruction.isBranchLikely, fixture.controlFlow === 'likely' || fixture.controlFlow === 'link-likely', fixture.name);
     assert.equal(instruction.isLinkBranch, fixture.controlFlow === 'link' || fixture.controlFlow === 'link-likely', fixture.name);
     assert.equal(instruction.isJump, ['jump', 'call', 'return', 'indirect'].includes(fixture.controlFlow), fixture.name);
