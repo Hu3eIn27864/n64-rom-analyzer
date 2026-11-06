@@ -531,3 +531,25 @@ test('clears stale unimplemented causes and traps when CTC1 writes enabled FCSR 
   assert.match(fcsrWrite, /exception_code = 15u/);
   assert.match(fcsrWrite, /fpu->fcsr = value/);
 });
+
+
+test('raises VR4300 Unimplemented Operation for QNaN and denormal arithmetic/conversion operands', () => {
+  const arithmeticS = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_arithmetic_s\([\s\S]*?\n\}/)?.[0] ?? '';
+  const arithmeticD = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_arithmetic_d\([\s\S]*?\n\}/)?.[0] ?? '';
+  const compareS = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_compare_s\([\s\S]*?\n\}/)?.[0] ?? '';
+  const compareD = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_compare_d\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(VR4300_FPU_C_RUNTIME, /quiet_nan = exponent == UINT32_C\(0x7f800000\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /quiet_nan = exponent == UINT64_C\(0x7ff0000000000000\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /fpu->fcsr \|= UINT32_C\(1\) << 17/);
+  assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_raise_unimplemented/);
+  assert.match(arithmeticS, /vr4300_fpu_check_operand_s/);
+  assert.match(arithmeticD, /vr4300_fpu_check_operand_d/);
+  assert.match(arithmeticS, /operation == 6u\) return vr4300_fpu_write_s/);
+  assert.match(arithmeticD, /operation == 6u\) return vr4300_fpu_write_d_register/);
+  assert.match(VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_word_s\([\s\S]*?\n\}/)?.[0] ?? '', /vr4300_fpu_check_operand_s/);
+  assert.match(VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_word_d\([\s\S]*?\n\}/)?.[0] ?? '', /vr4300_fpu_check_operand_d/);
+  assert.match(VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_d_to_s\([\s\S]*?\n\}/)?.[0] ?? '', /vr4300_fpu_check_operand_d/);
+  assert.match(VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_s_to_d\([\s\S]*?\n\}/)?.[0] ?? '', /vr4300_fpu_check_operand_s/);
+  assert.doesNotMatch(compareS, /vr4300_fpu_check_operand_s/);
+  assert.doesNotMatch(compareD, /vr4300_fpu_check_operand_d/);
+});
