@@ -46,7 +46,11 @@ function definitionExpressions(o: MicroCOperation): MicroCExpr[] {
   return [];
 }
 type MemoryRange = { address: number; size: 1 | 2 | 4 | 8 };
-function constantAddress(e: MicroCExpr): number | undefined { return e.kind === 'const' ? e.value >>> 0 : undefined; }
+function constantAddress(e: MicroCExpr, constants: Map<string, number>): number | undefined {
+  if (e.kind === 'const') return e.value >>> 0;
+  if (e.kind === 'value') return constants.get(e.name);
+  return undefined;
+}
 function overlaps(a: MemoryRange, b: MemoryRange): boolean {
   const aEnd = a.address + a.size - 1, bEnd = b.address + b.size - 1;
   return a.address <= bEnd && b.address <= aEnd;
@@ -72,6 +76,7 @@ function coherentWithKnownStores(load: MemoryRange, stores: MemoryRange[]): bool
 function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
   const available = new Set(phiTargets);
   const stores: MemoryRange[] = [];
+  const constants = new Map<string, number>();
   let unknownStore = false;
   for (const o of operations) {
     const target = definitionTarget(o);
@@ -93,7 +98,7 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
       unknownStore = true;
     }
     if (o.kind === 'load') {
-      const address = constantAddress(o.address);
+      const address = constantAddress(o.address, constants);
       if (address === undefined && (unknownStore || stores.length > 0)) throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       if (address !== undefined) {
         const loadRange = { address, size: o.size } satisfies MemoryRange;
@@ -106,7 +111,11 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
       if (address === undefined) unknownStore = true;
       else stores.push({ address, size: o.size });
     }
-    if (target) available.add(target);
+    if (target) {
+      available.add(target);
+      if (o.kind === 'assign' && o.value.kind === 'const') constants.set(target, o.value.value >>> 0);
+      else constants.delete(target);
+    }
   }
   return available;
 }
