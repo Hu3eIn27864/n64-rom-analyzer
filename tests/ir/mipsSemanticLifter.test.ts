@@ -4,6 +4,7 @@ import { createMipsInstruction } from '../../engine/model/instruction';
 import { liftBasicBlocks, liftInstructionsToMicroC } from '../../engine/ir/lifter';
 import { decompileStructuredFunctionIR } from '../../engine/decompiler/structuredC';
 import { renderFunction } from '../../engine/ir/cAst';
+import { VR4300_FPU_C_RUNTIME } from '../../engine/decompiler/vr4300FpuRuntimeC';
 
 const instruction = (mnemonic: string, operands: string[], targetAddress?: number) =>
   createMipsInstruction({ address: 0x80000000, raw: 0, mnemonic, operands, targetAddress });
@@ -441,8 +442,8 @@ test('lifts CVT.S.D and CVT.D.S with source and destination format constraints',
   const c = renderFunction(decompileStructuredFunctionIR(ir));
   assert.match(c, /vr4300_fpu_convert_d_to_s\(fpu, 4, 6\)/);
   assert.match(c, /vr4300_fpu_convert_s_to_d\(fpu, 8, 10\)/);
-  assert.match(c, /fesetround/);
-  assert.match(c, /vr4300_fpu_commit_arithmetic_exceptions/);
+  assert.match(VR4300_FPU_C_RUNTIME, /fesetround\(vr4300_fpu_host_rounding\(fpu->fcsr\)\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_commit_arithmetic_exceptions/);
 });
 
 test('lifts CFC1 reads of both FIR and FCSR while leaving other control registers unsupported', () => {
