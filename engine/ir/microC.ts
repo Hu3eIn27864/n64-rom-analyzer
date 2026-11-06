@@ -24,7 +24,15 @@ export interface MicroCBasicBlock {
   successors: number[];
 }
 
+export interface UnsupportedInstruction {
+  readonly address: number;
+  readonly mnemonic: string;
+  readonly reason: string;
+}
+
 export interface FunctionIR {
   functionAddress: number;
   blocks: MicroCBasicBlock[];
+  /** Instructions whose behavior was not represented in the lifted IR. */
+  unsupportedInstructions?: UnsupportedInstruction[];
 }
