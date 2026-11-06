@@ -25,6 +25,32 @@ test('lifts arithmetic, immediate, and LUI semantics', () => {
   assert.match(c, /vr4300_sext32/);
 });
 
+test('models signed and unsigned word multiply/divide into sign-extended HI/LO', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('MULT', ['$t0', '$t1']),
+    instruction('MULTU', ['$t2', '$t3']),
+    instruction('DIV', ['$t4', '$t5']),
+    instruction('DIVU', ['$t6', '$t7']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+    operation.kind === 'hiloMultiplyWord' ? ['mul', operation.signed]
+      : operation.kind === 'hiloDivideWord' ? ['div', operation.signed]
+        : [operation.kind]), [
+    ['mul', true], ['mul', false], ['div', true], ['div', false],
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_hilo_multiply32\(fpu,/);
+  assert.match(c, /vr4300_hilo_divide32\(fpu,/);
+  const multiply = VR4300_FPU_C_RUNTIME.match(/static inline void vr4300_hilo_multiply32\([\s\S]*?\n\}/)?.[0] ?? '';
+  const divide = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_hilo_divide32\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(multiply, /vr4300_sign_extend_word/);
+  assert.match(multiply, /product -= \(uint64_t\)right << 32/);
+  assert.match(divide, /if \(divisor == 0u\) return true/);
+  assert.match(divide, /dividend_magnitude \/ divisor_magnitude/);
+  assert.match(divide, /vr4300_sign_extend_word\(quotient\)/);
+});
+
 test('models signed and unsigned 64-bit division into HI/LO', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('DDIV', ['$t0', '$t1']),
