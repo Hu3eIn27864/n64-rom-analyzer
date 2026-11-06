@@ -102,6 +102,7 @@ test('lowers memory accesses through width-correct typed pointers', () => {
   assert.match(c, /\(\(uint8_t \*\).* = \(\(uint8_t\)/);
   assert.match(c, /\(\(uint16_t \*\).* = \(\(uint16_t\)/);
   assert.match(c, /\(\(uint32_t \*\).* = \(\(uint32_t\)/);
+  assert.match(c, /\(\(uint64_t \*\)/);
 });
 
 test('lifts DADDU, DSUBU and sign-extended DADDIU as 64-bit expressions', () => {
