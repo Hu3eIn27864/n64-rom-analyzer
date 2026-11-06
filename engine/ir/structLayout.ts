@@ -18,6 +18,7 @@ export interface StructLayout {
 function validateObject(object: InferredObject): void {
   if (!Number.isInteger(object.size) || object.size <= 0) throw new Error('struct layout requires a positive object size');
   if (!Number.isInteger(object.alignment) || object.alignment <= 0) throw new Error('struct layout requires positive alignment');
+  if (!Array.isArray(object.fields) || object.fields.length === 0) throw new Error('struct layout requires at least one field');
 }
 
 export function reconstructStructLayout(object: InferredObject): StructLayout {
