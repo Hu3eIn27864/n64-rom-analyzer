@@ -461,10 +461,13 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
       const branchTarget = pc + 4 + (signImm16 * 4);
       isBranchOrJump = true;
       targetAddress = branchTarget;
-      if (rt === 0x00) { opcodeName = 'BC1F'; asm = `bc1f ${formatHex32(branchTarget)}`; }
-      else if (rt === 0x01) { opcodeName = 'BC1T'; asm = `bc1t ${formatHex32(branchTarget)}`; }
-      else if (rt === 0x02) { opcodeName = 'BC1FL'; asm = `bc1fl ${formatHex32(branchTarget)}`; }
-      else if (rt === 0x03) { opcodeName = 'BC1TL'; asm = `bc1tl ${formatHex32(branchTarget)}`; }
+      const cc = (rt >>> 2) & 0x07;
+      const likely = (rt & 0x02) !== 0;
+      const branchOnTrue = (rt & 0x01) !== 0;
+      opcodeName = `BC1${branchOnTrue ? 'T' : 'F'}${likely ? 'L' : ''}`;
+      const ccOperand = cc === 0 ? '' : `$fcc${cc}, `;
+      asm = `${opcodeName.toLowerCase()} ${ccOperand}${formatHex32(branchTarget)}`;
+      args = cc === 0 ? [formatHex32(branchTarget)] : [`$fcc${cc}`, formatHex32(branchTarget)];
     } else {
       const fmtStr = fmt === 16 ? '.s' : fmt === 17 ? '.d' : fmt === 20 ? '.w' : '.l';
       if (funct === 0x00) { opcodeName = `ADD${fmtStr}`; asm = `add${fmtStr} ${fdReg}, ${fsReg}, ${ftReg}`; }
