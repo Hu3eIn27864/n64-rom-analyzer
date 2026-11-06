@@ -307,8 +307,8 @@ test('lowers VR4300 FPU memory and transfer operations with defined FR-aware C h
   assert.match(c, /vr4300_fpu_write_d\(fpu, 8,/);
   assert.match(c, /vr4300_fpu_write_fcsr\(fpu,/);
   assert.match(c, /vr4300_fpu_check_d/);
-  assert.match(c, /words\\[reg \\+ 1\\] << 32/);
-  assert.match(c, /words\\[reg\\] = \\(uint32_t\\)bits/);
+  assert.ok(c.includes('words[reg + 1] << 32'));
+  assert.ok(c.includes('words[reg] = (uint32_t)bits'));
   assert.match(c, /cop1_usable/);
   assert.match(c, /vr4300_fpu_read_be32/);
   assert.ok(c.includes('address ^= 4u'));
