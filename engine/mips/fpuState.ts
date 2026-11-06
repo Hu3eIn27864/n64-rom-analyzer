@@ -2,8 +2,9 @@
  * Bit-preserving VR4300 floating-point register and comparison primitives.
  *
  * FPRs are modeled as architectural bit containers, not JavaScript numbers.
- * In FR=0 mode a double occupies an even/odd register pair (even word first,
- * as observed by the big-endian VR4300); in FR=1 mode each FPR holds 64 bits.
+ * In FR=0 mode a double occupies an even/odd register pair: the even FPR
+ * contains the low word and the following odd FPR contains the high word.
+ * In FR=1 mode each FPR holds 64 bits.
  * Single-precision values occupy the low 32 bits of the selected FPR.
  */
 export type FpuRegisterMode = 'fr0' | 'fr1';
@@ -48,7 +49,7 @@ export class Vr4300FpuRegisterFile {
   readDoubleBits(register: number): bigint {
     assertDoubleRegister(register, this.mode);
     if (this.mode === 'fr1') return this.wide[register];
-    return (BigInt(this.words[register] >>> 0) << 32n) | BigInt(this.words[register + 1] >>> 0);
+    return (BigInt(this.words[register + 1] >>> 0) << 32n) | BigInt(this.words[register] >>> 0);
   }
 
   writeDoubleBits(register: number, bits: bigint): void {
@@ -58,8 +59,8 @@ export class Vr4300FpuRegisterFile {
       this.wide[register] = value;
       return;
     }
-    this.words[register] = Number((value >> 32n) & UINT32_MASK);
-    this.words[register + 1] = Number(value & UINT32_MASK);
+    this.words[register] = Number(value & UINT32_MASK);
+    this.words[register + 1] = Number((value >> 32n) & UINT32_MASK);
   }
 }
 
