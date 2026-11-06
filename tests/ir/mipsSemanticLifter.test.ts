@@ -38,10 +38,10 @@ test('models signed 32-bit and 64-bit arithmetic with overflow-aware operations'
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 
   const c = renderFunction(decompileStructuredFunctionIR(ir));
-  assert.match(c, /vr4300_signed_add32\\(fpu,/);
-  assert.match(c, /vr4300_signed_sub32\\(fpu,/);
-  assert.match(c, /vr4300_signed_add64\\(fpu,/);
-  assert.match(c, /vr4300_signed_sub64\\(fpu,/);
+  assert.match(c, /vr4300_signed_add32\(fpu,/);
+  assert.match(c, /vr4300_signed_sub32\(fpu,/);
+  assert.match(c, /vr4300_signed_add64\(fpu,/);
+  assert.match(c, /vr4300_signed_sub64\(fpu,/);
   assert.match(c, /exception_code = 12u/);
 });
 
