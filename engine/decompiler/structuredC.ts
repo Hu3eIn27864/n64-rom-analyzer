@@ -196,10 +196,10 @@ function controlFlowArm(condition: CExpr, whenTrue: CStmt, whenFalse: CStmt): CS
 
 function loopControlStatements(condition: CExpr, bodyTarget: number, exitTarget: number, headerId: number, exitId: number, updates: CStmt[] = []): CStmt[] {
   if (bodyTarget === headerId && exitTarget === exitId) {
-    return [controlFlowArm(condition, { kind: 'block', body: updates }, { kind: 'break' })];
+    return [controlFlowArm(condition, { kind: 'block', body: [...updates, { kind: 'continue' }] }, { kind: 'break' })];
   }
   if (bodyTarget === exitId && exitTarget === headerId) {
-    return [controlFlowArm(condition, { kind: 'break' }, { kind: 'block', body: updates })];
+    return [controlFlowArm(condition, { kind: 'break' }, { kind: 'block', body: [...updates, { kind: 'continue' }] })];
   }
   throw new Error('structured loop control requires branch targets to be exactly header and exit');
 }
