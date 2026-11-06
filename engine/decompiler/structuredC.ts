@@ -329,7 +329,7 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
 function expressionUsesSra(expr: MicroCExpr): boolean {
   switch (expr.kind) {
     case 'binary':
-      return expr.op === 'sra' || expressionUsesSra(expr.left) || expressionUsesSra(expr.right);
+      return expr.op === 'sra' || expr.op === 'sra32' || expressionUsesSra(expr.left) || expressionUsesSra(expr.right);
     case 'unary':
     case 'cast':
       return expressionUsesSra(expr.value);
