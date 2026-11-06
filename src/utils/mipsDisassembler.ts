@@ -299,34 +299,42 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
       case 0x00:
         opcodeName = 'BLTZ';
         asm = `bltz ${rsName}, ${formatHex32(branchTarget)}`;
+        args = [rsName, formatHex32(branchTarget)];
         break;
       case 0x01:
         opcodeName = 'BGEZ';
         asm = `bgez ${rsName}, ${formatHex32(branchTarget)}`;
+        args = [rsName, formatHex32(branchTarget)];
         break;
       case 0x02:
         opcodeName = 'BLTZL';
         asm = `bltzl ${rsName}, ${formatHex32(branchTarget)}`;
+        args = [rsName, formatHex32(branchTarget)];
         break;
       case 0x03:
         opcodeName = 'BGEZL';
         asm = `bgezl ${rsName}, ${formatHex32(branchTarget)}`;
+        args = [rsName, formatHex32(branchTarget)];
         break;
       case 0x10:
         opcodeName = 'BLTZAL';
         asm = `bltzal ${rsName}, ${formatHex32(branchTarget)}`;
+        args = [rsName, formatHex32(branchTarget)];
         break;
       case 0x11:
         opcodeName = 'BGEZAL';
         asm = `bgezal ${rsName}, ${formatHex32(branchTarget)}`;
+        args = [rsName, formatHex32(branchTarget)];
         break;
       case 0x12:
         opcodeName = 'BLTZALL';
         asm = `bltzall ${rsName}, ${formatHex32(branchTarget)}`;
+        args = [rsName, formatHex32(branchTarget)];
         break;
       case 0x13:
         opcodeName = 'BGEZALL';
         asm = `bgezall ${rsName}, ${formatHex32(branchTarget)}`;
+        args = [rsName, formatHex32(branchTarget)];
         break;
       default:
         opcodeName = 'REGIMM_UNK';
