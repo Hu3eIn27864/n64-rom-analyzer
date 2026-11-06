@@ -12,13 +12,14 @@ Inventory the competing analysis implementations and determine which one is actu
 |---|---|---|---|---|
 | ROM parsing | src/utils/n64Parser.ts and legacy parser helpers | engine/rom/* | Legacy parser remains active in the production API path; canonical header/address components are tested | Preserve compatibility and add parity fixtures before cutover. |
 | MIPS decoding | src/utils/mipsDisassembler.ts | engine/mips/decoder.ts | Canonical API is an adapter over legacy decoding; it is not yet the production boundary | Keep the adapter and require corpus parity before replacement. |
-| Reachability | Linear sweep / legacy extraction | engine/mips/reachability.ts | Implemented with an explicit ROM-word reader and bounds checks; isolated from production API | Integration remains open. |
-| Function recovery | src/utils/subroutineExtractor.ts | engine/mips/functionRecovery.ts | Deterministic local-state implementation with isolation, JAL, return and deduplication tests; isolated | Integration remains open. |
-| CFG | src/utils/controlFlowGraph.ts | engine/mips/cfgBuilder.ts | Canonical builder exists and is tested; production API still uses legacy extraction/CFG | Compare canonical and legacy graphs before cutover. |
-| Call graph | Legacy-derived relationships | engine/mips/callGraph.ts | Canonical call-graph builder exists; isolated from the production API | Require relationship parity tests. |
+| Reachability | Linear sweep / legacy extraction | engine/mips/reachability.ts | Implemented with an explicit ROM-word reader, bounds checks and MIPS delay-slot decoding; isolated from production API | Broaden parity and then integrate. |
+| Function recovery | src/utils/mipsDisassembler.ts extractSubroutines | engine/mips/functionRecovery.ts | Deterministic local-state implementation includes control-transfer delay slots; isolated | Broaden parity and then integrate. |
+| CFG | src/utils/controlFlowGraph.ts | engine/mips/cfgBuilder.ts | Canonical builder exists and is tested; production API still uses legacy extraction/CFG | Compare canonical and legacy edges before cutover. |
+| Call graph | Legacy-derived relationships | engine/mips/callGraph.ts | Canonical call-graph builder exists and is composed by the structural pipeline; isolated from the production API | Require relationship parity tests. |
+| Structural pipeline | Legacy parser/disassembler/extractor path | engine/analysis/structuralPipeline.ts | Composes canonical function recovery, CFG and call graph using explicit entry points and word reader | Expand side-by-side parity; do not cut over yet. |
 | IR / Micro-C | Existing decompiler/lifting infrastructure | engine/ir/* | Canonical IR and a growing VR4300 semantic subset exist; unsupported operations remain explicit | Continue semantic coverage and fail-closed diagnostics. |
 | Formal semantics | Legacy semantic utilities | engine/mips/formalSemantics.ts | Partial descriptive metadata; not a complete ISA semantics engine and not wired as runtime authority | Expand by instruction family with architecture-specific tests. |
-| Memory/data flow | Legacy alias-analysis utilities | engine/ir/memoryState.ts, memoryPhi.ts, memorySsa.ts | Small isolated primitives/prototypes exist; no complete CFG-driven Memory SSA or general alias analysis | Do not mark M3 complete. |
+| Memory/data flow | Legacy alias-analysis utilities | engine/ir/memoryState.ts, memoryPhi.ts, memorySsa.ts | Block-local def-use and acyclic CFG MemoryPhi construction now exist; loops and general alias analysis remain open | Continue M3 without overstating completion. |
 | Structured C | Existing experimental C/decompiler paths | engine/ir/cAst.ts, engine/decompiler/structuredC.ts and proof modules | AST/rendering and narrow proof-gated lowering exist; general control-flow structuring is incomplete | Keep unsupported CFG shapes rejected. |
 | Evidence | N/A in legacy path | engine/analysis/evidence.ts | Evidence types/helper exist but are not constructed and exposed by the production API | Wire only after the canonical pipeline boundary is authoritative. |
 
@@ -31,10 +32,10 @@ Therefore the canonical engine components are **not production-integrated** mere
 ## Migration order
 
 1. Preserve ROM parser/decoder compatibility and build parity fixtures.
-2. Integrate ROM-backed reachability and deterministic function recovery behind a non-default analysis path.
-3. Compare canonical and legacy CFG/call-graph output on synthetic fixtures.
+2. Compose canonical ROM-backed reachability, function recovery, CFG and call graph behind a non-default analysis path.
+3. Compare canonical and legacy function boundaries, CFG edges and call-graph relationships on synthetic fixtures.
 4. Integrate Micro-C and formal semantics only for explicitly supported instruction families.
-5. Add memory data-flow with explicit alias uncertainty and CFG join semantics.
+5. Extend memory data-flow from acyclic CFG joins to loops and explicit alias uncertainty.
 6. Wire evidence aggregation into the analysis result and API.
 7. Promote the canonical path only after parity and regression gates pass.
 
@@ -51,11 +52,13 @@ Therefore the canonical engine components are **not production-integrated** mere
 - [x] Legacy and canonical implementations identified.
 - [x] Runtime consumers identified.
 - [x] Migration order and cutover rules documented.
-- [x] Reachability repaired and tested (Phase 2.3), but isolated.
-- [x] Function recovery stabilized and tested (Phase 2.4), but isolated.
+- [x] Reachability repaired and tested (Phase 2.3), including delay slots, but isolated.
+- [x] Function recovery stabilized and tested (Phase 2.4), including return delay slots, but isolated.
+- [x] Canonical structural composition and initial function-boundary parity established (Phase 2.5).
+- [ ] Broad CFG/call-graph parity completed.
 - [ ] Canonical pipeline cutover performed.
 - [ ] Evidence exposed through the production API/UI.
 
 ## Next
 
-Proceed to **Phase 2.5 — Canonical pipeline integration and parity**. Do not switch the production API wholesale; first introduce a side-by-side canonical analysis result on deterministic synthetic fixtures and compare it with the legacy output.
+Proceed with **Phase 2.5 parity expansion**. Do not switch the production API wholesale; compare CFG edges, indirect control flow and branch-likely behavior on a broader deterministic synthetic corpus first.
