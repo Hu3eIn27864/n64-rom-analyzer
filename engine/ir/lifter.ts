@@ -18,6 +18,20 @@ function normalizeRegister(register: string): string {
   return register.replace(/^\$/, 'r');
 }
 
+function parseFpuRegister(register: string | undefined): number | undefined {
+  const match = register?.match(/^\$f(\d{1,2})$/i);
+  if (!match) return undefined;
+  const index = Number(match[1]);
+  return index >= 0 && index < 32 ? index : undefined;
+}
+
+function parseControlRegister(register: string | undefined): number | undefined {
+  const match = register?.match(/^fcr(\d{1,2})$/i);
+  if (!match) return undefined;
+  const index = Number(match[1]);
+  return index >= 0 && index < 32 ? index : undefined;
+}
+
 function parseImmediate(valueText: string): number | undefined {
   const valueNumber = Number(valueText);
   return Number.isFinite(valueNumber) ? valueNumber : undefined;
