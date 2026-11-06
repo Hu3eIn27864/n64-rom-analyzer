@@ -93,10 +93,14 @@ static inline bool vr4300_fpu_write_s(vr4300_fpu_state *fpu, unsigned reg, uint3
 static inline bool vr4300_fpu_check_d(vr4300_fpu_state *fpu, unsigned reg)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
-    if (reg >= 32 || !fpu->mode64_or_kernel ||
-        (!(fpu->status & (1u << 26)) && ((reg & 1u) != 0))) {
+    if (!fpu->mode64_or_kernel) {
         fpu->exception_pending = true;
         fpu->exception_code = 10u; /* Reserved Instruction */
+        return false;
+    }
+    if (reg >= 32 || (!(fpu->status & (1u << 26)) && ((reg & 1u) != 0))) {
+        fpu->exception_pending = true;
+        fpu->exception_code = UINT32_MAX; /* FR=0 odd-register use is unpredictable */
         return false;
     }
     return true;
