@@ -226,6 +226,12 @@ test('models LL/LLD and SC/SCD reservation semantics', () => {
   assert.match(runtimeStore, /llbit_valid = false/);
   assert.match(runtimeStore, /lladdr == reservation/);
   assert.match(runtimeStore, /exception_code = 10u/);
+  const invalidate = VR4300_FPU_C_RUNTIME.match(/static inline void vr4300_memory_invalidate_llbit\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(invalidate, /address & ~\(uintptr_t\)15u/);
+  assert.match(invalidate, /llbit_valid = false/);
+  const mergeStore = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_merge_store64\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(mergeStore, /vr4300_memory_invalidate_llbit/);
+
 });
 
 test('guards LWU, LD, and SD outside VR4300 64-bit or Kernel mode', () => {
