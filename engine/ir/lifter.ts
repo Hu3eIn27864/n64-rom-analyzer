@@ -288,14 +288,30 @@ export function liftInstructionsToMicroC(
         }
         const conversionMnemonic = instruction.mnemonic.toUpperCase().split('.');
         const conversionOperation = conversionMnemonic[0];
+        const conversionDestinationFormat = conversionMnemonic[1];
         const conversionFormat = conversionMnemonic[2];
+        const isWordToFloatConversion = conversionOperation === 'CVT'
+          && (conversionDestinationFormat === 'S' || conversionDestinationFormat === 'D')
+          && conversionFormat === 'W'
+          && instruction.fpuFormat === 0x14
+          && instruction.fpuSourceRegister !== undefined
+          && instruction.fpuDestinationRegister !== undefined;
         const isWordConversion = ['CVT', 'ROUND', 'TRUNC', 'CEIL', 'FLOOR'].includes(conversionOperation ?? '')
           && conversionMnemonic[1] === 'W'
           && (conversionFormat === 'S' || conversionFormat === 'D')
           && instruction.fpuFormat === (conversionFormat === 'S' ? 0x10 : 0x11)
           && instruction.fpuSourceRegister !== undefined
           && instruction.fpuDestinationRegister !== undefined;
-        if (!isFormatConversion && isWordConversion) {
+        if (!isFormatConversion && isWordToFloatConversion) {
+          operations.push({
+            kind: 'fpuConvertFromWord',
+            destinationFormat: conversionDestinationFormat as 'S' | 'D',
+            sourceRegister: instruction.fpuSourceRegister!,
+            destinationRegister: instruction.fpuDestinationRegister!,
+            ...(conversionDestinationFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
+            registerMode: 'status-fr',
+          });
+        } else if (!isFormatConversion && isWordConversion) {
           operations.push({
             kind: 'fpuConvertWord',
             operation: conversionOperation!.toLowerCase() as 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor',
