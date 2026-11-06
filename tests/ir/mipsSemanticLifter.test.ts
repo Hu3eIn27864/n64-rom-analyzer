@@ -304,6 +304,9 @@ test('lowers VR4300 FPU memory and transfer operations with defined FR-aware C h
   assert.match(c, /vr4300_fpu_write_d\(fpu, 8,/);
   assert.match(c, /vr4300_fpu_write_fcsr\(fpu,/);
   assert.match(c, /vr4300_fpu_check_d/);
+  assert.match(c, /cop1_usable/);
+  assert.match(c, /vr4300_fpu_read_be32/);
+  assert.match(c, /address \\^= 4u/);
   assert.match(c, /status & \(1u << 26\)/);
 });
 
@@ -318,7 +321,7 @@ test('lowers COP1 compares with predicate selection, FCC writes and FCSR invalid
   assert.match(c, /vr4300_fpu_compare_d\(fpu, 3, 11, 2, 4\)/);
   assert.match(c, /vr4300_fpu_commit_compare/);
   assert.match(c, /exception_code = 15u/);
-  assert.match(c, /fcsr & \\(UINT32_C\\(1\\) << 11\\)/);
+  assert.match(c, /fcsr & \(UINT32_C\(1\) << 11\)/);
   assert.match(c, /fpu->fcsr \|= UINT32_C\(1\) << 6/);
 });
 
