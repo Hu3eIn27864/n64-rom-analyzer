@@ -78,6 +78,28 @@ export function liftInstructionsToMicroC(
     switch (instruction.mnemonic) {
       case 'NOP':
         break;
+      case 'ADD':
+      case 'ADDI':
+      case 'SUB':
+      case 'DADD':
+      case 'DADDI':
+      case 'DSUB': {
+        const is64 = instruction.mnemonic.startsWith('D');
+        const width = is64 ? 64 : 32;
+        const isImmediate = instruction.mnemonic === 'ADDI' || instruction.mnemonic === 'DADDI';
+        const rightImmediate = isImmediate && c ? parseSignedImmediate16(c) : undefined;
+        if (target && b && (isImmediate ? rightImmediate !== undefined : c !== undefined)) {
+          operations.push({
+            kind: 'signedArithmetic',
+            operation: instruction.mnemonic.endsWith('SUB') ? 'sub' : 'add',
+            target,
+            left: value(normalizeRegister(b), width),
+            right: isImmediate ? constant(rightImmediate!) : value(normalizeRegister(c!), width),
+            width,
+          });
+        }
+        break;
+      }
       case 'ADDU':
         if (target && b && c) operations.push({ kind: 'assign', target, value: binary('+', value(normalizeRegister(b)), value(normalizeRegister(c))) });
         break;

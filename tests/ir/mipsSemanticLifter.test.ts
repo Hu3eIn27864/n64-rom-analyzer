@@ -23,15 +23,26 @@ test('lifts arithmetic, immediate, and LUI semantics', () => {
   ]);
 });
 
-test('rejects signed arithmetic until overflow exceptions and result widths are modeled', () => {
+test('models signed 32-bit and 64-bit arithmetic with overflow-aware operations', () => {
   const mnemonics = ['ADD', 'ADDI', 'SUB', 'DADD', 'DADDI', 'DSUB'];
   const ir = liftInstructionsToMicroC(0x80000000, mnemonics.map(mnemonic =>
-    instruction(mnemonic, mnemonic.endsWith('I') ? ['$t0', '$t1', '1'] : ['$t0', '$t1', '$t2']),
+    instruction(mnemonic, mnemonic.endsWith('I') ? ['$t0', '$t1', '0xffff'] : ['$t0', '$t1', '$t2']),
   ));
 
-  assert.deepEqual(ir.blocks[0].operations, []);
-  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), mnemonics);
-  assert.ok(ir.unsupportedInstructions?.every(item => item.reason.includes('No complete Micro-C semantics')));
+  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+    operation.kind === 'signedArithmetic' ? [operation.operation, operation.width, operation.right.kind === 'const' ? operation.right.value : undefined] : undefined,
+  ), [
+    ['add', 32, undefined], ['add', 32, -1], ['sub', 32, undefined],
+    ['add', 64, undefined], ['add', 64, -1], ['sub', 64, undefined],
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_signed_add32\(fpu,/);
+  assert.match(c, /vr4300_signed_sub32\(fpu,/);
+  assert.match(c, /vr4300_signed_add64\(fpu,/);
+  assert.match(c, /vr4300_signed_sub64\(fpu,/);
+  assert.match(c, /exception_code = 12u/);
 });
 
 test('lifts 64-bit integer arithmetic into explicitly wide Micro-C expressions', () => {
