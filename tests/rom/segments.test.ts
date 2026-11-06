@@ -83,3 +83,62 @@ test('N64 header parser preserves the entry point', () => {
   assert.equal(header.bootCodeStart, 0x40);
   assert.equal(header.romSize, 0x100);
 });
+
+
+test('segment validation rejects incomplete and mismatched VRAM mappings', () => {
+  const incomplete = createRomSegments([{
+    romStart: 0x1000,
+    romEnd: 0x2000,
+    vramStart: 0x80001000,
+  }]);
+  assert.ok(validateRomSegments(incomplete).some(error => error.includes('incomplete VRAM range')));
+
+  const mismatched = createRomSegments([{
+    romStart: 0x1000,
+    romEnd: 0x2000,
+    vramStart: 0x80001000,
+    vramEnd: 0x80001800,
+  }]);
+  assert.ok(validateRomSegments(mismatched).some(error => error.includes('size mismatch')));
+});
+
+test('segment validation rejects overlapping VRAM mappings', () => {
+  const segments = createRomSegments([
+    {
+      romStart: 0x1000,
+      romEnd: 0x1800,
+      vramStart: 0x80001000,
+      vramEnd: 0x80001800,
+    },
+    {
+      romStart: 0x1800,
+      romEnd: 0x2000,
+      vramStart: 0x80001700,
+      vramEnd: 0x80001f00,
+    },
+  ]);
+  assert.ok(validateRomSegments(segments).some(error => error.includes('overlapping VRAM ranges')));
+});
+
+test('address map refuses partial or out-of-range VRAM translations', () => {
+  const partial = createRomSegments([{
+    romStart: 0x1000,
+    romEnd: 0x2000,
+    vramStart: 0x80001000,
+  }]);
+  const partialMap = new RomAddressMap(partial);
+  assert.equal(partialMap.romToVram(0x1010), undefined);
+  assert.equal(partialMap.resolveRomOffset(0x1010)?.vram, undefined);
+  assert.equal(partialMap.vramToRom(0x80001010), undefined);
+
+  const short = createRomSegments([{
+    romStart: 0x1000,
+    romEnd: 0x2000,
+    vramStart: 0x80001000,
+    vramEnd: 0x80001800,
+  }]);
+  const shortMap = new RomAddressMap(short);
+  assert.equal(shortMap.romToVram(0x17ff), 0x800017ff);
+  assert.equal(shortMap.romToVram(0x1800), undefined);
+  assert.equal(shortMap.vramToRom(0x80001800), undefined);
+});
