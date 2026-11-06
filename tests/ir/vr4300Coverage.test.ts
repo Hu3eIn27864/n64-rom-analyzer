@@ -67,8 +67,8 @@ test('reports architectural prerequisites in unsupported privileged-instruction 
   assert.equal(reasons.length, mnemonics.length);
   assert.match(reasons[0], /CP0 register access.*privilege checks.*masks.*side effects/);
   assert.match(reasons[1], /TLB operation.*TLB state/);
-  assert.match(reasons[2], /ERET.*EXL\\/ERL.*EPC\\/ErrorEPC/);
-  assert.match(reasons[3], /Trap\\/exception.*EPC.*delay-slot BD/);
+  assert.match(reasons[2], /ERET.*EXL\/ERL.*EPC\/ErrorEPC/);
+  assert.match(reasons[3], /Trap\/exception.*EPC.*delay-slot BD/);
   assert.match(reasons[4], /SYNC.*memory ordering.*concurrent observer/);
   assert.match(reasons[5], /CACHE.*cacheability.*cache-operation effects/);
 });
