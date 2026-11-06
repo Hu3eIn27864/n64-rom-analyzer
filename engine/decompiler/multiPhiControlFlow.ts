@@ -107,7 +107,7 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
       }
     }
     if (o.kind === 'store') {
-      const address = constantAddress(o.address);
+      const address = constantAddress(o.address, constants);
       if (address === undefined) unknownStore = true;
       else stores.push({ address, size: o.size });
     }
