@@ -502,7 +502,7 @@ test('restores the complete host floating-point environment after VR4300 operati
   assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_begin_host_fenv\(fpu, &saved_env/);
   assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_end_host_fenv\(fpu, &saved_env, &raised\)/);
   assert.doesNotMatch(VR4300_FPU_C_RUNTIME, /fegetround\(\)|fesetround\(old_round\)/);
-  assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 5);
+  assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 7);
 });
 
 
@@ -552,4 +552,18 @@ test('raises VR4300 Unimplemented Operation for QNaN and denormal arithmetic/con
   assert.match(VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_s_to_d\([\s\S]*?\n\}/)?.[0] ?? '', /vr4300_fpu_check_operand_s/);
   assert.doesNotMatch(compareS, /vr4300_fpu_check_operand_s/);
   assert.doesNotMatch(compareD, /vr4300_fpu_check_operand_d/);
+});
+
+
+test('restores host floating-point state around signaling-NaN widening conversions', () => {
+  const wordFromSingle = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_word_s\([\s\S]*?\n\}/)?.[0] ?? '';
+  const singleToDouble = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_s_to_d\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(wordFromSingle, /fegetround\(\)/);
+  assert.match(wordFromSingle, /vr4300_fpu_begin_host_fenv/);
+  assert.match(wordFromSingle, /vr4300_fpu_end_host_fenv/);
+  assert.match(wordFromSingle, /promotion_raised/);
+  assert.match(singleToDouble, /fegetround\(\)/);
+  assert.match(singleToDouble, /vr4300_fpu_begin_host_fenv/);
+  assert.match(singleToDouble, /vr4300_fpu_end_host_fenv/);
+  assert.match(singleToDouble, /vr4300_fpu_commit_arithmetic_exceptions/);
 });
