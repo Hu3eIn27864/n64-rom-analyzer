@@ -1,6 +1,6 @@
 # Phase 2.3 — Implementation Record
 
-Status: **IMPLEMENTED — PENDING TEST EXECUTION**
+Status: **IMPLEMENTED — ISOLATED FROM THE PRODUCTION PIPELINE**
 
 ## Confirmed defect
 
@@ -12,7 +12,7 @@ Status: **IMPLEMENTED — PENDING TEST EXECUTION**
 type InstructionWordReader = (address: number) => number;
 ```
 
-`discoverReachableCode()` now requires a reader and passes the returned ROM word to `decodeInstruction(word, address)`.
+`discoverReachableCode()` requires a reader and passes the returned ROM word to `decodeInstruction(word, address)`.
 
 `createRomInstructionWordReader()` provides an explicit big-endian, bounds-checked ROM-backed implementation with a configurable ROM base address.
 
@@ -26,6 +26,8 @@ type InstructionWordReader = (address: number) => number;
 - out-of-range addresses are rejected;
 - non-zero ROM bases are explicit and deterministic.
 
+These tests are part of the full unit-test and Analysis Regression CI workflows and have passed on the current mainline test suite.
+
 ## Required invariant
 
 For every emitted reachable instruction:
@@ -38,10 +40,15 @@ subject to the explicit address-to-ROM mapping supplied to the reader.
 
 ## Integration rule
 
-This phase repairs the canonical reachability component only. It does **not** switch the production API to the canonical pipeline. That remains Phase 2.5 after function-recovery stabilization and integration work.
+This phase repairs the canonical reachability component only. It does **not** switch the production API to the canonical pipeline. The component remains isolated until the canonical runtime pipeline consumes this reader.
 
-## Remaining verification
+## Acceptance status
 
-- [ ] Execute the repository test suite and TypeScript checks.
-- [ ] Update Phase-2 truth classification from BROKEN to IMPLEMENTED only after execution succeeds.
-- [ ] Mark INTEGRATED only when the canonical runtime pipeline consumes this reader.
+- [x] Reachability never decodes a hard-coded zero word.
+- [x] Every decoded instruction originates from the supplied ROM word reader.
+- [x] Address validation is deterministic and testable.
+- [x] Tests cover normal, invalid, unaligned, and distinct-word cases.
+- [x] Existing reachability target handling remains intact.
+- [x] The integration boundary is documented.
+- [x] No authoritative evidence status is changed by this repair alone.
+- [ ] Canonical production-pipeline integration remains open.
