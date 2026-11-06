@@ -320,3 +320,27 @@ test('lowers COP1 compares with predicate selection, FCC writes and FCSR invalid
   assert.match(c, /exception_code = 15u/);
   assert.match(c, /fpu->fcsr \|= UINT32_C\(1\) << 6/);
 });
+
+
+test('lowers BC1 predicates by reading the selected FCSR condition-code bit', () => {
+  const branchInstruction = createMipsInstruction({
+    address: 0x80008200, raw: 0, mnemonic: 'BC1T',
+    operands: ['$fcc3', '0x00000001'], targetAddress: 1, branchConditionCode: 3,
+  });
+  const lifted = liftInstructionsToMicroC(0x80008200, [branchInstruction]);
+  const branch = lifted.blocks[0].operations[0];
+  assert.equal(branch?.kind, 'branch');
+  if (!branch || branch.kind !== 'branch') throw new Error('expected COP1 branch operation');
+  const ir = {
+    ...lifted,
+    blocks: [
+      { id: 0, operations: [{ ...branch, falseTarget: 2 }], predecessors: [], successors: [1, 2] },
+      { id: 1, operations: [], predecessors: [0], successors: [] },
+      { id: 2, operations: [], predecessors: [0], successors: [] },
+    ],
+  };
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_fpu_state \\* fpu/);
+  assert.match(c, /fpu->fcsr/);
+  assert.match(c, />> 27/);
+});
