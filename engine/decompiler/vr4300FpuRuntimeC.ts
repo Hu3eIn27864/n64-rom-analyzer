@@ -100,6 +100,38 @@ static inline bool vr4300_fpu_write_s(vr4300_fpu_state *fpu, unsigned reg, uint3
     return true;
 }
 
+/* The VR4300 reports QNaN and denormal operands as Unimplemented
+ * Operation (E), except in compare instructions. Signaling NaNs continue
+ * through the IEEE Invalid path. */
+static inline bool vr4300_fpu_raise_unimplemented(vr4300_fpu_state *fpu)
+{
+    fpu->fcsr &= ~(UINT32_C(0x3f) << 12);
+    fpu->fcsr |= UINT32_C(1) << 17;
+    fpu->exception_pending = true;
+    fpu->exception_code = 15u; /* Floating Point */
+    return false;
+}
+
+static inline bool vr4300_fpu_check_operand_s(vr4300_fpu_state *fpu, uint32_t bits)
+{
+    const uint32_t exponent = bits & UINT32_C(0x7f800000);
+    const uint32_t fraction = bits & UINT32_C(0x007fffff);
+    const bool denormal = exponent == 0 && fraction != 0;
+    const bool quiet_nan = exponent == UINT32_C(0x7f800000) &&
+        fraction != 0 && (fraction & UINT32_C(0x00400000)) != 0;
+    return denormal || quiet_nan ? vr4300_fpu_raise_unimplemented(fpu) : true;
+}
+
+static inline bool vr4300_fpu_check_operand_d(vr4300_fpu_state *fpu, uint64_t bits)
+{
+    const uint64_t exponent = bits & UINT64_C(0x7ff0000000000000);
+    const uint64_t fraction = bits & UINT64_C(0x000fffffffffffff);
+    const bool denormal = exponent == 0 && fraction != 0;
+    const bool quiet_nan = exponent == UINT64_C(0x7ff0000000000000) &&
+        fraction != 0 && (fraction & UINT64_C(0x0008000000000000)) != 0;
+    return denormal || quiet_nan ? vr4300_fpu_raise_unimplemented(fpu) : true;
+}
+
 static inline bool vr4300_fpu_check_d_register(vr4300_fpu_state *fpu, unsigned reg)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
@@ -336,10 +368,15 @@ static inline bool vr4300_fpu_arithmetic_s(
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
     uint32_t left_bits = vr4300_fpu_read_s(fpu, fs);
-    uint32_t right_bits = vr4300_fpu_read_s(fpu, ft);
-    if (operation == 5u || operation == 6u || operation == 7u) {
+    uint32_t right_bits = 0;
+    if (operation <= 3u) right_bits = vr4300_fpu_read_s(fpu, ft);
+    if (operation == 6u) return vr4300_fpu_write_s(fpu, fd, left_bits); /* MOV is a bitwise transfer. */
+    if (!vr4300_fpu_check_operand_s(fpu, left_bits) ||
+        (operation <= 3u && !vr4300_fpu_check_operand_s(fpu, right_bits))) return false;
+    if (operation == 5u || operation == 7u) {
+        fpu->fcsr &= ~(UINT32_C(0x3f) << 12);
         if (operation == 5u) left_bits &= UINT32_C(0x7fffffff);
-        else if (operation == 7u) left_bits ^= UINT32_C(0x80000000);
+        else left_bits ^= UINT32_C(0x80000000);
         return vr4300_fpu_write_s(fpu, fd, left_bits);
     }
     float left, right;
@@ -375,12 +412,16 @@ static inline bool vr4300_fpu_arithmetic_d(
     vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned ft, unsigned fd)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
-    uint64_t left_bits, right_bits;
-    if (!vr4300_fpu_read_compare_d(fpu, fs, &left_bits) ||
-        !vr4300_fpu_read_compare_d(fpu, ft, &right_bits)) return false;
-    if (operation == 5u || operation == 6u || operation == 7u) {
+    uint64_t left_bits, right_bits = 0;
+    if (!vr4300_fpu_read_compare_d(fpu, fs, &left_bits)) return false;
+    if (operation <= 3u && !vr4300_fpu_read_compare_d(fpu, ft, &right_bits)) return false;
+    if (operation == 6u) return vr4300_fpu_write_d_register(fpu, fd, left_bits); /* MOV is a bitwise transfer. */
+    if (!vr4300_fpu_check_operand_d(fpu, left_bits) ||
+        (operation <= 3u && !vr4300_fpu_check_operand_d(fpu, right_bits))) return false;
+    if (operation == 5u || operation == 7u) {
+        fpu->fcsr &= ~(UINT32_C(0x3f) << 12);
         if (operation == 5u) left_bits &= UINT64_C(0x7fffffffffffffff);
-        else if (operation == 7u) left_bits ^= UINT64_C(0x8000000000000000);
+        else left_bits ^= UINT64_C(0x8000000000000000);
         return vr4300_fpu_write_d_register(fpu, fd, left_bits);
     }
     double left, right;
@@ -458,6 +499,7 @@ static inline bool vr4300_fpu_convert_word_s(
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
     uint32_t bits = vr4300_fpu_read_s(fpu, fs);
+    if (!vr4300_fpu_check_operand_s(fpu, bits)) return false;
     float value;
     memcpy(&value, &bits, sizeof(value));
     return vr4300_fpu_convert_word(fpu, operation, (double)value, fd);
@@ -468,6 +510,7 @@ static inline bool vr4300_fpu_convert_word_d(
 {
     uint64_t bits;
     if (!vr4300_fpu_read_compare_d(fpu, fs, &bits)) return false;
+    if (!vr4300_fpu_check_operand_d(fpu, bits)) return false;
     double value;
     memcpy(&value, &bits, sizeof(value));
     return vr4300_fpu_convert_word(fpu, operation, value, fd);
@@ -513,6 +556,7 @@ static inline bool vr4300_fpu_convert_d_to_s(vr4300_fpu_state *fpu, unsigned fs,
 {
     uint64_t bits;
     if (!vr4300_fpu_read_compare_d(fpu, fs, &bits)) return false;
+    if (!vr4300_fpu_check_operand_d(fpu, bits)) return false;
     double input;
     memcpy(&input, &bits, sizeof(input));
     fenv_t saved_env;
@@ -530,6 +574,7 @@ static inline bool vr4300_fpu_convert_d_to_s(vr4300_fpu_state *fpu, unsigned fs,
 static inline bool vr4300_fpu_convert_s_to_d(vr4300_fpu_state *fpu, unsigned fs, unsigned fd)
 {
     uint32_t bits = vr4300_fpu_read_s(fpu, fs);
+    if (!vr4300_fpu_check_operand_s(fpu, bits)) return false;
     float input;
     memcpy(&input, &bits, sizeof(input));
     /* Every finite binary32 value is exactly representable as binary64. */
