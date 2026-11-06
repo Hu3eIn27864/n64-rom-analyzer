@@ -4,6 +4,8 @@ import { buildMemorySSAFromFunctionIR } from '../ir/memorySsaBuilder';
 import { analyzeCanonicalStructure, type CanonicalStructuralAnalysis } from './structuralPipeline';
 import { lowerRomCfgToFunctionIR } from '../decompiler/romCfgToFunctionIR';
 import type { RomFunctionEntry } from '../decompiler/romFunctionEntry';
+import { inferProgramMemoryEffects, type FunctionMemoryEffectSummary } from '../decompiler/functionMemoryEffects';
+import { validateCallMemoryEffects, type CallMemoryEffectValidation } from '../decompiler/callMemoryEffectValidation';
 import { RomAddressMap } from '../rom/addressMap';
 import { validateRomSegments, type RomSegment } from '../rom/segments';
 import {
@@ -118,6 +120,10 @@ export interface MappedRomProgramAnalysis {
   readonly failures: MappedRomFunctionFailure[];
   readonly unresolvedDirectTargets: number[];
   readonly unresolvedIndirectCallers: number[];
+  /** Closed-world summaries over successfully analyzed recovered functions. */
+  readonly memoryEffects: ReadonlyMap<number, FunctionMemoryEffectSummary>;
+  /** Call-clobber validation for each successfully analyzed function. */
+  readonly callMemoryValidations: Array<{ readonly address: number; readonly validation: CallMemoryEffectValidation }>;
 }
 
 /**
@@ -190,6 +196,12 @@ export function analyzeMappedRomProgram(
     }
   }
 
+  const memoryEffects = inferProgramMemoryEffects(functions.map(fn => fn.analysis.functionIR));
+  const callMemoryValidations = functions.map(fn => ({
+    address: fn.address,
+    validation: validateCallMemoryEffects(fn.analysis.functionIR, memoryEffects),
+  }));
+
   const knownFunctions = new Set(functions.map(fn => fn.address));
   const unresolvedDirectTargets = [...new Set(structural.callGraph.edges
     .filter(edge => edge.kind === 'heuristic' && edge.to !== undefined && !knownFunctions.has(edge.to))
@@ -204,5 +216,7 @@ export function analyzeMappedRomProgram(
     failures,
     unresolvedDirectTargets,
     unresolvedIndirectCallers,
+    memoryEffects,
+    callMemoryValidations,
   };
 }
