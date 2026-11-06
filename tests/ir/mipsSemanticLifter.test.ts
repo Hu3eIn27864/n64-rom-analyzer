@@ -47,13 +47,13 @@ test('lifts calls and returns without inventing unknown targets', () => {
 
 test('records unsupported control flow instead of inventing semantics', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
-    instruction('BLEZ', ['$t0'], 0x80000010),
+    instruction('BLTZAL', ['$t0'], 0x80000010),
     instruction('JR', ['$t9']),
     instruction('JALR', ['$t0', '$t9']),
   ]);
 
   assert.deepEqual(ir.blocks[0].operations, []);
-  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BLEZ', 'JR', 'JALR']);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BLTZAL', 'JR', 'JALR']);
   assert.deepEqual(ir.unsupportedInstructions?.map(item => item.address), [
     0x80000000, 0x80000000, 0x80000000,
   ]);
