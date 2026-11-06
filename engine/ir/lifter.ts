@@ -14,6 +14,10 @@ function binary(op: string, left: MicroCExpr, right: MicroCExpr, width?: 32 | 64
   return { kind: 'binary', op, left, right, ...(width ? { width } : {}) };
 }
 
+function signExtend32(valueExpr: MicroCExpr): MicroCExpr {
+  return { kind: 'cast', type: 'sext32', value: valueExpr, width: 64 };
+}
+
 function normalizeRegister(register: string): string {
   return register.replace(/^\$/, 'r');
 }
@@ -101,10 +105,11 @@ export function liftInstructionsToMicroC(
         break;
       }
       case 'ADDU':
-        if (target && b && c) operations.push({ kind: 'assign', target, value: binary('+', value(normalizeRegister(b)), value(normalizeRegister(c))) });
-        break;
       case 'SUBU':
-        if (target && b && c) operations.push({ kind: 'assign', target, value: binary('-', value(normalizeRegister(b)), value(normalizeRegister(c))) });
+        if (target && b && c) {
+          const op = instruction.mnemonic === 'ADDU' ? '+' : '-';
+          operations.push({ kind: 'assign', target, value: signExtend32(binary(op, value(normalizeRegister(b), 32), value(normalizeRegister(c), 32), 32)) });
+        }
         break;
       case 'DADDU':
       case 'DSUBU':
@@ -151,17 +156,20 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
-      case 'ADDIU':
+      case 'ADDIU': {
+        const immediate = c ? parseSignedImmediate16(c) : undefined;
+        if (target && b && immediate !== undefined) {
+          operations.push({ kind: 'assign', target, value: signExtend32(binary('+', value(normalizeRegister(b), 32), constant(immediate), 32)) });
+        }
+        break;
+      }
       case 'ANDI':
       case 'ORI':
       case 'XORI': {
         const immediate = c ? parseImmediate(c) : undefined;
         if (target && b && immediate !== undefined) {
-          const op = instruction.mnemonic === 'ANDI' ? 'and'
-            : instruction.mnemonic === 'ORI' ? 'or'
-            : instruction.mnemonic === 'XORI' ? 'xor'
-            : '+';
-          operations.push({ kind: 'assign', target, value: binary(op, value(normalizeRegister(b)), constant(immediate)) });
+          const op = instruction.mnemonic === 'ANDI' ? '&' : instruction.mnemonic === 'ORI' ? '|' : '^';
+          operations.push({ kind: 'assign', target, value: binary(op, value(normalizeRegister(b), 64), constant(immediate), 64) });
         }
         break;
       }
@@ -183,14 +191,21 @@ export function liftInstructionsToMicroC(
       }
       case 'LUI': {
         const immediate = b ? parseImmediate(b) : undefined;
-        if (target && immediate !== undefined) operations.push({ kind: 'assign', target, value: binary('<<', constant(immediate), constant(16)) });
+        if (target && immediate !== undefined) operations.push({ kind: 'assign', target, value: signExtend32(binary('<<', constant(immediate & 0xffff), constant(16), 32)) });
         break;
       }
       case 'AND':
       case 'OR':
       case 'XOR':
       case 'NOR':
-        if (target && b && c) operations.push({ kind: 'assign', target, value: binary(instruction.mnemonic.toLowerCase(), value(normalizeRegister(b)), value(normalizeRegister(c))) });
+        if (target && b && c) {
+          const left = value(normalizeRegister(b), 64);
+          const right = value(normalizeRegister(c), 64);
+          const result = instruction.mnemonic === 'NOR'
+            ? { kind: 'unary' as const, op: '~', value: binary('|', left, right, 64), width: 64 as const }
+            : binary(instruction.mnemonic === 'AND' ? '&' : instruction.mnemonic === 'OR' ? '|' : '^', left, right, 64);
+          operations.push({ kind: 'assign', target, value: result });
+        }
         break;
       case 'SLT':
       case 'SLTU':
@@ -210,7 +225,26 @@ export function liftInstructionsToMicroC(
       case 'SRL':
       case 'SRA': {
         const shift = c ? parseImmediate(c) : undefined;
-        if (target && b && shift !== undefined) operations.push({ kind: 'assign', target, value: binary(instruction.mnemonic.toLowerCase(), value(normalizeRegister(b)), constant(shift)) });
+        if (target && b && shift !== undefined && shift >= 0 && shift < 32) {
+          const source = value(normalizeRegister(b), 32);
+          const shifted = instruction.mnemonic === 'SRA'
+            ? binary('sra32', source, constant(shift), 32)
+            : binary(instruction.mnemonic === 'SLL' ? '<<' : '>>', source, constant(shift), 32);
+          operations.push({ kind: 'assign', target, value: signExtend32(shifted) });
+        }
+        break;
+      }
+      case 'SLLV':
+      case 'SRLV':
+      case 'SRAV': {
+        if (target && b && c) {
+          const source = value(normalizeRegister(b), 32);
+          const shift = binary('&', value(normalizeRegister(c), 32), constant(0x1f), 32);
+          const shifted = instruction.mnemonic === 'SRAV'
+            ? binary('sra32', source, shift, 32)
+            : binary(instruction.mnemonic === 'SLLV' ? '<<' : '>>', source, shift, 32);
+          operations.push({ kind: 'assign', target, value: signExtend32(shifted) });
+        }
         break;
       }
       case 'LW':
