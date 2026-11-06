@@ -92,17 +92,23 @@ static inline bool vr4300_fpu_write_s(vr4300_fpu_state *fpu, unsigned reg, uint3
     return true;
 }
 
-static inline bool vr4300_fpu_check_d(vr4300_fpu_state *fpu, unsigned reg)
+static inline bool vr4300_fpu_check_d_register(vr4300_fpu_state *fpu, unsigned reg)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
-    if (!fpu->mode64_or_kernel) {
-        fpu->exception_pending = true;
-        fpu->exception_code = 10u; /* Reserved Instruction */
-        return false;
-    }
     if (reg >= 32 || (!(fpu->status & (1u << 26)) && ((reg & 1u) != 0))) {
         fpu->exception_pending = true;
         fpu->exception_code = UINT32_MAX; /* FR=0 odd-register use is unpredictable */
+        return false;
+    }
+    return true;
+}
+
+static inline bool vr4300_fpu_check_d(vr4300_fpu_state *fpu, unsigned reg)
+{
+    if (!vr4300_fpu_check_d_register(fpu, reg)) return false;
+    if (!fpu->mode64_or_kernel) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u; /* Reserved Instruction */
         return false;
     }
     return true;
@@ -112,6 +118,17 @@ static inline bool vr4300_fpu_read_d(vr4300_fpu_state *fpu, unsigned reg, uint64
 {
     if (!vr4300_fpu_check_d(fpu, reg)) return false;
     if (!vr4300_fpu_check_cop1(fpu)) return false;
+    if (fpu->status & (1u << 26)) {
+        *bits = fpu->wide[reg];
+    } else {
+        *bits = ((uint64_t)fpu->words[reg] << 32) | fpu->words[reg + 1];
+    }
+    return true;
+}
+
+static inline bool vr4300_fpu_read_compare_d(vr4300_fpu_state *fpu, unsigned reg, uint64_t *bits)
+{
+    if (!vr4300_fpu_check_d_register(fpu, reg)) return false;
     if (fpu->status & (1u << 26)) {
         *bits = fpu->wide[reg];
     } else {
@@ -209,8 +226,8 @@ static inline bool vr4300_fpu_compare_d(
 {
     uint64_t left_bits, right_bits;
     if (!vr4300_fpu_check_cop1(fpu)) return false;
-    if (!vr4300_fpu_read_d(fpu, left_reg, &left_bits) ||
-        !vr4300_fpu_read_d(fpu, right_reg, &right_bits)) return false;
+    if (!vr4300_fpu_read_compare_d(fpu, left_reg, &left_bits) ||
+        !vr4300_fpu_read_compare_d(fpu, right_reg, &right_bits)) return false;
     double left, right;
     memcpy(&left, &left_bits, sizeof(left));
     memcpy(&right, &right_bits, sizeof(right));
