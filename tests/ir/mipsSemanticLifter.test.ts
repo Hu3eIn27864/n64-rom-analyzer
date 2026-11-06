@@ -603,7 +603,7 @@ test('models VR4300 FS-dependent denormal and underflow result handling', () => 
 
 test('lifts VR4300 long fixed-point conversions with mode and even-register constraints', () => {
   const make = (mnemonic: string, format: 0x10 | 0x11, fs: number, fd: number) => createMipsInstruction({
-    address: 0x8000a000 + fs * 4, raw: 0, mnemonic, operands: [\`$f\${fd}\`, \`$f\${fs}\`],
+    address: 0x8000a000 + fs * 4, raw: 0, mnemonic, operands: ['$f' + fd, '$f' + fs],
     fpuFormat: format, fpuSourceRegister: fs, fpuTargetRegister: 0, fpuDestinationRegister: fd,
   });
   const instructions = [
