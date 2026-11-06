@@ -285,7 +285,8 @@ export function liftInstructionsToMicroC(
             ...(sourceFormat === 'D' || destinationFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
             registerMode: 'status-fr',
           });
-        } else         const conversionMnemonic = instruction.mnemonic.toUpperCase().split('.');
+        }
+        const conversionMnemonic = instruction.mnemonic.toUpperCase().split('.');
         const conversionOperation = conversionMnemonic[0];
         const conversionFormat = conversionMnemonic[2];
         const isWordConversion = ['CVT', 'ROUND', 'TRUNC', 'CEIL', 'FLOOR'].includes(conversionOperation ?? '')
@@ -294,7 +295,7 @@ export function liftInstructionsToMicroC(
           && instruction.fpuFormat === (conversionFormat === 'S' ? 0x10 : 0x11)
           && instruction.fpuSourceRegister !== undefined
           && instruction.fpuDestinationRegister !== undefined;
-        if (isWordConversion) {
+        if (!isFormatConversion && isWordConversion) {
           operations.push({
             kind: 'fpuConvertWord',
             operation: conversionOperation!.toLowerCase() as 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor',
@@ -304,7 +305,7 @@ export function liftInstructionsToMicroC(
             ...(conversionFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
             registerMode: 'status-fr',
           });
-        } else if (isArithmetic) {
+        } else if (!isFormatConversion && isArithmetic) {
           const operation = arithmeticMnemonic.toLowerCase() as 'add' | 'sub' | 'mul' | 'div' | 'sqrt' | 'abs' | 'mov' | 'neg';
           operations.push({
             kind: 'fpuArithmetic',
@@ -316,7 +317,7 @@ export function liftInstructionsToMicroC(
             ...(arithmeticFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
             registerMode: 'status-fr',
           });
-        } else if (instruction.fpuCompareConditionCode !== undefined
+        } else if (!isFormatConversion && instruction.fpuCompareConditionCode !== undefined
           && instruction.fpuComparePredicate !== undefined
           && (instruction.fpuFormat === 0x10 || instruction.fpuFormat === 0x11)
           && instruction.fpuSourceRegister !== undefined
