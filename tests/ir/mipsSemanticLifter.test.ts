@@ -198,6 +198,18 @@ test('models signed and unsigned 64-bit SLT comparisons and sign-extended immedi
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
+test('sign-extends 16-bit memory offsets before 64-bit effective-address addition', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('LD', ['$t0', '0xffff($sp)']),
+    instruction('SD', ['$t1', '0x8000($sp)']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'load', target: 'rt0', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp', width: 64 }, right: { kind: 'const', value: -1 }, width: 64 }, size: 8, signed: false },
+    { kind: 'store', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp', width: 64 }, right: { kind: 'const', value: -32768 }, width: 64 }, value: { kind: 'value', name: 'rt1', width: 64 }, size: 8 },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+});
+
 test('models unaligned doubleword merge loads and stores', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LDL', ['$t0', '3($sp)']),
