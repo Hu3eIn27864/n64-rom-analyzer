@@ -47,6 +47,28 @@ test('lifts 64-bit integer arithmetic into explicitly wide Micro-C expressions',
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
+test('lifts 64-bit immediate and variable shifts with the correct shift widths', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('DSLL', ['$t0', '$t1', '3']),
+    instruction('DSRL32', ['$t2', '$t3', '7']),
+    instruction('DSRA', ['$t4', '$t5', '5']),
+    instruction('DSLLV', ['$t6', '$t7', '$t8']),
+    instruction('DSRLV', ['$t9', '$s0', '$s1']),
+    instruction('DSRAV', ['$s2', '$s3', '$s4']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+    operation.kind === 'assign' ? operation.value : undefined,
+  ), [
+    { kind: 'binary', op: '<<', left: { kind: 'value', name: 'rt1', width: 64 }, right: { kind: 'const', value: 3 }, width: 64 },
+    { kind: 'binary', op: '>>', left: { kind: 'value', name: 'rt3', width: 64 }, right: { kind: 'const', value: 39 }, width: 64 },
+    { kind: 'cast', type: 'uint64_t', value: { kind: 'binary', op: '>>', left: { kind: 'cast', type: 'int64_t', value: { kind: 'value', name: 'rt5', width: 64 }, width: 64 }, right: { kind: 'const', value: 5 }, width: 64 }, width: 64 },
+    { kind: 'binary', op: '<<', left: { kind: 'value', name: 'rt7', width: 64 }, right: { kind: 'binary', op: '&', left: { kind: 'value', name: 'rt8', width: 64 }, right: { kind: 'const', value: 63 }, width: 64 }, width: 64 },
+    { kind: 'binary', op: '>>', left: { kind: 'value', name: 'rs0', width: 64 }, right: { kind: 'binary', op: '&', left: { kind: 'value', name: 'rs1', width: 64 }, right: { kind: 'const', value: 63 }, width: 64 }, width: 64 },
+    { kind: 'cast', type: 'uint64_t', value: { kind: 'binary', op: '>>', left: { kind: 'cast', type: 'int64_t', value: { kind: 'value', name: 'rs3', width: 64 }, width: 64 }, right: { kind: 'binary', op: '&', left: { kind: 'value', name: 'rs4', width: 64 }, right: { kind: 'const', value: 63 }, width: 64 }, width: 64 }, width: 64 },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+});
+
 test('lifts memory operations with explicit widths and effective addresses', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LW', ['$t0', '8($sp)']),
