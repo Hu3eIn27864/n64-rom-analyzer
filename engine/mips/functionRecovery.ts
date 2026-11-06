@@ -44,11 +44,24 @@ export function recoverFunctions(
     const callers: number[] = [];
     const callees: number[] = [];
     const evidence = ['reachable from an explicit analysis entry point'];
+    let delaySlotOwner: MipsInstruction | undefined;
+    let terminatedByReturn = false;
 
     while (true) {
       const instruction = byAddress.get(current);
       if (!instruction) break;
       instructions.push(instruction);
+
+      if (delaySlotOwner) {
+        const owner = delaySlotOwner;
+        delaySlotOwner = undefined;
+        if (owner.isCall || owner.isConditionalBranch) {
+          current = (owner.address + 8) >>> 0;
+          continue;
+        }
+        terminatedByReturn = owner.isReturn;
+        break;
+      }
 
       if (instruction.isCall) {
         const rawTarget = instruction.targetAddress;
@@ -69,7 +82,13 @@ export function recoverFunctions(
         }
       }
 
-      if (instruction.isReturn) break;
+      if (instruction.isConditionalBranch || instruction.isJump) {
+        const delaySlotAddress = (instruction.address + 4) >>> 0;
+        if (!byAddress.has(delaySlotAddress)) break;
+        delaySlotOwner = instruction;
+        current = delaySlotAddress;
+        continue;
+      }
       current = (current + 4) >>> 0;
       if (current === address || instructions.length >= (options.maxInstructions ?? 100_000)) break;
     }
@@ -80,6 +99,7 @@ export function recoverFunctions(
     if (vramAddress !== undefined) {
       evidence.push(`resolved VRAM address 0x${vramAddress.toString(16)}`);
     }
+    if (terminatedByReturn) evidence.push('explicit JR $ra return terminator with its delay slot decoded');
     const functionResult: RecoveredFunction = {
       address,
       vramAddress,
@@ -87,7 +107,7 @@ export function recoverFunctions(
       instructions,
       callers,
       callees: [...new Set(callees)],
-      confidence: instructions[instructions.length - 1].isReturn ? 0.9 : 0.65,
+      confidence: terminatedByReturn ? 0.9 : 0.65,
       evidence,
     };
 
