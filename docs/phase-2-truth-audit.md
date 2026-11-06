@@ -23,13 +23,13 @@ Classify each analysis layer as implemented, integrated, isolated, partial, expe
 | Canonical decoder | IMPLEMENTED / ISOLATED | engine/mips/decoder.ts is a tested adapter over the legacy decoder; full decoder corpus parity remains a gate. |
 | Reachability | IMPLEMENTED / ISOLATED | Requires an injected ROM-word reader, rejects invalid/unaligned/out-of-range reads, preserves actual instruction words and decodes MIPS delay slots. |
 | Function recovery | IMPLEMENTED / ISOLATED | Uses call-local state; deterministic repeated calls, invocation isolation, direct JAL, caller/callee deduplication and return-delay-slot inclusion are tested. Confidence remains inference metadata. |
-| Canonical structural pipeline | IMPLEMENTED / ISOLATED | Composes function recovery, CFG and call-graph generation with explicit entry points and word reader. Synthetic parity checks compare function boundaries against the legacy extractor for direct-call and conditional-branch programs. |
+| Canonical structural pipeline | IMPLEMENTED / ISOLATED | Composes function recovery, CFG and call-graph generation with explicit entry points and word reader. Synthetic parity checks compare function boundaries against the legacy extractor for direct calls, multiple calls, conditional branches and branch-likely programs. |
 | Canonical CFG | IMPLEMENTED / ISOLATED | engine/mips/cfgBuilder.ts builds canonical blocks and edges; broad parity and production integration remain open. |
 | Canonical call graph | IMPLEMENTED / ISOLATED | Deterministic direct/heuristic edge construction exists; not yet the API's authoritative graph. |
 | Micro-C / VR4300 semantics | PARTIAL / ISOLATED | Supported integer, memory, HI/LO and COP1 subsets lower to Micro-C. Unsupported CP0, TLB, ERET, exception, SYNC and CACHE operations remain explicit diagnostics. |
 | Formal MIPS semantics metadata | PARTIAL / ISOLATED | Descriptive register/memory/control metadata exists, including merge and linked memory operations; it is not a complete formal ISA model or the canonical execution engine. |
-| Memory SSA / alias analysis | PARTIAL / ISOLATED | Block-local versions and acyclic CFG reaching definitions/MemoryPhi joins are implemented. Loops, byte-range overlap, general alias analysis and interprocedural effects remain incomplete. |
-| Structured C AST | PARTIAL / ISOLATED | C AST/rendering and narrow proof-gated branch/loop lowering exist. General reducible/irreducible CFG structuring and broad semantic lowering remain incomplete. |
+| Memory SSA / alias analysis | PARTIAL / ISOLATED | Block-local versions and CFG Memory SSA with loop-carried fixed-point propagation and MemoryPhi joins are implemented for exact stack/frame locations. Byte-range overlap, pointer aliases and interprocedural effects remain incomplete. |
+| Structured C AST | PARTIAL / ISOLATED | C AST/rendering and narrow proof-gated branch/loop lowering exist. Lowering now rejects IR diagnostics for omitted semantics while allowing the informational COP1 FCC-provenance diagnostic when the branch operation is present. General CFG structuring remains incomplete. |
 | Production API | LEGACY-INTEGRATED | server.ts calls synchronous analyzeRom() from engine/pipeline.ts; that function currently uses legacy parsing, linear-sweep disassembly and subroutine extraction. |
 | Evidence model | IMPLEMENTED / ISOLATED | engine/analysis/evidence.ts defines stage statuses and summary helpers, but the production API does not yet construct/expose the evidence summary. |
 | CI | INTEGRATED | CI runs canonical ROM/decoder typecheck, full unit suite and production build; Analysis Regression separately runs its typecheck and regression suite. |
@@ -42,7 +42,7 @@ Classify each analysis layer as implemented, integrated, isolated, partial, expe
 2. Canonical-vs-legacy inventory: complete and updated with the current boundary.
 3. Reachability input boundary and delay-slot handling: implemented and tested; not production-integrated.
 4. Function recovery stabilization and delay-slot inclusion: implemented and tested; not production-integrated.
-5. Canonical structural composition and narrow legacy boundary parity: implemented and tested; broader parity remains open.
+5. Canonical structural composition and narrow legacy function-boundary parity: implemented and tested; broader parity remains open.
 6. Evidence API/UI wiring: blocked on a stable canonical result contract.
 7. CI: present and passing on the recent mainline changes.
 
@@ -56,4 +56,4 @@ Classify each analysis layer as implemented, integrated, isolated, partial, expe
 
 ## Next checkpoint
 
-Broaden Phase 2.5 parity to compare canonical and legacy CFG edges, branch-likely behavior, indirect calls and function boundaries across a larger synthetic corpus. Only then consider a staged production API integration.
+Broaden Phase 2.5 parity to compare canonical and legacy CFG edges, indirect calls and jump-table behavior across a larger synthetic corpus. Only then consider a staged production API integration.
