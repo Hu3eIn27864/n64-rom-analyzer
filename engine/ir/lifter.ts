@@ -175,7 +175,7 @@ export function liftInstructionsToMicroC(
             direction: fromFpu ? 'from-fpu' : 'to-fpu',
             gpr, fpr,
             width: instruction.mnemonic.startsWith('D') ? 64 : 32,
-            gprSemantics: instruction.mnemonic === 'MFC1' ? 'sign-extend'
+            gprSemantics: instruction.mnemonic === 'MFC1' ? 'mode-dependent'
               : instruction.mnemonic === 'MTC1' ? 'truncate'
               : 'full-width',
             ...(instruction.mnemonic.startsWith('D') ? { modeConstraint: 'kernel-or-64bit' as const, registerConstraint: 'even-when-fr0' as const } : {}),
