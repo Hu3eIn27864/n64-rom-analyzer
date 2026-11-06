@@ -46,7 +46,7 @@ export function validateRomFunction(
     reasons.push(callValidation.unknownCall ? 'unknown call effects invalidate memory provenance' : 'call may clobber a loaded memory range');
   }
 
-  const cfg: ValidationStatus = reasons.some(reason => reason.includes('CFG') || reason.includes('function has no basic blocks')) ? 'fail' : 'pass';
+  const cfg: ValidationStatus = validateCfg(ir).length > 0 ? 'fail' : 'pass';
   const memoryEffects: ValidationStatus = memorySummary.unknown ? 'fail' : 'pass';
   const callEffects: ValidationStatus = callValidation.valid ? 'pass' : 'fail';
 
