@@ -296,6 +296,12 @@ export function liftInstructionsToMicroC(
           && instruction.fpuFormat === 0x14
           && instruction.fpuSourceRegister !== undefined
           && instruction.fpuDestinationRegister !== undefined;
+        const isLongToFloatConversion = conversionOperation === 'CVT'
+          && (conversionDestinationFormat === 'S' || conversionDestinationFormat === 'D')
+          && conversionFormat === 'L'
+          && instruction.fpuFormat === 0x15
+          && instruction.fpuSourceRegister !== undefined
+          && instruction.fpuDestinationRegister !== undefined;
         const isLongConversion = ['CVT', 'ROUND', 'TRUNC', 'CEIL', 'FLOOR'].includes(conversionOperation ?? '')
           && conversionMnemonic[1] === 'L'
           && (conversionFormat === 'S' || conversionFormat === 'D')
@@ -315,6 +321,16 @@ export function liftInstructionsToMicroC(
             sourceRegister: instruction.fpuSourceRegister!,
             destinationRegister: instruction.fpuDestinationRegister!,
             ...(conversionDestinationFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
+            registerMode: 'status-fr',
+          });
+        } else if (!isFormatConversion && isLongToFloatConversion) {
+          operations.push({
+            kind: 'fpuConvertFromLong',
+            destinationFormat: conversionDestinationFormat as 'S' | 'D',
+            sourceRegister: instruction.fpuSourceRegister!,
+            destinationRegister: instruction.fpuDestinationRegister!,
+            sourceRegisterConstraint: 'even-when-fr0',
+            ...(conversionDestinationFormat === 'D' ? { destinationRegisterConstraint: 'even-when-fr0' as const } : {}),
             registerMode: 'status-fr',
           });
         } else if (!isFormatConversion && isLongConversion) {
