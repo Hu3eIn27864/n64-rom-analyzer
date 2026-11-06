@@ -95,3 +95,31 @@ test('converges for recursive call cycles with known local effects', () => {
   assert.deepEqual(summaries.get(0x80006000)?.writes, [{ address: 0x7000, size: 4 }]);
   assert.equal(summaries.get(0x80006000)?.unknown, false);
 });
+
+
+test('includes linked, merge, conditional and COP1 memory operations in summaries', () => {
+  const operations: MicroCOperation[] = [
+    { kind: 'linkedLoad', target: 'll', address: c(0x80003000), size: 4, signed: false },
+    { kind: 'mergeLoad', target: 'ld', address: c(0x80001007), direction: 'left' },
+    { kind: 'mergeLoadWord', target: 'lw', address: c(0x80002003), direction: 'right' },
+    { kind: 'fpuLoad', register: 2, address: c(0x80004000), size: 8, registerMode: 'status-fr' },
+    { kind: 'conditionalStore', target: 'sc', address: c(0x80005000), value: c(1), size: 4 },
+    { kind: 'mergeStore', address: c(0x80006007), value: c(1), direction: 'left' },
+    { kind: 'mergeStoreWord', address: c(0x80007003), value: c(1), direction: 'right' },
+    { kind: 'fpuStore', register: 2, address: c(0x80008000), size: 4, registerMode: 'status-fr' },
+  ];
+  const summary = inferFunctionMemoryEffects(makeIR(operations));
+  assert.deepEqual(summary.reads, [
+    { address: 0x80001000, size: 8 },
+    { address: 0x80002000, size: 4 },
+    { address: 0x80003000, size: 4 },
+    { address: 0x80004000, size: 8 },
+  ]);
+  assert.deepEqual(summary.writes, [
+    { address: 0x80005000, size: 4 },
+    { address: 0x80006000, size: 8 },
+    { address: 0x80007000, size: 4 },
+    { address: 0x80008000, size: 4 },
+  ]);
+  assert.equal(summary.unknown, false);
+});
