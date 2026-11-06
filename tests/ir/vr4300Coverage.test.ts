@@ -55,3 +55,16 @@ test('decoder-to-lifter audit retains diagnostics for privileged and ordering in
   assert.ok(decoded[0].operands.length === 2 && decoded[1].operands.length === 2);
   assert.deepEqual(decoded.at(-1)?.operands, ['0x1c', '-4($zero)']);
 });
+
+test('reports architectural prerequisites in unsupported privileged-instruction diagnostics', () => {
+  const mnemonics = ['MFC0', 'TLBP', 'ERET', 'SYSCALL', 'SYNC', 'CACHE'];
+  const ir = liftInstructionsToMicroC(0x80007000, mnemonics.map(name => instruction(name)));
+  const reasons = ir.unsupportedInstructions?.map(item => item.reason) ?? [];
+  assert.equal(reasons.length, mnemonics.length);
+  assert.match(reasons[0], /CP0 register access.*privilege checks.*masks.*side effects/);
+  assert.match(reasons[1], /TLB operation.*TLB state/);
+  assert.match(reasons[2], /ERET.*EXL\/ERL.*EPC\/ErrorEPC/);
+  assert.match(reasons[3], /Trap\/exception.*EPC.*delay-slot BD/);
+  assert.match(reasons[4], /SYNC.*memory ordering.*concurrent observer/);
+  assert.match(reasons[5], /CACHE.*cacheability.*cache-operation effects/);
+});
