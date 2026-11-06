@@ -794,9 +794,10 @@ static inline bool vr4300_fpu_read_fcsr(vr4300_fpu_state *fpu, uint32_t *value)
 static inline bool vr4300_fpu_write_fcsr(vr4300_fpu_state *fpu, uint32_t value)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
-    fpu->fcsr = value;
-    const uint32_t cause = value & (UINT32_C(0x3f) << 12);
-    const uint32_t enabled_ieee_causes = (value & (UINT32_C(0x1f) << 7)) << 5;
+    /* FCSR bits 31:25 are reserved on VR4300 and read as zero. */
+    fpu->fcsr = value & UINT32_C(0x01ffffff);
+    const uint32_t cause = fpu->fcsr & (UINT32_C(0x3f) << 12);
+    const uint32_t enabled_ieee_causes = (fpu->fcsr & (UINT32_C(0x1f) << 7)) << 5;
     /* CTC1 itself can trigger FPE when it writes an enabled cause bit.
      * Unimplemented-operation (E) has no enable bit and always traps. */
     if ((cause & enabled_ieee_causes) != 0 || (cause & (UINT32_C(1) << 17)) != 0) {
