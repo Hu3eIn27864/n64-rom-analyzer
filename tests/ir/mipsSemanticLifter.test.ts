@@ -646,6 +646,7 @@ test('guards VR4300 long conversions by mode and unimplemented range cases', () 
   assert.match(convert, /rounded < -9223372036854775808\.0/);
   assert.match(convert, /rounded >= 9223372036854775808\.0/);
   assert.match(convert, /vr4300_fpu_raise_unimplemented/);
+  assert.match(convert, /0x7fe0000000000000/); // VR4300 Appendix D result[62:53] restriction
   assert.match(convert, /vr4300_fpu_commit_arithmetic_exceptions/);
   assert.match(convert, /vr4300_fpu_write_d_register/);
   assert.match(single, /vr4300_fpu_check_operand_s/);
