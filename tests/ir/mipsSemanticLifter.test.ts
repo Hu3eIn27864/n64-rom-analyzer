@@ -615,11 +615,11 @@ test('lifts VR4300 long fixed-point conversions with mode and even-register cons
   ];
   const ir = liftInstructionsToMicroC(0x8000a000, instructions);
   assert.deepEqual(ir.blocks[0].operations, [
-    { kind: 'fpuConvertLong', operation: 'cvt', format: 'S', sourceRegister: 2, destinationRegister: 4, modeConstraint: 'kernel-or-64bit', registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
-    { kind: 'fpuConvertLong', operation: 'round', format: 'D', sourceRegister: 6, destinationRegister: 8, modeConstraint: 'kernel-or-64bit', registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
-    { kind: 'fpuConvertLong', operation: 'trunc', format: 'S', sourceRegister: 10, destinationRegister: 12, modeConstraint: 'kernel-or-64bit', registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
-    { kind: 'fpuConvertLong', operation: 'ceil', format: 'D', sourceRegister: 14, destinationRegister: 16, modeConstraint: 'kernel-or-64bit', registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
-    { kind: 'fpuConvertLong', operation: 'floor', format: 'S', sourceRegister: 18, destinationRegister: 20, modeConstraint: 'kernel-or-64bit', registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'cvt', format: 'S', sourceRegister: 2, destinationRegister: 4, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'round', format: 'D', sourceRegister: 6, destinationRegister: 8, modeConstraint: 'kernel-or-64bit', sourceRegisterConstraint: 'even-when-fr0', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'trunc', format: 'S', sourceRegister: 10, destinationRegister: 12, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'ceil', format: 'D', sourceRegister: 14, destinationRegister: 16, modeConstraint: 'kernel-or-64bit', sourceRegisterConstraint: 'even-when-fr0', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'floor', format: 'S', sourceRegister: 18, destinationRegister: 20, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
   ]);
   assert.deepEqual(ir.unsupportedInstructions, undefined);
   const lowered = decompileStructuredFunctionIR(ir);
