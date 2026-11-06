@@ -147,7 +147,7 @@ static inline bool vr4300_memory_merge_load64(vr4300_fpu_state *fpu, uintptr_t a
         const unsigned register_byte = left ? i : 8u - count + i;
         const unsigned shift = 56u - 8u * register_byte;
         const uint64_t mask = UINT64_C(0xff) << shift;
-        const uint64_t byte = (uint64_t)bytes[base == 0u ? i : (uintptr_t)(left ? lane + i : i)] << shift;
+        const uint64_t byte = (uint64_t)bytes[left ? lane + i : i] << shift;
         merged = (merged & ~mask) | byte;
     }
     *result = merged;
