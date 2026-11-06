@@ -283,7 +283,7 @@ static inline bool vr4300_fpu_compare_d(
 static inline bool vr4300_fpu_commit_arithmetic_exceptions(vr4300_fpu_state *fpu, int raised)
 {
     static const int host_flags[5] = { FE_INEXACT, FE_UNDERFLOW, FE_OVERFLOW, FE_DIVBYZERO, FE_INVALID };
-    const uint32_t cause_mask = UINT32_C(0x1f) << 12;
+    const uint32_t cause_mask = UINT32_C(0x3f) << 12;
     fpu->fcsr &= ~cause_mask;
     bool enabled = false;
     for (unsigned i = 0; i < 5; ++i) {
@@ -557,6 +557,15 @@ static inline bool vr4300_fpu_write_fcsr(vr4300_fpu_state *fpu, uint32_t value)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
     fpu->fcsr = value;
+    const uint32_t cause = value & (UINT32_C(0x3f) << 12);
+    const uint32_t enabled_ieee_causes = (value & (UINT32_C(0x1f) << 7)) << 5;
+    /* CTC1 itself can trigger FPE when it writes an enabled cause bit.
+     * Unimplemented-operation (E) has no enable bit and always traps. */
+    if ((cause & enabled_ieee_causes) != 0 || (cause & (UINT32_C(1) << 17)) != 0) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 15u; /* Floating Point */
+        return false;
+    }
     return true;
 }
 `;
