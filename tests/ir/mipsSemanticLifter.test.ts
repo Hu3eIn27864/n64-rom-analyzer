@@ -289,18 +289,18 @@ test('lowers VR4300 FPU memory and transfer operations with defined FR-aware C h
     instruction('CTC1', ['$t4', 'fcr31']),
   ]);
   const c = renderFunction(decompileStructuredFunctionIR(ir));
-  assert.match(c, /vr4300_fpu_state \\* fpu/);
-  assert.match(c, /vr4300_fpu_load_s\\(fpu, 2,/);
-  assert.match(c, /vr4300_fpu_load_d\\(fpu, 4,/);
-  assert.match(c, /vr4300_fpu_store_s\\(fpu, 2,/);
-  assert.match(c, /vr4300_fpu_store_d\\(fpu, 4,/);
-  assert.match(c, /vr4300_fpu_read_s\\(fpu, 2\\)/);
-  assert.match(c, /vr4300_fpu_read_d\\(fpu, 4,/);
-  assert.match(c, /vr4300_fpu_write_s\\(fpu, 6,/);
-  assert.match(c, /vr4300_fpu_write_d\\(fpu, 8,/);
-  assert.match(c, /vr4300_fpu_write_fcsr\\(fpu,/);
+  assert.match(c, /vr4300_fpu_state \* fpu/);
+  assert.match(c, /vr4300_fpu_load_s\(fpu, 2,/);
+  assert.match(c, /vr4300_fpu_load_d\(fpu, 4,/);
+  assert.match(c, /vr4300_fpu_store_s\(fpu, 2,/);
+  assert.match(c, /vr4300_fpu_store_d\(fpu, 4,/);
+  assert.match(c, /vr4300_fpu_read_s\(fpu, 2\)/);
+  assert.match(c, /vr4300_fpu_read_d\(fpu, 4,/);
+  assert.match(c, /vr4300_fpu_write_s\(fpu, 6,/);
+  assert.match(c, /vr4300_fpu_write_d\(fpu, 8,/);
+  assert.match(c, /vr4300_fpu_write_fcsr\(fpu,/);
   assert.match(c, /vr4300_fpu_check_d/);
-  assert.match(c, /status & \\(1u << 26\\)/);
+  assert.match(c, /status & \(1u << 26\)/);
 });
 
 test('lowers COP1 compares with predicate selection, FCC writes and FCSR invalid handling', () => {
@@ -311,8 +311,8 @@ test('lowers COP1 compares with predicate selection, FCC writes and FCSR invalid
   });
   const ir = liftInstructionsToMicroC(0x80008100, [compare]);
   const c = renderFunction(decompileStructuredFunctionIR(ir));
-  assert.match(c, /vr4300_fpu_compare_d\\(fpu, 3, 11, 2, 4\\)/);
+  assert.match(c, /vr4300_fpu_compare_d\(fpu, 3, 11, 2, 4\)/);
   assert.match(c, /vr4300_fpu_commit_compare/);
   assert.match(c, /exception_code = 15u/);
-  assert.match(c, /fpu->fcsr \\|= UINT32_C\\(1\\) << 6/);
+  assert.match(c, /fpu->fcsr \|= UINT32_C\(1\) << 6/);
 });
