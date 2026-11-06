@@ -149,7 +149,7 @@ static inline bool vr4300_signed_add32(vr4300_fpu_state *fpu, uint32_t left, uin
     const uint32_t sum = left + right;
     if (((~(left ^ right) & (left ^ sum)) & UINT32_C(0x80000000)) != 0u)
         return vr4300_signed_overflow(fpu);
-    *result = (uint64_t)(int64_t)(int32_t)sum;
+    *result = (sum & UINT32_C(0x80000000)) != 0u ? (UINT64_C(0xffffffff00000000) | sum) : (uint64_t)sum;
     return true;
 }
 
@@ -158,7 +158,7 @@ static inline bool vr4300_signed_sub32(vr4300_fpu_state *fpu, uint32_t left, uin
     const uint32_t difference = left - right;
     if ((((left ^ right) & (left ^ difference)) & UINT32_C(0x80000000)) != 0u)
         return vr4300_signed_overflow(fpu);
-    *result = (uint64_t)(int64_t)(int32_t)difference;
+    *result = (difference & UINT32_C(0x80000000)) != 0u ? (UINT64_C(0xffffffff00000000) | difference) : (uint64_t)difference;
     return true;
 }
 
