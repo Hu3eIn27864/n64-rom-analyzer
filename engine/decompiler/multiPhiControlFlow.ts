@@ -46,10 +46,11 @@ function definitionExpressions(o: MicroCOperation): MicroCExpr[] {
   return [];
 }
 type MemoryRange = { address: number; size: 1 | 2 | 4 | 8 };
-function constantAddress(e: MicroCExpr, constants: Map<string, number>): number | undefined {
-  if (e.kind === 'const') return e.value >>> 0;
-  if (e.kind === 'value') return constants.get(e.name);
-  return undefined;
+function constantAddress(e: MicroCExpr): number | undefined {
+  return e.kind === 'const' ? e.value >>> 0 : undefined;
+}
+function symbolicAddress(e: MicroCExpr): string | undefined {
+  return e.kind === 'value' ? e.name : undefined;
 }
 function overlaps(a: MemoryRange, b: MemoryRange): boolean {
   const aEnd = a.address + a.size - 1, bEnd = b.address + b.size - 1;
@@ -76,7 +77,7 @@ function coherentWithKnownStores(load: MemoryRange, stores: MemoryRange[]): bool
 function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
   const available = new Set(phiTargets);
   const stores: MemoryRange[] = [];
-  const constants = new Map<string, number>();
+  const symbolicStores = new Set<string>();
   let unknownStore = false;
   for (const o of operations) {
     const target = definitionTarget(o);
@@ -98,24 +99,29 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
       unknownStore = true;
     }
     if (o.kind === 'load') {
-      const address = constantAddress(o.address, constants);
-      if (address === undefined && (unknownStore || stores.length > 0)) throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
-      if (address !== undefined) {
+      const address = constantAddress(o.address);
+      if (address === undefined) {
+        const key = symbolicAddress(o.address);
+        const sameSymbolicStores = key !== undefined && symbolicStores.size > 0 && [...symbolicStores].every(storeKey => storeKey === key);
+        if (unknownStore || stores.length > 0 || (symbolicStores.size > 0 && !sameSymbolicStores)) {
+          throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+        }
+      } else {
         const loadRange = { address, size: o.size } satisfies MemoryRange;
-        if (unknownStore) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
+        if (unknownStore || symbolicStores.size > 0) throw new Error(`multi-phi lowering cannot prove memory coherence for load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
         if (!coherentWithKnownStores(loadRange, stores)) throw new Error(`multi-phi lowering cannot prove memory coherence for overlapping load at 0x${address.toString(16)} in block ${blockId}${target ? ` while defining ${target}` : ''}`);
       }
     }
     if (o.kind === 'store') {
-      const address = constantAddress(o.address, constants);
-      if (address === undefined) unknownStore = true;
-      else stores.push({ address, size: o.size });
+      const address = constantAddress(o.address);
+      if (address !== undefined) stores.push({ address, size: o.size });
+      else {
+        const key = symbolicAddress(o.address);
+        if (key !== undefined) symbolicStores.add(key);
+        else unknownStore = true;
+      }
     }
-    if (target) {
-      available.add(target);
-      if (o.kind === 'assign' && o.value.kind === 'const') constants.set(target, o.value.value >>> 0);
-      else constants.delete(target);
-    }
+    if (target) available.add(target);
   }
   return available;
 }
