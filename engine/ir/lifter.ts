@@ -265,7 +265,26 @@ export function liftInstructionsToMicroC(
           && instruction.fpuSourceRegister !== undefined
           && instruction.fpuTargetRegister !== undefined
           && instruction.fpuDestinationRegister !== undefined;
-        if (isArithmetic) {
+        const conversionMnemonic = instruction.mnemonic.toUpperCase().split('.');
+        const conversionOperation = conversionMnemonic[0];
+        const conversionFormat = conversionMnemonic[2];
+        const isWordConversion = ['CVT', 'ROUND', 'TRUNC', 'CEIL', 'FLOOR'].includes(conversionOperation ?? '')
+          && conversionMnemonic[1] === 'W'
+          && (conversionFormat === 'S' || conversionFormat === 'D')
+          && instruction.fpuFormat === (conversionFormat === 'S' ? 0x10 : 0x11)
+          && instruction.fpuSourceRegister !== undefined
+          && instruction.fpuDestinationRegister !== undefined;
+        if (isWordConversion) {
+          operations.push({
+            kind: 'fpuConvertWord',
+            operation: conversionOperation!.toLowerCase() as 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor',
+            format: conversionFormat as 'S' | 'D',
+            sourceRegister: instruction.fpuSourceRegister!,
+            destinationRegister: instruction.fpuDestinationRegister!,
+            ...(conversionFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
+            registerMode: 'status-fr',
+          });
+        } else if (isArithmetic) {
           const operation = arithmeticMnemonic.toLowerCase() as 'add' | 'sub' | 'mul' | 'div' | 'sqrt' | 'abs' | 'mov' | 'neg';
           operations.push({
             kind: 'fpuArithmetic',
