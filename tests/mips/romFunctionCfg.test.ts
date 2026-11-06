@@ -32,7 +32,7 @@ test('builds two-way CFG with a branch delay slot and fallthrough', () => {
 
 test('models a branch-likely annulled delay slot as a taken-only block', () => {
   const rom = words([
-    0x50850003, // beql a0,a1,+3 -> 0x1010
+    0x50850004, // beql a0,a1,+4 -> 0x1014
     0x24020001, // delay slot: executes only when branch is taken
     0x24030002, // not-taken path skips delay slot
     0x03e00008, // jr ra
@@ -46,7 +46,7 @@ test('models a branch-likely annulled delay slot as a taken-only block', () => {
   assert.deepEqual(branch.instructions.map(instruction => instruction.mnemonic), ['BEQL']);
   assert.deepEqual(branch.successors, [0x80001004, 0x80001008]);
   assert.deepEqual(delay.instructions.map(instruction => instruction.mnemonic), ['ADDIU']);
-  assert.deepEqual(delay.successors, [0x80001010]);
+  assert.deepEqual(delay.successors, [0x80001014]);
   assert.equal(cfg.instructionCount, 7);
 
   const lowered = lowerRomCfgToFunctionIR(cfg).functionIR;
