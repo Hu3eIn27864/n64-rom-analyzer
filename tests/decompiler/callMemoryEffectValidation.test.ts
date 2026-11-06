@@ -114,3 +114,41 @@ test('rejects inconsistent predecessor and successor edge declarations', () => {
   assert.equal(result.valid, false);
   assert.equal(result.unknownCall, true);
 });
+
+
+test('checks linked and COP1 loads against known call clobbers', () => {
+  const operations: MicroCOperation[] = [
+    call(0x80001000),
+    { kind: 'linkedLoad', target: 'll', address: c(0x1000), size: 4, signed: false },
+  ];
+  const linked = validateCallMemoryEffects(makeIR(operations), new Map([[0x80001000, writesLoadedRange]]));
+  assert.equal(linked.valid, false);
+  assert.equal(linked.unknownCall, false);
+
+  const fpu: MicroCOperation[] = [
+    call(0x80001000),
+    { kind: 'fpuLoad', register: 2, address: c(0x1000), size: 8, registerMode: 'status-fr' },
+  ];
+  const floating = validateCallMemoryEffects(makeIR(fpu), new Map([[0x80001000, writesLoadedRange]]));
+  assert.equal(floating.valid, false);
+  assert.equal(floating.unknownCall, false);
+});
+
+test('checks aligned merge-load ranges against call clobbers', () => {
+  const word: MicroCOperation[] = [
+    call(0x80001000),
+    { kind: 'mergeLoadWord', target: 'lwl', address: c(0x1003), direction: 'left' },
+  ];
+  const wordResult = validateCallMemoryEffects(makeIR(word), new Map([[0x80001000, writesLoadedRange]]));
+  assert.equal(wordResult.valid, false);
+
+  const doubleword: MicroCOperation[] = [
+    call(0x80001000),
+    { kind: 'mergeLoad', target: 'ldl', address: c(0x1007), direction: 'left' },
+  ];
+  const doublewordResult = validateCallMemoryEffects(makeIR(doubleword), new Map([[
+    0x80001000,
+    { reads: [], writes: [{ address: 0x1000, size: 8 }], unknown: false },
+  ]]));
+  assert.equal(doublewordResult.valid, false);
+});

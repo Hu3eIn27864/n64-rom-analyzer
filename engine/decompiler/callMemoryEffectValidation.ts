@@ -65,10 +65,33 @@ function transfer(
         continue;
       }
 
-      if (operation.kind !== 'load') continue;
-      const address = constantAddress(operation.address);
-      if (address === undefined) continue;
-      const range: MemoryEffectRange = { address, size: operation.size };
+      let addressExpression: MicroCExpr | undefined;
+      let size: MemoryEffectRange['size'] | undefined;
+      let alignment = 1;
+      switch (operation.kind) {
+        case 'load':
+        case 'linkedLoad':
+        case 'fpuLoad':
+          addressExpression = operation.address;
+          size = operation.size;
+          break;
+        case 'mergeLoad':
+          addressExpression = operation.address;
+          size = 8;
+          alignment = 8;
+          break;
+        case 'mergeLoadWord':
+          addressExpression = operation.address;
+          size = 4;
+          alignment = 4;
+          break;
+        default:
+          continue;
+      }
+      const rawAddress = constantAddress(addressExpression);
+      if (rawAddress === undefined || size === undefined) continue;
+      const address = (rawAddress & ~(alignment - 1)) >>> 0;
+      const range: MemoryEffectRange = { address, size };
       if (state.unknownCall) return { invalidLoad: true, unknownLoad: true };
       if (state.invalidatedRanges.some(write => overlaps(write, range))) {
         return { invalidLoad: true, unknownLoad: false };
