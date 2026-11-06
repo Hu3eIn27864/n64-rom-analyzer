@@ -151,8 +151,17 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
     case 'fpuControlWrite':
       if (operation.controlRegister !== 31) throw new Error(`C lowering does not yet model CTC1 FCR${operation.controlRegister}`);
       return { kind: 'expr', expr: cCall('vr4300_fpu_write_fcsr', [cVariable('fpu'), cCast('uint32_t', lowerExpr(operation.value))]) };
-    case 'fpuCompare':
-      throw new Error('COP1 compare C lowering is blocked until FCSR exception-enable and trap semantics are represented');
+    case 'fpuCompare': {
+      const helper = operation.format === 'S' ? 'vr4300_fpu_compare_s' : 'vr4300_fpu_compare_d';
+      const compare = cCall(helper, [
+        cVariable('fpu'),
+        cConstant(operation.conditionCode),
+        cConstant(operation.predicate),
+        cConstant(operation.leftRegister),
+        cConstant(operation.rightRegister),
+      ], 'uint32_t');
+      return returnIfFalse(compare);
+    }
     case 'branch':
     case 'jump':
       return undefined;
@@ -460,9 +469,6 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
       || operation.kind === 'fpuTransfer'
       || operation.kind === 'fpuCompare'
       || operation.kind === 'fpuControlWrite');
-  if (fpuOperations.some(operation => operation.kind === 'fpuCompare')) {
-    throw new Error('COP1 compare C lowering is blocked until FCSR exception-enable and trap semantics are represented');
-  }
   let lowered: CFunction;
   if (ir.blocks.length === 1) {
     lowered = lowerSingleBlock(ir);
