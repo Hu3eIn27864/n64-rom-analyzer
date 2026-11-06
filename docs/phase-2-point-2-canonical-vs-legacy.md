@@ -11,12 +11,13 @@ Inventory the competing analysis implementations and determine which one is actu
 | Capability | Legacy implementation | Canonical implementation | Current status | Decision |
 |---|---|---|---|---|
 | ROM parsing | src/utils/n64Parser.ts and legacy parser helpers | engine/rom/* | Legacy parser remains active in the production API path; canonical header/address components are tested | Preserve compatibility and add parity fixtures before cutover. |
+| ROM/VRAM mapping | Legacy parser/address helpers | engine/rom/segments.ts and addressMap.ts | Paired, equal-length, non-overlapping mappings and integer-only translation are validated | Keep explicit segment evidence; do not guess mapping. |
 | MIPS decoding | src/utils/mipsDisassembler.ts | engine/mips/decoder.ts | Canonical API is an adapter over legacy decoding; it is not yet the production boundary | Keep the adapter and require corpus parity before replacement. |
 | Reachability | Linear sweep / legacy extraction | engine/mips/reachability.ts | Implemented with an explicit ROM-word reader, bounds checks and MIPS delay-slot decoding; isolated from production API | Broaden parity and then integrate. |
 | Function recovery | src/utils/mipsDisassembler.ts extractSubroutines | engine/mips/functionRecovery.ts | Deterministic local-state implementation includes control-transfer delay slots; isolated | Broaden parity and then integrate. |
-| CFG | src/utils/controlFlowGraph.ts | engine/mips/cfgBuilder.ts | Canonical builder exists and is tested; production API still uses legacy extraction/CFG | Compare canonical and legacy edges before cutover. |
+| CFG | Legacy graph/extraction path | engine/mips/cfgBuilder.ts and engine/mips/romFunctionCfg.ts | Canonical generic CFG and bounded ROM CFG exist; bounded path models branch-likely annulment | Compare CFG edges before cutover. |
 | Call graph | Legacy-derived relationships | engine/mips/callGraph.ts | Canonical call-graph builder exists and is composed by the structural pipeline; isolated from the production API | Require relationship parity tests. |
-| Structural pipeline | Legacy parser/disassembler/extractor path | engine/analysis/structuralPipeline.ts | Composes canonical function recovery, CFG and call graph using explicit entry points and word reader | Expand side-by-side parity; do not cut over yet. |
+| Structural pipeline | Legacy parser/disassembler/extractor path | engine/analysis/structuralPipeline.ts and romFunctionAnalysis.ts | Canonical structural composition and bounded ROM-function-to-Micro-C/Memory-SSA composition exist | Expand side-by-side parity; do not cut over yet. |
 | IR / Micro-C | Existing decompiler/lifting infrastructure | engine/ir/* | Canonical IR and a growing VR4300 semantic subset exist; unsupported operations remain explicit | Continue semantic coverage and fail-closed diagnostics. |
 | Formal semantics | Legacy semantic utilities | engine/mips/formalSemantics.ts | Partial descriptive metadata; not a complete ISA semantics engine and not wired as runtime authority | Expand by instruction family with architecture-specific tests. |
 | Memory/data flow | Legacy alias-analysis utilities | engine/ir/memoryState.ts, memoryPhi.ts, memorySsa.ts, memorySsaBuilder.ts | Loop-capable CFG Memory SSA is derived from Micro-C memory operations for exact stack/frame locations; general alias analysis remains open | Continue M3 without overstating completion. |
@@ -31,7 +32,7 @@ Therefore the canonical engine components are **not production-integrated** mere
 
 ## Migration order
 
-1. Preserve ROM parser/decoder compatibility and build parity fixtures.
+1. Preserve ROM parser/decoder compatibility and explicit segment mappings.
 2. Compose canonical ROM-backed reachability, function recovery, CFG and call graph behind a non-default analysis path.
 3. Compare canonical and legacy function boundaries, CFG edges and call-graph relationships on synthetic fixtures.
 4. Integrate Micro-C and formal semantics only for explicitly supported instruction families.
@@ -52,13 +53,15 @@ Therefore the canonical engine components are **not production-integrated** mere
 - [x] Legacy and canonical implementations identified.
 - [x] Runtime consumers identified.
 - [x] Migration order and cutover rules documented.
+- [x] ROM/VRAM segment mapping validation hardened.
 - [x] Reachability repaired and tested, including delay slots, but isolated.
 - [x] Function recovery stabilized and tested, including return delay slots, but isolated.
 - [x] Canonical structural composition and initial function-boundary parity established.
+- [x] Bounded ROM-function CFG to Micro-C/Memory-SSA path established for explicit entries.
 - [ ] Broad CFG/call-graph parity completed.
 - [ ] Canonical pipeline cutover performed.
 - [ ] Evidence exposed through the production API/UI.
 
 ## Next
 
-Continue Phase 2.5 parity expansion. Do not switch the production API wholesale; compare CFG edges, indirect control flow and broader instruction-family behavior on a deterministic synthetic corpus first.
+Continue CFG parity expansion and define safe ROM segment/function-entry discovery. Do not switch the production API wholesale.
