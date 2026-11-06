@@ -114,31 +114,30 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
     case 'assign':
       return assignment(operation.target, operation.value);
     case 'load': {
-      const accessType = operation.size === 1 ? (operation.signed ? 'int8_t' : 'uint8_t')
-        : operation.size === 2 ? (operation.signed ? 'int16_t' : 'uint16_t')
-        : operation.size === 4 ? (operation.signed ? 'int32_t' : 'uint32_t')
-        : 'uint64_t';
-      const pointerType = `${accessType} *` as CExpr['type'];
-      const read: CExpr = {
-        kind: 'unary', op: '*',
-        operand: cCast(pointerType, lowerExpr(operation.address, 64)),
-        type: accessType,
+      const temporary = `__memory_load_${operation.target}`;
+      const read = cCall('vr4300_memory_load', [
+        cVariable('fpu'),
+        fpuAddress(operation.address),
+        cConstant(operation.size),
+        cConstant(operation.signed ? 1 : 0),
+        { kind: 'unary', op: '&', operand: cVariable(temporary, 'uint64_t'), type: 'pointer' },
+      ], 'uint32_t');
+      return {
+        kind: 'block',
+        body: [
+          { kind: 'decl', name: temporary, type: 'uint64_t' },
+          returnIfFalse(read),
+          typedAssignment(operation.target, 'uint64_t', cVariable(temporary, 'uint64_t')),
+        ],
       };
-      return typedAssignment(operation.target, 'uint64_t', cCast('uint64_t', read));
     }
     case 'store': {
-      const accessType = operation.size === 1 ? 'uint8_t' : operation.size === 2 ? 'uint16_t'
-        : operation.size === 4 ? 'uint32_t' : 'uint64_t';
-      const pointerType = `${accessType} *` as CExpr['type'];
-      const destination: CExpr = {
-        kind: 'unary', op: '*',
-        operand: cCast(pointerType, lowerExpr(operation.address, 64)),
-        type: accessType,
-      };
-      return { kind: 'expr', expr: {
-        kind: 'binary', op: '=', left: destination,
-        right: cCast(accessType, lowerExpr(operation.value, 64)), type: accessType,
-      } };
+      return returnIfFalse(cCall('vr4300_memory_store', [
+        cVariable('fpu'),
+        fpuAddress(operation.address),
+        cConstant(operation.size),
+        lowerExpr(operation.value, 64),
+      ], 'uint32_t'));
     }
     case 'call': {
       const callee = operation.target.kind === 'const' ? hexAddress(operation.target.value) : undefined;
@@ -623,7 +622,8 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     || operation.kind === 'fpuConvertLong');
   const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
-  const usesFpuState = fpuOperations.length > 0 || hasFccBranch;
+  const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store');
+  const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory;
   let lowered: CFunction;
   if (ir.blocks.length === 1) {
     lowered = lowerSingleBlock(ir);
