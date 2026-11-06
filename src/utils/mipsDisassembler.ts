@@ -434,10 +434,10 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
     if (imm16 === 0x8000) comment = 'RDRAM KSEG0 Base Pointer';
   } else if (opcode === 0x10) {
     // COP0
-    if (rs === 0x00) { opcodeName = 'MFC0'; asm = `mfc0 ${rtName}, c0_reg${rd}`; }
-    else if (rs === 0x01) { opcodeName = 'DMFC0'; asm = `dmfc0 ${rtName}, c0_reg${rd}`; }
-    else if (rs === 0x04) { opcodeName = 'MTC0'; asm = `mtc0 ${rtName}, c0_reg${rd}`; }
-    else if (rs === 0x05) { opcodeName = 'DMTC0'; asm = `dmtc0 ${rtName}, c0_reg${rd}`; }
+    if (rs === 0x00) { opcodeName = 'MFC0'; asm = `mfc0 ${rtName}, c0_reg${rd}`; args = [rtName, `c0_reg${rd}`]; }
+    else if (rs === 0x01) { opcodeName = 'DMFC0'; asm = `dmfc0 ${rtName}, c0_reg${rd}`; args = [rtName, `c0_reg${rd}`]; }
+    else if (rs === 0x04) { opcodeName = 'MTC0'; asm = `mtc0 ${rtName}, c0_reg${rd}`; args = [rtName, `c0_reg${rd}`]; }
+    else if (rs === 0x05) { opcodeName = 'DMTC0'; asm = `dmtc0 ${rtName}, c0_reg${rd}`; args = [rtName, `c0_reg${rd}`]; }
     else if (funct === 0x18) { opcodeName = 'ERET'; asm = 'eret'; }
     else if (funct === 0x01) { opcodeName = 'TLBR'; asm = 'tlbr'; }
     else if (funct === 0x02) { opcodeName = 'TLBWI'; asm = 'tlbwi'; }

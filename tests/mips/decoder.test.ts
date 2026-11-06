@@ -159,3 +159,13 @@ test('decodes COP1 GPR/FPR and control-register transfer operands', () => {
     assert.deepEqual(instruction.operands, operands);
   }
 });
+
+test('decodes COP0 transfers with explicit GPR and CP0 register operands', () => {
+  const encode = (rs: number, rt: number, rd: number) =>
+    ((0x10 << 26) | (rs << 21) | (rt << 16) | (rd << 11)) >>> 0;
+  for (const [rs, mnemonic] of [[0x00, 'MFC0'], [0x01, 'DMFC0'], [0x04, 'MTC0'], [0x05, 'DMTC0']] as const) {
+    const instruction = decodeInstruction(encode(rs, 8, 12), 0x80004000);
+    assert.equal(instruction.mnemonic, mnemonic);
+    assert.deepEqual(instruction.operands, ['$t0', 'c0_reg12']);
+  }
+});
