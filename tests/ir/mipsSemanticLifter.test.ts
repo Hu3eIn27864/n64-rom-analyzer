@@ -180,6 +180,7 @@ test('lifts VR4300 FPU memory, transfer, compare and FCSR-write operations', () 
   ), ['sign-extend', 'full-width', 'truncate', 'full-width']);
   const doubleStore = ir.blocks[0].operations[3];
   assert.equal(doubleStore?.kind === 'fpuStore' ? doubleStore.registerConstraint : undefined, 'even-when-fr0');
+  assert.equal(doubleStore?.kind === 'fpuStore' ? doubleStore.modeConstraint : undefined, 'kernel-or-64bit');
   const compareOperation = ir.blocks[0].operations[8];
   assert.equal(compareOperation?.kind === 'fpuCompare' ? compareOperation.registerConstraint : undefined, undefined);
   const doubleLoad = ir.blocks[0].operations[1];
@@ -317,10 +318,13 @@ test('lowers COP1 compares with predicate selection, FCC writes and FCSR invalid
     fpuCompareConditionCode: 3, fpuComparePredicate: 0x0b,
   });
   const ir = liftInstructionsToMicroC(0x80008100, [compare]);
+  const compareOperation = ir.blocks[0].operations[0];
+  assert.equal(compareOperation?.kind === 'fpuCompare' ? compareOperation.registerConstraint : undefined, 'even-when-fr0');
   const c = renderFunction(decompileStructuredFunctionIR(ir));
   assert.match(c, /vr4300_fpu_compare_d\(fpu, 3, 11, 2, 4\)/);
   assert.match(c, /vr4300_fpu_commit_compare/);
   assert.match(c, /exception_code = 15u/);
+  assert.match(c, /UINT32_MAX/);
   assert.match(c, /fcsr & \(UINT32_C\(1\) << 11\)/);
   assert.match(c, /fpu->fcsr \|= UINT32_C\(1\) << 6/);
 });
