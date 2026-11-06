@@ -206,3 +206,39 @@ test('reports direct call targets that are not covered by the validated segment 
   assert.deepEqual(result.structural.functions.map(fn => fn.address), [0x80001000]);
   assert.deepEqual(result.unresolvedDirectTargets, [0x80002000]);
 });
+
+
+test('reports unresolved indirect-call sites from mapped ROM programs', () => {
+  const rom = new Uint8Array(0x110);
+  const view = new DataView(rom.buffer);
+  view.setUint32(0x100, 0x0320f809, false); // jalr ra,t9
+  view.setUint32(0x104, 0x00000000, false);
+  view.setUint32(0x108, 0x03e00008, false);
+  view.setUint32(0x10c, 0x00000000, false);
+
+  const result = analyzeMappedRomProgram(rom, [{
+    romStart: 0x100,
+    romEnd: 0x110,
+    vramStart: 0x80001000,
+    vramEnd: 0x80001010,
+    type: 'code',
+  }], [0x80001000]);
+
+  assert.deepEqual(result.unresolvedDirectTargets, []);
+  assert.deepEqual(result.unresolvedIndirectCallers, [0x80001000]);
+});
+
+test('rejects empty, unaligned and unmapped program entry points', () => {
+  const rom = new Uint8Array(0x110);
+  const segments = [{
+    romStart: 0x100,
+    romEnd: 0x110,
+    vramStart: 0x80001000,
+    vramEnd: 0x80001010,
+    type: 'code' as const,
+  }];
+
+  assert.throws(() => analyzeMappedRomProgram(rom, segments, []), /at least one mapped VRAM entry point/);
+  assert.throws(() => analyzeMappedRomProgram(rom, segments, [0x80001002]), /not a valid aligned VRAM address/);
+  assert.throws(() => analyzeMappedRomProgram(rom, segments, [0x80002000]), /not covered by a validated ROM segment/);
+});

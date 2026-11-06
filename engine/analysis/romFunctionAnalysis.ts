@@ -142,6 +142,18 @@ export function analyzeMappedRomProgram(
   }
 
   const addressMap = new RomAddressMap(segments);
+  if (entryPoints.length === 0) {
+    throw new Error('at least one mapped VRAM entry point is required');
+  }
+  for (const address of entryPoints) {
+    if (!Number.isInteger(address) || address < 0 || address > 0xffffffff || address % 4 !== 0) {
+      throw new Error('program entry point 0x' + address.toString(16) + ' is not a valid aligned VRAM address');
+    }
+    if (addressMap.vramToRom(address) === undefined) {
+      throw new Error('program entry point 0x' + address.toString(16) + ' is not covered by a validated ROM segment');
+    }
+  }
+
   const byteOrder = options.byteOrder ?? 'big';
   const readWord = (address: number): number => {
     const offset = addressMap.vramToRom(address);
