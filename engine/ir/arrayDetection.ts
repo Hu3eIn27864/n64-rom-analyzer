@@ -106,6 +106,7 @@ function isStructArray(
   accesses: readonly ArrayAccessObservation[],
   evidence: ArrayStrideEvidence,
 ): boolean {
+  if (evidence.source === 'unrolled-sequence') return false;
   if (accesses.length < 2) return false;
   if (evidence.stride <= 0) return false;
   // Multiple distinct offsets in one proven repetition period are enough to

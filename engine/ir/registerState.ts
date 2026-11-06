@@ -82,7 +82,7 @@ export function propagateRegisterState(functionIR: FunctionIR): RegisterStatePro
         .map((id) => exit.get(id))
         .filter((state): state is RegisterState => state !== undefined);
       if (incoming.length === 0 && block.predecessors.length > 0) continue;
-      const merged = incoming.length === 0 ? cloneState(initial) : mergeStates(incoming);
+      const merged = incoming.length === 0 ? { state: cloneState(initial), phi: [] as string[] } : mergeStates(incoming);
       if (merged.phi.length > 0) phiRegisters.set(block.id, merged.phi);
       const nextEntry = merged.state;
       const nextExit = transfer(nextEntry, block.operations);

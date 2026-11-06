@@ -35,5 +35,5 @@ function isValidIdentity(calleeSymbol: string, parameterIndex: number): boolean 
 }
 
 function compareContracts(left: AuthoritativePointerContract, right: AuthoritativePointerContract): number {
-  return left.calleeSymbol.localeCompare(right.calleeSymbol) || left.parameterIndex - right.parameterIndex;
+  return (left.calleeSymbol < right.calleeSymbol ? -1 : left.calleeSymbol > right.calleeSymbol ? 1 : 0) || left.parameterIndex - right.parameterIndex;
 }

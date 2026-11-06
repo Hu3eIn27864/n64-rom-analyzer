@@ -30,6 +30,7 @@ export interface CFunction {
   returnType: CType;
   parameters: Array<{ name: string; type: CType }>;
   body: CStmt[];
+  useVoidForEmptyParameters?: boolean;
 }
 
 export interface CProgram {
@@ -41,7 +42,7 @@ export function renderExpr(expr: CExpr): string {
     case 'literal': return String(expr.value ?? '0');
     case 'variable': return String(expr.value ?? 'unknown');
     case 'binary': return `(${renderExpr(expr.left!)} ${expr.op ?? '?'} ${renderExpr(expr.right!)})`;
-    case 'unary': return `(${expr.op ?? '?'}${renderExpr(expr.operand!)})`;
+    case 'unary': return `${expr.op ?? '?'}${renderExpr(expr.operand!)}`;
     case 'call': return `${expr.callee ?? 'unknown'}(${(expr.args ?? []).map(renderExpr).join(', ')})`;
     case 'cast': return `((${expr.type ?? 'unknown'})${renderExpr(expr.operand!)})`;
   }
@@ -55,8 +56,13 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
     case 'break': return `${indent}break;`;
     case 'continue': return `${indent}continue;`;
     case 'if': {
-      const thenText = stmt.thenBranch ? renderStmt(stmt.thenBranch, `${indent}    `) : `${indent}    {}`;
-      const elseText = stmt.elseBranch ? ` else\n${renderStmt(stmt.elseBranch, indent)}` : '';
+      const renderBranch = (branch: CStmt | undefined): string => {
+        if (!branch) return '';
+        const statements = branch.kind === 'block' ? (branch.body ?? []) : [branch];
+        return statements.map(child => renderStmt(child, `${indent}    `)).join('\n');
+      };
+      const thenText = renderBranch(stmt.thenBranch);
+      const elseText = stmt.elseBranch ? ` else\n${indent}{\n${renderBranch(stmt.elseBranch)}\n${indent}}` : '';
       return `${indent}if (${renderExpr(stmt.condition!)})\n${indent}{\n${thenText}\n${indent}}${elseText}`;
     }
     case 'while': return `${indent}while (${renderExpr(stmt.condition!)})\n${indent}{\n${(stmt.body ?? []).map(s => renderStmt(s, `${indent}    `)).join('\n')}\n${indent}}`;
@@ -65,7 +71,7 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
 }
 
 export function renderFunction(fn: CFunction): string {
-  const params = fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
+  const params = fn.parameters.length === 0 && fn.useVoidForEmptyParameters ? 'void' : fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
   const body = fn.body.map(stmt => renderStmt(stmt, '    ')).join('\n');
   return `${fn.returnType} ${fn.name}(${params})\n{\n${body}\n}`;
 }

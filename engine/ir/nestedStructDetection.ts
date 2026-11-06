@@ -21,9 +21,10 @@ export function detectNestedStructs(structs: readonly RecoveredStruct[]): readon
       const child = byBase.get(childBase);
       if (!child) continue;
       const childSize = structSize(child.fields);
+      if (childSize <= 0) continue;
       const fieldEnd = field.offset + field.width;
       const evidence: NestedEvidence = field.width >= childSize ? 'proven' : 'possible';
-      if (fieldEnd < field.offset || childSize <= 0) {
+      if (fieldEnd < field.offset) {
         throw new Error(`invalid nested struct extent for ${parent.base}+${field.offset}`);
       }
       candidates.push({

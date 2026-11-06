@@ -34,7 +34,7 @@ export class PointerCallSiteAggregator {
 
     return [...groups.entries()]
       .map(([key, group]) => this.summarize(key, group))
-      .sort((a, b) => a.calleeSymbol.localeCompare(b.calleeSymbol) || a.parameterIndex - b.parameterIndex);
+      .sort((a, b) => compareSymbols(a.calleeSymbol, b.calleeSymbol) || a.parameterIndex - b.parameterIndex);
   }
 
   private static summarize(
@@ -68,4 +68,8 @@ export class PointerCallSiteAggregator {
       state: argumentIndices.size === 1 && argumentIndices.has(parameterIndex) ? 'consistent' : 'conflict',
     };
   }
+}
+
+function compareSymbols(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
