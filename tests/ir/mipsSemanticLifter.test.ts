@@ -442,7 +442,7 @@ test('lifts CVT.S.D and CVT.D.S with source and destination format constraints',
   const c = renderFunction(decompileStructuredFunctionIR(ir));
   assert.match(c, /vr4300_fpu_convert_d_to_s\(fpu, 4, 6\)/);
   assert.match(c, /vr4300_fpu_convert_s_to_d\(fpu, 8, 10\)/);
-  assert.match(VR4300_FPU_C_RUNTIME, /fesetround\(vr4300_fpu_host_rounding\(fpu->fcsr\)\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_begin_host_fenv\\(fpu, &saved_env, vr4300_fpu_host_rounding\\(fpu->fcsr\\)\\)/);
   assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_commit_arithmetic_exceptions/);
 });
 
