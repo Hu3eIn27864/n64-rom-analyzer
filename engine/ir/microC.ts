@@ -9,6 +9,7 @@ export type MicroCExpr =
 
 export type MicroCOperation =
   | { kind: 'assign'; target: string; value: MicroCExpr }
+  | { kind: 'modeCheck'; mode: '64-or-kernel' }
   | { kind: 'signedArithmetic'; operation: 'add' | 'sub'; target: string; left: MicroCExpr; right: MicroCExpr; width: 32 | 64 }
   | { kind: 'hiloTransfer'; direction: 'from-hi' | 'from-lo' | 'to-hi' | 'to-lo'; register: string }
   | { kind: 'hiloMultiply'; left: MicroCExpr; right: MicroCExpr; signed: boolean }

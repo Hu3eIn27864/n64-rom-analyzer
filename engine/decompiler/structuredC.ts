@@ -118,6 +118,8 @@ function fpuAddress(address: MicroCExpr): CExpr {
 
 function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   switch (operation.kind) {
+    case 'modeCheck':
+      return returnIfFalse(cCall('vr4300_require_mode64_or_kernel', [cVariable('fpu')], 'uint32_t'));
     case 'assign':
       return assignment(operation.target, operation.value);
     case 'hiloDivideWord':
@@ -791,7 +793,8 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
   const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store' || operation.kind === 'mergeLoad' || operation.kind === 'mergeStore' || operation.kind === 'linkedLoad' || operation.kind === 'conditionalStore');
   const hasSignedArithmetic = operations.some(operation => operation.kind === 'signedArithmetic');
   const hasHiloTransfer = operations.some(operation => operation.kind === 'hiloTransfer' || operation.kind === 'hiloMultiply' || operation.kind === 'hiloDivide' || operation.kind === 'hiloMultiplyWord' || operation.kind === 'hiloDivideWord');
-  const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory || hasSignedArithmetic || hasHiloTransfer;
+  const hasModeCheck = operations.some(operation => operation.kind === 'modeCheck');
+  const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory || hasSignedArithmetic || hasHiloTransfer || hasModeCheck;
   const usesSra = operations.some(operation => operation.kind === 'assign' && expressionUsesSra(operation.value));
   const usesSignExtend32 = operations.some(operation => operation.kind === 'assign' && expressionUsesSignExtend32(operation.value));
   const usesRuntime = usesFpuState || usesSra || usesSignExtend32;

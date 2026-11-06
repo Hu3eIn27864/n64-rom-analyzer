@@ -56,7 +56,7 @@ test('models signed and unsigned 64-bit division into HI/LO', () => {
     instruction('DDIV', ['$t0', '$t1']),
     instruction('DDIVU', ['$t2', '$t3']),
   ]);
-  assert.deepEqual(ir.blocks[0].operations, [
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'hiloDivide'), [
     { kind: 'hiloDivide', left: { kind: 'value', name: 'rt0', width: 64 }, right: { kind: 'value', name: 'rt1', width: 64 }, signed: true },
     { kind: 'hiloDivide', left: { kind: 'value', name: 'rt2', width: 64 }, right: { kind: 'value', name: 'rt3', width: 64 }, signed: false },
   ]);
@@ -65,7 +65,7 @@ test('models signed and unsigned 64-bit division into HI/LO', () => {
   assert.match(c, /vr4300_hilo_divide64\(fpu, rt0, rt1, 1\)/);
   assert.match(c, /vr4300_hilo_divide64\(fpu, rt2, rt3, 0\)/);
   const helper = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_hilo_divide64\([\s\S]*?\n\}/)?.[0] ?? '';
-  assert.match(helper, /exception_code = 10u/);
+  assert.match(c, /vr4300_require_mode64_or_kernel\(fpu\)/);
   assert.match(helper, /if \(divisor == 0u\) return true/);
   assert.match(helper, /dividend_magnitude \/ divisor_magnitude/);
   assert.match(helper, /remainder = dividend_magnitude % divisor_magnitude/);
@@ -77,7 +77,7 @@ test('models signed and unsigned 64-bit multiply into HI/LO', () => {
     instruction('DMULT', ['$t0', '$t1']),
     instruction('DMULTU', ['$t2', '$t3']),
   ]);
-  assert.deepEqual(ir.blocks[0].operations, [
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'hiloMultiply'), [
     { kind: 'hiloMultiply', left: { kind: 'value', name: 'rt0', width: 64 }, right: { kind: 'value', name: 'rt1', width: 64 }, signed: true },
     { kind: 'hiloMultiply', left: { kind: 'value', name: 'rt2', width: 64 }, right: { kind: 'value', name: 'rt3', width: 64 }, signed: false },
   ]);
@@ -116,13 +116,30 @@ test('models full-width HI/LO register transfers', () => {
   assert.match(c, /rt3 = vr4300_hilo_read_lo\(fpu\)/);
 });
 
+test('guards doubleword arithmetic and HI/LO operations by processor mode', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('DADDU', ['$t0', '$t1', '$t2']),
+    instruction('DSLL', ['$t3', '$t4', '4']),
+    instruction('DMULT', ['$t5', '$t6']),
+    instruction('DDIVU', ['$t7', '$t8']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind), [
+    'modeCheck', 'assign', 'modeCheck', 'assign',
+    'modeCheck', 'hiloMultiply', 'modeCheck', 'hiloDivide',
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.equal((c.match(/vr4300_require_mode64_or_kernel\(fpu\)/g) ?? []).length, 4);
+  assert.match(c, /exception_code = 10u/);
+});
+
 test('models signed 32-bit and 64-bit arithmetic with overflow-aware operations', () => {
   const mnemonics = ['ADD', 'ADDI', 'SUB', 'DADD', 'DADDI', 'DSUB'];
   const ir = liftInstructionsToMicroC(0x80000000, mnemonics.map(mnemonic =>
     instruction(mnemonic, mnemonic.endsWith('I') ? ['$t0', '$t1', '0xffff'] : ['$t0', '$t1', '$t2']),
   ));
 
-  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'signedArithmetic').map(operation =>
     operation.kind === 'signedArithmetic' ? [operation.operation, operation.width, operation.right.kind === 'const' ? operation.right.value : undefined] : undefined,
   ), [
     ['add', 32, undefined], ['add', 32, -1], ['sub', 32, undefined],
@@ -154,7 +171,7 @@ test('models 64-bit logical operations and sign-extends 32-bit shift results', (
     instruction('SRLV', ['$t9', '$s0', '$s1']),
     instruction('SRAV', ['$s2', '$s3', '$s4']),
   ]);
-  const values = ir.blocks[0].operations.map(operation =>
+  const values = ir.blocks[0].operations.filter(operation => operation.kind === 'assign').map(operation =>
     operation.kind === 'assign' ? operation.value : undefined,
   );
   assert.ok(values.slice(0, 7).every(value => value?.width === 64));
@@ -172,10 +189,10 @@ test('lifts 64-bit integer arithmetic into explicitly wide Micro-C expressions',
     instruction(mnemonic, mnemonic === 'DADDIU' ? ['$t0', '$t1', '1'] : ['$t0', '$t1', '$t2']),
   ));
 
-  assert.equal(ir.blocks[0].operations.length, 3);
-  assert.ok(ir.blocks[0].operations.every(operation =>
-    operation.kind === 'assign' && operation.value.kind === 'binary' && operation.value.width === 64,
-  ));
+  assert.equal(ir.blocks[0].operations.filter(operation => operation.kind === 'modeCheck').length, 3);
+  const assignments = ir.blocks[0].operations.filter(operation => operation.kind === 'assign');
+  assert.equal(assignments.length, 3);
+  assert.ok(assignments.every(operation => operation.kind === 'assign' && operation.value.kind === 'binary' && operation.value.width === 64));
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
@@ -188,7 +205,7 @@ test('lifts 64-bit immediate and variable shifts with the correct shift widths',
     instruction('DSRLV', ['$t9', '$s0', '$s1']),
     instruction('DSRAV', ['$s2', '$s3', '$s4']),
   ]);
-  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'assign').map(operation =>
     operation.kind === 'assign' ? operation.value : undefined,
   ), [
     { kind: 'binary', op: '<<', left: { kind: 'value', name: 'rt1', width: 64 }, right: { kind: 'const', value: 3 }, width: 64 },
@@ -384,7 +401,7 @@ test('lifts DADDU, DSUBU and sign-extended DADDIU as 64-bit expressions', () => 
     instruction('DSUBU', ['$t3', '$t4', '$t5']),
     instruction('DADDIU', ['$t6', '$t7', '0xffff']),
   ]);
-  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'assign').map(operation =>
     operation.kind === 'assign' ? operation.value : undefined,
   ), [
     { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt1' }, right: { kind: 'value', name: 'rt2' }, width: 64 },
@@ -394,7 +411,7 @@ test('lifts DADDU, DSUBU and sign-extended DADDIU as 64-bit expressions', () => 
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 
   const fn = decompileStructuredFunctionIR(ir);
-  for (const statement of fn.body) {
+  for (const statement of fn.body.filter(statement => statement.kind === 'expr')) {
     assert.equal(statement.expr?.left?.type, 'uint64_t');
     assert.equal(statement.expr?.right?.type, 'uint64_t');
   }
