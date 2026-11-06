@@ -177,6 +177,8 @@ test('lifts VR4300 FPU memory, transfer, compare and FCSR-write operations', () 
   assert.deepEqual(ir.blocks[0].operations.slice(4, 8).map(operation =>
     operation.kind === 'fpuTransfer' ? operation.gprSemantics : undefined,
   ), ['sign-extend', 'full-width', 'truncate', 'full-width']);
+  assert.equal(ir.blocks[0].operations[1]?.kind === 'fpuLoad' && ir.blocks[0].operations[1].modeConstraint, 'kernel-or-64bit');
+  assert.equal(ir.blocks[0].operations[5]?.kind === 'fpuTransfer' && ir.blocks[0].operations[5].modeConstraint, 'kernel-or-64bit');
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
