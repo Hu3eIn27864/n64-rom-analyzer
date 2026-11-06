@@ -37,12 +37,12 @@ export function inferFunctionMemoryEffects(
   const addRead = (expression: MicroCExpr, size: MemoryEffectRange['size'], alignment = 1) => {
     const address = constantAddress(expression);
     if (address === undefined) unknown = true;
-    else addRange(reads, { address: address & ~(alignment - 1), size });
+    else addRange(reads, { address: (address & ~(alignment - 1)) >>> 0, size });
   };
   const addWrite = (expression: MicroCExpr, size: MemoryEffectRange['size'], alignment = 1) => {
     const address = constantAddress(expression);
     if (address === undefined) unknown = true;
-    else addRange(writes, { address: address & ~(alignment - 1), size });
+    else addRange(writes, { address: (address & ~(alignment - 1)) >>> 0, size });
   };
 
   for (const operation of ir.blocks.flatMap(block => block.operations)) {
