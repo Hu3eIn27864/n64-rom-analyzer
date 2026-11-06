@@ -175,6 +175,9 @@ export function liftInstructionsToMicroC(
             direction: fromFpu ? 'from-fpu' : 'to-fpu',
             gpr, fpr,
             width: instruction.mnemonic.startsWith('D') ? 64 : 32,
+            gprSemantics: instruction.mnemonic === 'MFC1' ? 'sign-extend'
+              : instruction.mnemonic === 'MTC1' ? 'truncate'
+              : 'full-width',
             registerMode: 'status-fr',
           });
         }
