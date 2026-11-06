@@ -116,6 +116,27 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   switch (operation.kind) {
     case 'assign':
       return assignment(operation.target, operation.value);
+    case 'signedArithmetic': {
+      const temporary = `__signed_result_${operation.target}`;
+      const suffix = operation.width === 64 ? '64' : '32';
+      const helper = `vr4300_signed_${operation.operation}${suffix}`;
+      const operandType = operation.width === 64 ? 'uint64_t' : 'uint32_t';
+      const left = cCast(operandType, lowerExpr(operation.left, operation.width));
+      const right = cCast(operandType, lowerExpr(operation.right, operation.width));
+      const call = cCall(helper, [
+        cVariable('fpu'), left, right,
+        { kind: 'unary', op: '&', operand: cVariable(temporary, 'uint64_t'), type: 'pointer' },
+      ], 'uint32_t');
+      return {
+        kind: 'block',
+        body: [
+          { kind: 'decl', name: temporary, type: 'uint64_t' },
+          returnIfFalse(call),
+          typedAssignment(operation.target, 'uint64_t', cVariable(temporary, 'uint64_t')),
+        ],
+      };
+    }
+
     case 'load': {
       const temporary = `__memory_load_${operation.target}`;
       const read = cCall('vr4300_memory_load', [
@@ -639,7 +660,8 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
   const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
   const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store');
-  const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory;
+  const hasSignedArithmetic = operations.some(operation => operation.kind === 'signedArithmetic');
+  const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory || hasSignedArithmetic;
   const usesSra = operations.some(operation => operation.kind === 'assign' && expressionUsesSra(operation.value));
   const usesRuntime = usesFpuState || usesSra;
   let lowered: CFunction;
