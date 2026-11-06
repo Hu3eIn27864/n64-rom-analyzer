@@ -20,6 +20,7 @@ export type MicroCOperation =
   | { kind: 'fpuArithmetic'; operation: 'add' | 'sub' | 'mul' | 'div' | 'sqrt' | 'abs' | 'mov' | 'neg'; format: 'S' | 'D'; sourceRegister: number; targetRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuConvertFormat'; sourceFormat: 'S' | 'D'; destinationFormat: 'S' | 'D'; sourceRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuConvertFromWord'; destinationFormat: 'S' | 'D'; sourceRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
+  | { kind: 'fpuConvertFromLong'; destinationFormat: 'S' | 'D'; sourceRegister: number; destinationRegister: number; sourceRegisterConstraint: 'even-when-fr0'; destinationRegisterConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuConvertWord'; operation: 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor'; format: 'S' | 'D'; sourceRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuConvertLong'; operation: 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor'; format: 'S' | 'D'; sourceRegister: number; destinationRegister: number; modeConstraint: 'kernel-or-64bit'; sourceRegisterConstraint?: 'even-when-fr0'; destinationRegisterConstraint: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'call'; target: MicroCExpr; args: MicroCExpr[]; result?: string }
