@@ -15,12 +15,16 @@ export function decodeInstruction(word: number, address: number): MipsInstructio
       ? asm.slice(asm.indexOf(' ') + 1).split(',').map((value) => value.trim()).filter(Boolean)
       : [];
 
+  const isCop1Branch = ((raw >>> 26) & 0x3f) === 0x11 && ((raw >>> 21) & 0x1f) === 0x08;
+  const branchConditionCode = isCop1Branch ? (((raw >>> 16) & 0x1f) >>> 2) & 0x07 : undefined;
+
   return createMipsInstruction({
     address: decoded.address ?? address,
     raw,
     mnemonic,
     operands,
     targetAddress: decoded.targetAddress,
+    branchConditionCode,
   });
 }
 
