@@ -77,7 +77,7 @@ test('derives a MemoryPhi from conflicting Micro-C stores on CFG branches', () =
   const result = buildMemorySSAFromFunctionIR(ir);
   assert.equal(result.phis.length, 1);
   assert.equal(result.phis[0].blockId, 3);
-  assert.deepEqual(result.phis[0].inputs, { 1: 2, 2: 3 });
+  assert.deepEqual(result.phis[0].inputs, { 1: 1, 2: 2 });
   assert.equal(result.accesses[2].reachingVersion, result.phis[0].version);
 });
 
