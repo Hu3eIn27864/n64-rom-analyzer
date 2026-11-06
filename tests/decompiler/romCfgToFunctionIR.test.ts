@@ -33,7 +33,7 @@ test('lowers recovered ROM CFG blocks into FunctionIR with preserved edges', () 
   if (branch?.kind === 'branch') {
     assert.equal(branch.trueTarget, 2);
     assert.equal(branch.falseTarget, 1);
-    assert.deepEqual(branch.condition, { kind: 'binary', op: '==', left: { kind: 'value', name: 'ra0' }, right: { kind: 'value', name: 'ra1' } });
+    assert.deepEqual(branch.condition, { kind: 'binary', op: '==', left: { kind: 'value', name: 'ra0', width: 64 }, right: { kind: 'value', name: 'ra1', width: 64 }, width: 64 });
   }
   assert.equal(result.functionIR.blocks[1].operations.length, 1);
   assert.equal(result.functionIR.blocks[2].operations.length, 1);

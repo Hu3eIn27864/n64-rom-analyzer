@@ -132,17 +132,30 @@ export function liftInstructionsToMicroC(
       case 'ADDIU':
       case 'ANDI':
       case 'ORI':
-      case 'XORI':
-      case 'SLTI':
-      case 'SLTIU': {
+      case 'XORI': {
         const immediate = c ? parseImmediate(c) : undefined;
         if (target && b && immediate !== undefined) {
           const op = instruction.mnemonic === 'ANDI' ? 'and'
             : instruction.mnemonic === 'ORI' ? 'or'
             : instruction.mnemonic === 'XORI' ? 'xor'
-            : instruction.mnemonic.startsWith('SLT') ? 'slt'
             : '+';
           operations.push({ kind: 'assign', target, value: binary(op, value(normalizeRegister(b)), constant(immediate)) });
+        }
+        break;
+      }
+      case 'SLTI':
+      case 'SLTIU': {
+        const immediate = c ? parseSignedImmediate16(c) : undefined;
+        if (target && b && immediate !== undefined) {
+          const source = value(normalizeRegister(b), 64);
+          const immediateValue = constant(immediate);
+          const left = instruction.mnemonic === 'SLTI'
+            ? { kind: 'cast' as const, type: 'int64_t', value: source, width: 64 as const }
+            : source;
+          const right = instruction.mnemonic === 'SLTI'
+            ? { kind: 'cast' as const, type: 'int64_t', value: immediateValue, width: 64 as const }
+            : immediateValue;
+          operations.push({ kind: 'assign', target, value: binary('<', left, right, 64) });
         }
         break;
       }
@@ -155,9 +168,21 @@ export function liftInstructionsToMicroC(
       case 'OR':
       case 'XOR':
       case 'NOR':
+        if (target && b && c) operations.push({ kind: 'assign', target, value: binary(instruction.mnemonic.toLowerCase(), value(normalizeRegister(b)), value(normalizeRegister(c))) });
+        break;
       case 'SLT':
       case 'SLTU':
-        if (target && b && c) operations.push({ kind: 'assign', target, value: binary(instruction.mnemonic.toLowerCase(), value(normalizeRegister(b)), value(normalizeRegister(c))) });
+        if (target && b && c) {
+          const leftValue = value(normalizeRegister(b), 64);
+          const rightValue = value(normalizeRegister(c), 64);
+          const left = instruction.mnemonic === 'SLT'
+            ? { kind: 'cast' as const, type: 'int64_t', value: leftValue, width: 64 as const }
+            : leftValue;
+          const right = instruction.mnemonic === 'SLT'
+            ? { kind: 'cast' as const, type: 'int64_t', value: rightValue, width: 64 as const }
+            : rightValue;
+          operations.push({ kind: 'assign', target, value: binary('<', left, right, 64) });
+        }
         break;
       case 'SLL':
       case 'SRL':
@@ -274,8 +299,8 @@ export function liftInstructionsToMicroC(
         const fpuBranch = instruction.isFpuBranch;
         const zeroCompare = instruction.mnemonic.startsWith('BLEZ') || instruction.mnemonic.startsWith('BGTZ')
           || instruction.mnemonic.startsWith('BLTZ') || instruction.mnemonic.startsWith('BGEZ');
-        const left = fpuBranch ? value(`fcc${instruction.branchConditionCode ?? 0}`) : (a ? value(normalizeRegister(a)) : undefined);
-        const right = fpuBranch || zeroCompare ? constant(0) : (b ? value(normalizeRegister(b)) : undefined);
+        const left = fpuBranch ? value(`fcc${instruction.branchConditionCode ?? 0}`) : (a ? value(normalizeRegister(a), 64) : undefined);
+        const right = fpuBranch || zeroCompare ? constant(0) : (b ? value(normalizeRegister(b), 64) : undefined);
         if (targetAddress !== undefined && left && right && (fpuBranch || a && (zeroCompare || b)) && !(instruction.isLinkBranch && a === '$ra')) {
           const conditionOp = instruction.mnemonic === 'BC1T' || instruction.mnemonic === 'BC1TL' ? '!='
             : instruction.mnemonic === 'BC1F' || instruction.mnemonic === 'BC1FL' ? '=='
@@ -287,14 +312,12 @@ export function liftInstructionsToMicroC(
             : '>=';
           operations.push({
             kind: 'branch',
-            condition: binary(conditionOp, left, right),
+            condition: binary(conditionOp,
+              !fpuBranch && zeroCompare ? { kind: 'cast', type: 'int64_t', value: left, width: 64 } : left,
+              !fpuBranch && zeroCompare ? { kind: 'cast', type: 'int64_t', value: right, width: 64 } : right,
+              fpuBranch ? 32 : 64),
             trueTarget: targetAddress,
             ...(instruction.isLinkBranch ? { linkOnTaken: { target: 'rra', value: constant((instruction.address + 8) >>> 0) } } : {}),
-          });
-          if (!fpuBranch) unsupportedInstructions.push({
-            address: instruction.address >>> 0,
-            mnemonic: instruction.mnemonic,
-            reason: '64-bit GPR comparison semantics are not yet modeled',
           });
           if (fpuBranch && !knownFcc.has(instruction.branchConditionCode ?? 0)) unsupportedInstructions.push({
             address: instruction.address >>> 0,

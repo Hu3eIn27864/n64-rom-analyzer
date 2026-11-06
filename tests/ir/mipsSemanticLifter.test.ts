@@ -72,6 +72,26 @@ test('lifts 64-bit immediate and variable shifts with the correct shift widths',
   assert.match(c, /UINT64_MAX << \(64u - shift\)/);
 });
 
+test('models signed and unsigned 64-bit SLT comparisons and sign-extended immediates', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('SLT', ['$t0', '$t1', '$t2']),
+    instruction('SLTU', ['$t3', '$t4', '$t5']),
+    instruction('SLTI', ['$t6', '$t7', '0xffff']),
+    instruction('SLTIU', ['$t8', '$t9', '0xffff']),
+  ]);
+  const values = ir.blocks[0].operations.map(operation =>
+    operation.kind === 'assign' ? operation.value : undefined,
+  );
+  assert.ok(values.every(value => value?.kind === 'binary' && value.op === '<' && value.width === 64));
+  assert.equal(values[0]?.kind === 'binary' ? values[0].left.kind : undefined, 'cast');
+  assert.equal(values[1]?.kind === 'binary' ? values[1].left.kind : undefined, 'value');
+  assert.equal(values[2]?.kind === 'binary' && values[2].right.kind === 'cast'
+    ? values[2].right.value.kind : undefined, 'const');
+  assert.equal(values[3]?.kind === 'binary' && values[3].right.kind === 'const'
+    ? values[3].right.value : undefined, -1);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+});
+
 test('lifts memory operations with explicit widths and effective addresses', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LW', ['$t0', '8($sp)']),
@@ -235,22 +255,22 @@ test('lifts conditional branch-and-link with a taken-only return-address write',
         value: { kind: 'const', value: 0x80001008 },
       });
     }
-    assert.deepEqual(ir.unsupportedInstructions?.map(item => item.reason), [
-      '64-bit GPR comparison semantics are not yet modeled',
-    ]);
+    assert.deepEqual(ir.unsupportedInstructions, undefined);
   }
 });
 
-test('retains GPR branch CFG expressions but diagnoses missing 64-bit comparison semantics', () => {
+test('lifts GPR branch comparisons with full 64-bit operand semantics', () => {
   const ir = liftInstructionsToMicroC(0x80001000, [
     createMipsInstruction({ address: 0x80001000, raw: 0, mnemonic: 'BEQ', operands: ['$t0', '$t1'], targetAddress: 0x80001020 }),
     createMipsInstruction({ address: 0x80001004, raw: 0, mnemonic: 'BLTZ', operands: ['$t2'], targetAddress: 0x80001030 }),
   ]);
   assert.equal(ir.blocks[0].operations.length, 2);
-  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BEQ', 'BLTZ']);
-  assert.ok(ir.unsupportedInstructions?.every(item =>
-    item.reason === '64-bit GPR comparison semantics are not yet modeled',
-  ));
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const [equalBranch, signedBranch] = ir.blocks[0].operations;
+  assert.equal(equalBranch?.kind === 'branch' ? equalBranch.condition.width : undefined, 64);
+  assert.equal(signedBranch?.kind === 'branch' ? signedBranch.condition.width : undefined, 64);
+  assert.equal(signedBranch?.kind === 'branch' && signedBranch.condition.kind === 'binary'
+    ? signedBranch.condition.left.kind : undefined, 'cast');
 });
 
 test('rejects architecturally unpredictable branch-and-link use of the link register as source', () => {
