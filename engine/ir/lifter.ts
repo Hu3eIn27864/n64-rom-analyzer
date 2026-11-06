@@ -104,6 +104,15 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
+      case 'DDIV':
+      case 'DDIVU':
+        if (a && b) operations.push({
+          kind: 'hiloDivide',
+          left: value(normalizeRegister(a), 64),
+          right: value(normalizeRegister(b), 64),
+          signed: instruction.mnemonic === 'DDIV',
+        });
+        break;
       case 'DMULT':
       case 'DMULTU':
         if (a && b) operations.push({
