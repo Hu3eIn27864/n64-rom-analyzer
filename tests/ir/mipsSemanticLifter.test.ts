@@ -177,7 +177,7 @@ test('lifts VR4300 FPU memory, transfer, compare and FCSR-write operations', () 
   });
   assert.deepEqual(ir.blocks[0].operations.slice(4, 8).map(operation =>
     operation.kind === 'fpuTransfer' ? operation.gprSemantics : undefined,
-  ), ['sign-extend', 'full-width', 'truncate', 'full-width']);
+  ), ['mode-dependent', 'full-width', 'truncate', 'full-width']);
   const doubleStore = ir.blocks[0].operations[3];
   assert.equal(doubleStore?.kind === 'fpuStore' ? doubleStore.registerConstraint : undefined, 'even-when-fr0');
   assert.equal(doubleStore?.kind === 'fpuStore' ? doubleStore.modeConstraint : undefined, undefined);
