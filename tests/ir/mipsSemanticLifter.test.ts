@@ -34,6 +34,16 @@ test('rejects signed arithmetic until overflow exceptions and result widths are 
   assert.ok(ir.unsupportedInstructions?.every(item => item.reason.includes('No complete Micro-C semantics')));
 });
 
+test('rejects 64-bit integer arithmetic until 64-bit GPR lowering is modeled', () => {
+  const mnemonics = ['DADDU', 'DSUBU', 'DADDIU'];
+  const ir = liftInstructionsToMicroC(0x80000000, mnemonics.map(mnemonic =>
+    instruction(mnemonic, mnemonic === 'DADDIU' ? ['$t0', '$t1', '1'] : ['$t0', '$t1', '$t2']),
+  ));
+
+  assert.deepEqual(ir.blocks[0].operations, []);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), mnemonics);
+});
+
 test('lifts memory operations with explicit widths and effective addresses', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LW', ['$t0', '8($sp)']),
