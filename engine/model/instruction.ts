@@ -15,6 +15,13 @@ export interface MipsInstruction {
   branchConditionCode?: number;
   /** FCC destination encoded by a COP1 compare instruction. */
   fpuCompareConditionCode?: number;
+  /** COP1 fmt field: S=16, D=17, W=20, L=21. */
+  fpuFormat?: number;
+  fpuSourceRegister?: number;
+  fpuTargetRegister?: number;
+  fpuDestinationRegister?: number;
+  /** Low four-bit IEEE-754 compare predicate selector. */
+  fpuComparePredicate?: number;
   isJump: boolean;
   isCall: boolean;
   isReturn: boolean;
@@ -37,6 +44,11 @@ export function createMipsInstruction(input: {
   targetAddress?: number;
   branchConditionCode?: number;
   fpuCompareConditionCode?: number;
+  fpuFormat?: number;
+  fpuSourceRegister?: number;
+  fpuTargetRegister?: number;
+  fpuDestinationRegister?: number;
+  fpuComparePredicate?: number;
 }): MipsInstruction {
   const mnemonic = input.mnemonic.toUpperCase();
   const operands = [...(input.operands ?? [])];
@@ -56,6 +68,11 @@ export function createMipsInstruction(input: {
     isFpuBranch: ['BC1F', 'BC1T', 'BC1FL', 'BC1TL'].includes(mnemonic),
     branchConditionCode: input.branchConditionCode,
     fpuCompareConditionCode: input.fpuCompareConditionCode,
+    fpuFormat: input.fpuFormat,
+    fpuSourceRegister: input.fpuSourceRegister,
+    fpuTargetRegister: input.fpuTargetRegister,
+    fpuDestinationRegister: input.fpuDestinationRegister,
+    fpuComparePredicate: input.fpuComparePredicate,
     isJump,
     isCall: mnemonic === 'JAL' || mnemonic === 'JALR',
     isReturn: mnemonic === 'JR' && operands[0] === '$ra',
