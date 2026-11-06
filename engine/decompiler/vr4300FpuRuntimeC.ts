@@ -459,7 +459,7 @@ static inline bool vr4300_fpu_arithmetic_d(
  * 3 CEIL.W, 4 FLOOR.W. Out-of-range and non-finite inputs raise Invalid.
  * The destination is not committed when an enabled exception traps. */
 static inline bool vr4300_fpu_convert_word(
-    vr4300_fpu_state *fpu, unsigned operation, double input, unsigned fd)
+    vr4300_fpu_state *fpu, unsigned operation, double input, unsigned fd, int initial_raised)
 {
     int requested = operation == 0u ? vr4300_fpu_host_rounding(fpu->fcsr)
         : operation == 1u ? FE_TONEAREST
@@ -487,6 +487,7 @@ static inline bool vr4300_fpu_convert_word(
     }
     int raised;
     if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
+    raised |= initial_raised;
     if (!isfinite(input) || rounded < -2147483648.0 || rounded >= 2147483648.0)
         raised |= FE_INVALID;
     if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
@@ -502,7 +503,14 @@ static inline bool vr4300_fpu_convert_word_s(
     if (!vr4300_fpu_check_operand_s(fpu, bits)) return false;
     float value;
     memcpy(&value, &bits, sizeof(value));
-    return vr4300_fpu_convert_word(fpu, operation, (double)value, fd);
+    int host_rounding = fegetround();
+    if (host_rounding == -1) { fpu->exception_pending = true; fpu->exception_code = 10u; return false; }
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, host_rounding)) return false;
+    volatile double promoted = (double)value;
+    int promotion_raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &promotion_raised)) return false;
+    return vr4300_fpu_convert_word(fpu, operation, promoted, fd, promotion_raised);
 }
 
 static inline bool vr4300_fpu_convert_word_d(
@@ -513,7 +521,7 @@ static inline bool vr4300_fpu_convert_word_d(
     if (!vr4300_fpu_check_operand_d(fpu, bits)) return false;
     double value;
     memcpy(&value, &bits, sizeof(value));
-    return vr4300_fpu_convert_word(fpu, operation, value, fd);
+    return vr4300_fpu_convert_word(fpu, operation, value, fd, 0);
 }
 
 
@@ -577,10 +585,17 @@ static inline bool vr4300_fpu_convert_s_to_d(vr4300_fpu_state *fpu, unsigned fs,
     if (!vr4300_fpu_check_operand_s(fpu, bits)) return false;
     float input;
     memcpy(&input, &bits, sizeof(input));
-    /* Every finite binary32 value is exactly representable as binary64. */
-    double converted = (double)input;
+    int host_rounding = fegetround();
+    if (host_rounding == -1) { fpu->exception_pending = true; fpu->exception_code = 10u; return false; }
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, host_rounding)) return false;
+    volatile double converted = (double)input;
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     uint64_t result;
-    memcpy(&result, &converted, sizeof(result));
+    double value = converted;
+    memcpy(&result, &value, sizeof(result));
     return vr4300_fpu_write_d_register(fpu, fd, result);
 }
 
