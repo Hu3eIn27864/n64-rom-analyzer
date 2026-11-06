@@ -2,16 +2,16 @@ import type { MipsInstruction } from '../model/instruction';
 import type { BasicBlock } from '../model/basicBlock';
 import type { FunctionIR, MicroCExpr, MicroCOperation, UnsupportedInstruction } from './microC';
 
-function value(name: string): MicroCExpr {
-  return { kind: 'value', name };
+function value(name: string, width?: 32 | 64): MicroCExpr {
+  return { kind: 'value', name, ...(width ? { width } : {}) };
 }
 
 function constant(valueNumber: number): MicroCExpr {
   return { kind: 'const', value: valueNumber };
 }
 
-function binary(op: string, left: MicroCExpr, right: MicroCExpr): MicroCExpr {
-  return { kind: 'binary', op, left, right };
+function binary(op: string, left: MicroCExpr, right: MicroCExpr, width?: 32 | 64): MicroCExpr {
+  return { kind: 'binary', op, left, right, ...(width ? { width } : {}) };
 }
 
 function normalizeRegister(register: string): string {
@@ -37,14 +37,21 @@ function parseImmediate(valueText: string): number | undefined {
   return Number.isFinite(valueNumber) ? valueNumber : undefined;
 }
 
+function parseSignedImmediate16(valueText: string): number | undefined {
+  const immediate = parseImmediate(valueText);
+  if (immediate === undefined) return undefined;
+  const low16 = immediate & 0xffff;
+  return (low16 & 0x8000) !== 0 ? low16 - 0x10000 : low16;
+}
+
 function memoryAddress(operand: string): MicroCExpr | undefined {
   const match = operand.match(/^(-?(?:0x[0-9a-f]+|[0-9]+))?\((\$[^)]+)\)$/i);
   if (!match) return undefined;
   const offset = match[1] === undefined ? 0 : Number(match[1]);
   if (!Number.isFinite(offset)) return undefined;
   return offset === 0
-    ? value(normalizeRegister(match[2]))
-    : binary('+', value(normalizeRegister(match[2])), constant(offset));
+    ? value(normalizeRegister(match[2]), 64)
+    : binary('+', value(normalizeRegister(match[2]), 64), constant(offset), 64);
 }
 
 function parseBranchTarget(instruction: MipsInstruction): number | undefined {
@@ -77,6 +84,20 @@ export function liftInstructionsToMicroC(
       case 'SUBU':
         if (target && b && c) operations.push({ kind: 'assign', target, value: binary('-', value(normalizeRegister(b)), value(normalizeRegister(c))) });
         break;
+      case 'DADDU':
+      case 'DSUBU':
+        if (target && b && c) {
+          const op = instruction.mnemonic === 'DADDU' ? '+' : '-';
+          operations.push({ kind: 'assign', target, value: binary(op, value(normalizeRegister(b)), value(normalizeRegister(c)), 64) });
+        }
+        break;
+      case 'DADDIU': {
+        const immediate = c ? parseSignedImmediate16(c) : undefined;
+        if (target && b && immediate !== undefined) {
+          operations.push({ kind: 'assign', target, value: binary('+', value(normalizeRegister(b)), constant(immediate), 64) });
+        }
+        break;
+      }
       case 'ADDIU':
       case 'ANDI':
       case 'ORI':
@@ -119,25 +140,24 @@ export function liftInstructionsToMicroC(
       case 'LB':
       case 'LBU':
       case 'LHU':
-      case 'LWU': {
+      case 'LWU':
+      case 'LD': {
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'LB' || instruction.mnemonic === 'LBU' ? 1
           : instruction.mnemonic === 'LH' || instruction.mnemonic === 'LHU' ? 2
-          : 4;
-        if (target && address) operations.push({ kind: 'load', target, address, size: size as 1 | 2 | 4, signed: !['LBU', 'LHU', 'LWU'].includes(instruction.mnemonic) });
+          : instruction.mnemonic === 'LD' ? 8 : 4;
+        if (target && address) operations.push({ kind: 'load', target, address, size: size as 1 | 2 | 4 | 8, signed: !['LBU', 'LHU', 'LWU', 'LD'].includes(instruction.mnemonic) });
         break;
       }
       case 'SW':
       case 'SH':
-      case 'SB': {
+      case 'SB':
+      case 'SD': {
         const address = b ? memoryAddress(b) : undefined;
-        const size = instruction.mnemonic === 'SB' ? 1 : instruction.mnemonic === 'SH' ? 2 : 4;
-        if (a && address) operations.push({ kind: 'store', address, value: value(normalizeRegister(a)), size: size as 1 | 2 | 4 });
+        const size = instruction.mnemonic === 'SB' ? 1 : instruction.mnemonic === 'SH' ? 2 : instruction.mnemonic === 'SD' ? 8 : 4;
+        if (a && address) operations.push({ kind: 'store', address, value: value(normalizeRegister(a), 64), size: size as 1 | 2 | 4 | 8 });
         break;
       }
-      case 'LD':
-      case 'SD':
-        break;
       case 'LWC1':
       case 'LDC1': {
         const register = parseFpuRegister(a);
