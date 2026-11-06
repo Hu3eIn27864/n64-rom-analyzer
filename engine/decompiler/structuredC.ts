@@ -127,7 +127,7 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       const call = operation.size === 4
         ? cCall('vr4300_fpu_load_s', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)])
         : cCall('vr4300_fpu_load_d', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t');
-      return operation.size === 4 ? { kind: 'expr', expr: call } : returnIfFalse(call);
+      return returnIfFalse(call);
     }
     case 'fpuStore': {
       const call = operation.size === 4
@@ -140,13 +140,19 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
         const read = cCall('vr4300_fpu_read_s', [cVariable('fpu'), cConstant(operation.fpr)], 'uint32_t');
         const signed = cCast('int32_t', read);
         const extended = cCast('int64_t', signed);
-        return typedAssignment(operation.gpr, 'uint64_t', cCast('uint64_t', extended));
+        return {
+          kind: 'block',
+          body: [
+            returnIfFalse(cCall('vr4300_fpu_check_cop1', [cVariable('fpu')], 'uint32_t')),
+            typedAssignment(operation.gpr, 'uint64_t', cCast('uint64_t', extended)),
+          ],
+        };
       }
       if (operation.direction === 'to-fpu' && operation.width === 32) {
         const write = cCall('vr4300_fpu_write_s', [
           cVariable('fpu'), cConstant(operation.fpr), cCast('uint32_t', cVariable(operation.gpr, 'uint64_t')),
         ]);
-        return { kind: 'expr', expr: write };
+        return returnIfFalse(write);
       }
       if (operation.direction === 'from-fpu') {
         const temporary = `__fpu_dword_f${operation.fpr}`;
@@ -169,7 +175,7 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
     }
     case 'fpuControlWrite':
       if (operation.controlRegister !== 31) throw new Error(`C lowering does not yet model CTC1 FCR${operation.controlRegister}`);
-      return { kind: 'expr', expr: cCall('vr4300_fpu_write_fcsr', [cVariable('fpu'), cCast('uint32_t', lowerExpr(operation.value))]) };
+      return returnIfFalse(cCall('vr4300_fpu_write_fcsr', [cVariable('fpu'), cCast('uint32_t', lowerExpr(operation.value))], 'uint32_t'));
     case 'fpuCompare': {
       const helper = operation.format === 'S' ? 'vr4300_fpu_compare_s' : 'vr4300_fpu_compare_d';
       const compare = cCall(helper, [
