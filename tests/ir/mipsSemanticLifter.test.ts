@@ -425,6 +425,31 @@ test('lifts COP1 word conversions and fixed-rounding operations with FR-aware so
 });
 
 
+test('lifts CVT.S.W and CVT.D.W with signed-word source and destination constraints', () => {
+  const wordToSingle = createMipsInstruction({
+    address: 0x80009080, raw: 0, mnemonic: 'CVT.S.W', operands: ['$f5', '$f3'],
+    fpuFormat: 0x14, fpuSourceRegister: 3, fpuTargetRegister: 0, fpuDestinationRegister: 5,
+  });
+  const wordToDouble = createMipsInstruction({
+    address: 0x80009084, raw: 0, mnemonic: 'CVT.D.W', operands: ['$f8', '$f7'],
+    fpuFormat: 0x14, fpuSourceRegister: 7, fpuTargetRegister: 0, fpuDestinationRegister: 8,
+  });
+  const ir = liftInstructionsToMicroC(0x80009080, [wordToSingle, wordToDouble]);
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'fpuConvertFromWord', destinationFormat: 'S', sourceRegister: 3, destinationRegister: 5, registerMode: 'status-fr' },
+    { kind: 'fpuConvertFromWord', destinationFormat: 'D', sourceRegister: 7, destinationRegister: 8, registerConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+  ]);
+  const lowered = decompileStructuredFunctionIR(ir);
+  assert.deepEqual(lowered.parameters, [{ name: 'fpu', type: 'vr4300_fpu_state *' }]);
+  assert.ok(lowered.preamble?.includes(VR4300_FPU_C_RUNTIME));
+  const c = renderFunction(lowered);
+  assert.match(c, /vr4300_fpu_convert_word_to_s\(fpu, 3, 5\)/);
+  assert.match(c, /vr4300_fpu_convert_word_to_d\(fpu, 7, 8\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /volatile float converted = \(float\)input/);
+  assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_commit_arithmetic_exceptions\(fpu, raised\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /double converted = \(double\)input/);
+});
+
 test('lifts CVT.S.D and CVT.D.S with source and destination format constraints', () => {
   const dToS = createMipsInstruction({
     address: 0x80009100, raw: 0, mnemonic: 'CVT.S.D', operands: ['$f6', '$f4'],
