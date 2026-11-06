@@ -420,7 +420,7 @@ test('lifts COP1 word conversions and fixed-rounding operations with FR-aware so
   assert.match(c, /vr4300_fpu_convert_word_d\(fpu, 3, 14, 16\)/);
   assert.match(c, /vr4300_fpu_convert_word_s\(fpu, 4, 18, 20\)/);
   assert.match(c, /FE_TONEAREST/);
-  assert.match(c, /INT32_MIN/);
+  assert.match(c, /vr4300_fpu_raise_unimplemented/);
   assert.match(c, /vr4300_fpu_commit_arithmetic_exceptions/);
 });
 
@@ -691,4 +691,14 @@ test('enforces VR4300 signed long source extension and preserves conversion exce
   assert.match(toDouble, /vr4300_fpu_commit_arithmetic_exceptions/);
   assert.match(toSingle, /vr4300_fpu_write_s/);
   assert.match(toDouble, /vr4300_fpu_write_d_register/);
+});
+
+test('uses VR4300 Unimplemented Operation for non-finite and out-of-range word conversions', () => {
+  const convertWord = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_word\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(convertWord, /!isfinite\(input\)/);
+  assert.match(convertWord, /rounded < -2147483648\.0/);
+  assert.match(convertWord, /rounded >= 2147483648\.0/);
+  assert.match(convertWord, /vr4300_fpu_raise_unimplemented/);
+  assert.doesNotMatch(convertWord, /INT32_MIN/);
+  assert.doesNotMatch(convertWord, /raised \|= FE_INVALID/);
 });
