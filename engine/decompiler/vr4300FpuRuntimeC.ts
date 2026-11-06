@@ -193,8 +193,8 @@ static inline bool vr4300_fpu_memory_alignment(vr4300_fpu_state *fpu, uintptr_t 
 static inline uintptr_t vr4300_memory_adjust_address(vr4300_fpu_state *fpu, uintptr_t address, unsigned size)
 {
     if (!fpu->reverse_endian_enabled) return address;
-    if (size == 2u) return address ^ 2u;
-    if (size == 4u) return address ^ 4u;
+    if (size == 1u) return address ^ 7u;
+    if (size == 2u || size == 4u) return address ^ 4u;
     return address;
 }
 
