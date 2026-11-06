@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createMipsInstruction } from '../../engine/model/instruction';
 import { liftBasicBlocks, liftInstructionsToMicroC } from '../../engine/ir/lifter';
 import { decompileStructuredFunctionIR } from '../../engine/decompiler/structuredC';
+import { renderFunction } from '../../engine/ir/cAst';
 
 const instruction = (mnemonic: string, operands: string[], targetAddress?: number) =>
   createMipsInstruction({ address: 0x80000000, raw: 0, mnemonic, operands, targetAddress });
@@ -275,12 +276,43 @@ test('keeps FCC provenance unknown after a predecessor writes FCSR', () => {
 });
 
 
-test('refuses to silently drop FPU IR during structured C lowering', () => {
+test('lowers VR4300 FPU memory and transfer operations with defined FR-aware C helpers', () => {
   const ir = liftInstructionsToMicroC(0x80008000, [
     instruction('LWC1', ['$f2', '0($sp)']),
+    instruction('LDC1', ['$f4', '8($sp)']),
+    instruction('SWC1', ['$f2', '16($sp)']),
+    instruction('SDC1', ['$f4', '24($sp)']),
+    instruction('MFC1', ['$t0', '$f2']),
+    instruction('DMFC1', ['$t1', '$f4']),
+    instruction('MTC1', ['$t2', '$f6']),
+    instruction('DMTC1', ['$t3', '$f8']),
+    instruction('CTC1', ['$t4', 'fcr31']),
   ]);
-  assert.throws(
-    () => decompileStructuredFunctionIR(ir),
-    /Status\.FR-dependent FPR storage or FCSR compare side effects/,
-  );
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_fpu_state \\* fpu/);
+  assert.match(c, /vr4300_fpu_load_s\\(fpu, 2,/);
+  assert.match(c, /vr4300_fpu_load_d\\(fpu, 4,/);
+  assert.match(c, /vr4300_fpu_store_s\\(fpu, 2,/);
+  assert.match(c, /vr4300_fpu_store_d\\(fpu, 4,/);
+  assert.match(c, /vr4300_fpu_read_s\\(fpu, 2\\)/);
+  assert.match(c, /vr4300_fpu_read_d\\(fpu, 4,/);
+  assert.match(c, /vr4300_fpu_write_s\\(fpu, 6,/);
+  assert.match(c, /vr4300_fpu_write_d\\(fpu, 8,/);
+  assert.match(c, /vr4300_fpu_write_fcsr\\(fpu,/);
+  assert.match(c, /vr4300_fpu_check_d/);
+  assert.match(c, /status & \\(1u << 26\\)/);
+});
+
+test('lowers COP1 compares with predicate selection, FCC writes and FCSR invalid handling', () => {
+  const compare = createMipsInstruction({
+    address: 0x80008100, raw: 0, mnemonic: 'C.UEQ.D', operands: ['$f2', '$f4'],
+    fpuFormat: 0x11, fpuSourceRegister: 2, fpuTargetRegister: 4,
+    fpuCompareConditionCode: 3, fpuComparePredicate: 0x0b,
+  });
+  const ir = liftInstructionsToMicroC(0x80008100, [compare]);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_fpu_compare_d\\(fpu, 3, 11, 2, 4\\)/);
+  assert.match(c, /vr4300_fpu_commit_compare/);
+  assert.match(c, /exception_code = 15u/);
+  assert.match(c, /fpu->fcsr \\|= UINT32_C\\(1\\) << 6/);
 });
