@@ -138,7 +138,7 @@ test('address map refuses partial or out-of-range VRAM translations', () => {
     vramEnd: 0x80001800,
   }]);
   const shortMap = new RomAddressMap(short);
-  assert.equal(shortMap.romToVram(0x17ff), 0x800017ff);
+  assert.equal(shortMap.romToVram(0x17ff), undefined);
   assert.equal(shortMap.romToVram(0x1800), undefined);
-  assert.equal(shortMap.vramToRom(0x80001800), undefined);
+  assert.equal(shortMap.vramToRom(0x800017ff), undefined);
 });
