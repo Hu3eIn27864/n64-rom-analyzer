@@ -198,6 +198,36 @@ test('models signed and unsigned 64-bit SLT comparisons and sign-extended immedi
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
+test('models LL/LLD and SC/SCD reservation semantics', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('LL', ['$t0', '0($sp)']),
+    instruction('LLD', ['$t1', '8($sp)']),
+    instruction('SC', ['$t2', '0($sp)']),
+    instruction('SCD', ['$t3', '8($sp)']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind === 'linkedLoad'
+    ? ['ll', operation.target, operation.size, operation.signed]
+    : operation.kind === 'conditionalStore'
+      ? ['sc', operation.target, operation.size, operation.value.kind === 'value' ? operation.value.name : '']
+      : [operation.kind]), [
+    ['ll', 'rt0', 4, true],
+    ['ll', 'rt1', 8, false],
+    ['sc', 'rt2', 4, 'rt2'],
+    ['sc', 'rt3', 8, 'rt3'],
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_memory_load_linked\(fpu,/);
+  assert.match(c, /vr4300_memory_store_conditional\(fpu,/);
+  const runtimeLoad = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_load_linked\([\s\S]*?\n\}/)?.[0] ?? '';
+  const runtimeStore = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_store_conditional\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(runtimeLoad, /llbit_valid = true/);
+  assert.match(runtimeLoad, /lladdr = physical_lane/);
+  assert.match(runtimeStore, /llbit_valid = false/);
+  assert.match(runtimeStore, /lladdr == reservation/);
+  assert.match(runtimeStore, /exception_code = 10u/);
+});
+
 test('guards LWU, LD, and SD outside VR4300 64-bit or Kernel mode', () => {
   const load = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_load\([\s\S]*?\n\}/)?.[0] ?? '';
   const store = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_store\([\s\S]*?\n\}/)?.[0] ?? '';
