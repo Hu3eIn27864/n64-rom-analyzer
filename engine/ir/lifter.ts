@@ -72,15 +72,12 @@ export function liftInstructionsToMicroC(
       case 'NOP':
         break;
       case 'ADDU':
-      case 'DADDU':
         if (target && b && c) operations.push({ kind: 'assign', target, value: binary('+', value(normalizeRegister(b)), value(normalizeRegister(c))) });
         break;
       case 'SUBU':
-      case 'DSUBU':
         if (target && b && c) operations.push({ kind: 'assign', target, value: binary('-', value(normalizeRegister(b)), value(normalizeRegister(c))) });
         break;
       case 'ADDIU':
-      case 'DADDIU':
       case 'ANDI':
       case 'ORI':
       case 'XORI':
