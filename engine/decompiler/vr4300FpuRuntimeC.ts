@@ -1,8 +1,8 @@
 /**
  * Self-contained C helpers used by structured VR4300 FPU lowering.
  *
- * The caller supplies the current Status.FR bit and whether the executing
- * context is kernel or 64-bit mode. Doubleword operations report a pending
+ * The caller supplies Status.FR, the user-mode reverse-endian state, COP1
+ * usability, and whether the executing context is kernel or 64-bit mode. Doubleword operations report a pending
  * Reserved Instruction condition and return false when the mode/register
  * constraints are not met; generated code returns immediately on that path.
  */
@@ -18,9 +18,48 @@ typedef struct vr4300_fpu_state {
     uint32_t status;
     bool mode64_or_kernel;
     bool cop1_usable;
+    bool reverse_endian_enabled;
     bool exception_pending;
     uint32_t exception_code;
 } vr4300_fpu_state;
+
+static inline uint32_t vr4300_fpu_read_be32(uintptr_t address)
+{
+    const uint8_t *bytes = (const uint8_t *)address;
+    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) |
+        ((uint32_t)bytes[2] << 8) | (uint32_t)bytes[3];
+}
+
+static inline uint64_t vr4300_fpu_read_be64(uintptr_t address)
+{
+    const uint8_t *bytes = (const uint8_t *)address;
+    uint64_t value = 0;
+    for (unsigned i = 0; i < 8; ++i) value = (value << 8) | bytes[i];
+    return value;
+}
+
+static inline void vr4300_fpu_write_be32(uintptr_t address, uint32_t value)
+{
+    uint8_t *bytes = (uint8_t *)address;
+    bytes[0] = (uint8_t)(value >> 24);
+    bytes[1] = (uint8_t)(value >> 16);
+    bytes[2] = (uint8_t)(value >> 8);
+    bytes[3] = (uint8_t)value;
+}
+
+static inline void vr4300_fpu_write_be64(uintptr_t address, uint64_t value)
+{
+    uint8_t *bytes = (uint8_t *)address;
+    for (unsigned i = 0; i < 8; ++i) bytes[i] = (uint8_t)(value >> (56 - 8 * i));
+}
+
+static inline bool vr4300_fpu_memory_alignment(vr4300_fpu_state *fpu, uintptr_t address, unsigned alignment, bool store)
+{
+    if ((address & (alignment - 1u)) == 0) return true;
+    fpu->exception_pending = true;
+    fpu->exception_code = store ? 5u : 4u; /* Address Error Store / Load */
+    return false;
+}
 
 static inline bool vr4300_fpu_check_cop1(vr4300_fpu_state *fpu)
 {
@@ -90,19 +129,24 @@ static inline bool vr4300_fpu_write_d(vr4300_fpu_state *fpu, unsigned reg, uint6
 static inline bool vr4300_fpu_load_s(vr4300_fpu_state *fpu, unsigned reg, uintptr_t address)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
-    return vr4300_fpu_write_s(fpu, reg, *(const volatile uint32_t *)address);
+    if (fpu->reverse_endian_enabled) address ^= 4u;
+    if (!vr4300_fpu_memory_alignment(fpu, address, 4, false)) return false;
+    return vr4300_fpu_write_s(fpu, reg, vr4300_fpu_read_be32(address));
 }
 
 static inline bool vr4300_fpu_load_d(vr4300_fpu_state *fpu, unsigned reg, uintptr_t address)
 {
     if (!vr4300_fpu_check_d(fpu, reg)) return false;
-    return vr4300_fpu_write_d(fpu, reg, *(const volatile uint64_t *)address);
+    if (!vr4300_fpu_memory_alignment(fpu, address, 8, false)) return false;
+    return vr4300_fpu_write_d(fpu, reg, vr4300_fpu_read_be64(address));
 }
 
 static inline bool vr4300_fpu_store_s(vr4300_fpu_state *fpu, unsigned reg, uintptr_t address)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
-    *(volatile uint32_t *)address = vr4300_fpu_read_s(fpu, reg);
+    if (fpu->reverse_endian_enabled) address ^= 4u;
+    if (!vr4300_fpu_memory_alignment(fpu, address, 4, true)) return false;
+    vr4300_fpu_write_be32(address, vr4300_fpu_read_s(fpu, reg));
     return true;
 }
 
@@ -110,7 +154,8 @@ static inline bool vr4300_fpu_store_d(vr4300_fpu_state *fpu, unsigned reg, uintp
 {
     uint64_t bits;
     if (!vr4300_fpu_read_d(fpu, reg, &bits)) return false;
-    *(volatile uint64_t *)address = bits;
+    if (!vr4300_fpu_memory_alignment(fpu, address, 8, true)) return false;
+    vr4300_fpu_write_be64(address, bits);
     return true;
 }
 
