@@ -31,3 +31,27 @@ test('lifts unaligned word merge operations and preserves their explicit registe
   ]);
   assert.equal(ir.unsupportedInstructions, undefined);
 });
+
+import { decodeInstruction } from '../../engine/mips/decoder';
+
+test('decoder-to-lifter audit retains diagnostics for privileged and ordering instructions', () => {
+  const words = [
+    0x40086000, // MFC0 $t0, c0_reg12
+    0x40886000, // MTC0 $t0, c0_reg12
+    0x42000008, // TLBP
+    0x42000001, // TLBR
+    0x42000002, // TLBWI
+    0x42000006, // TLBWR
+    0x42000018, // ERET
+    0x0000000c, // SYSCALL
+    0x0000000d, // BREAK
+    0x0000000f, // SYNC
+    0xbc1cfffc, // CACHE
+  ];
+  const decoded = words.map((word, index) => decodeInstruction(word, 0x80006000 + index * 4));
+  const ir = liftInstructionsToMicroC(0x80006000, decoded);
+  assert.deepEqual(ir.blocks[0].operations, []);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), decoded.map(item => item.mnemonic));
+  assert.ok(decoded[0].operands.length === 2 && decoded[1].operands.length === 2);
+  assert.deepEqual(decoded.at(-1)?.operands, ['0x1c', '-4($zero)']);
+});
