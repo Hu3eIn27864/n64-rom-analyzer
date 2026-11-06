@@ -43,9 +43,13 @@ tests/analysis/romFunctionAnalysis.test.ts exercises the bounded ROM-to-Micro-C-
 - Descriptive byte-range overlap metadata for exact stack/frame accesses is implemented; it reports symmetric intersections across blocks without changing reaching-definition results.
 - Multiple reaching byte versions for partially overlapping stores/loads.
 - Stronger pointer and alias analysis beyond stack/frame offsets.
-- Fixed-point summaries for direct calls across a supplied closed set of FunctionIR bodies, including transitive and recursive calls; unknown or out-of-set targets remain conservative. Integration with program analysis and call-site Memory SSA invalidation remains open.
+- Fixed-point summaries for direct calls across successfully analyzed functions in a mapped ROM program, including transitive and recursive calls; unknown or out-of-set targets remain conservative.
+- Per-function call-clobber validation is integrated into mapped ROM program results and follows reachable CFG paths. It checks ordinary, linked, COP1 and aligned merge loads against known call write ranges.
+- This remains conservative rather than a full Memory SSA rewrite: call effects are reported as validation/invalidation evidence, not yet inserted as Memory SSA definitions or Phis. Stack/frame-relative effects remain unknown in numeric program summaries until a base-aware range domain is introduced.
 - Device/external writes and complete LL/SC observer semantics.
 - Formal integration with the canonical production analysis result and evidence report.
+
+- Mapped ROM program analysis now returns a closed-world memory-effect summary per successfully analyzed function plus per-function call-memory validation. Failed functions and unresolved/indirect targets are not silently treated as effect-free.
 
 ## Safety boundary
 

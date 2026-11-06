@@ -39,8 +39,9 @@ This roadmap reflects the current implementation checklist and verification mode
 - [x] Derive memory accesses from canonical FunctionIR loads, stores, merge operations, LL/SC and COP1 memory operations.
 - [x] Normalize exact stack/frame effective addresses, including aligned merge-operation addresses.
 - [x] Descriptive byte-range overlap metadata for exact stack/frame accesses (partial overlaps are not reaching definitions).
-- [ ] Pointer aliasing, globals and full interprocedural memory reasoning.
-- [ ] External/device write invalidation and complete atomic memory semantics.
+- [x] Closed-world direct-call memory-effect summaries integrated into mapped ROM program analysis, with conservative per-function CFG-aware call-clobber validation.
+- [ ] Base-aware stack/frame call-effect ranges, pointer aliasing, globals and full interprocedural Memory SSA integration.
+- [ ] External/device write invalidation and complete atomic memory semantics, including full LL/SC reservation-observer behavior.
 - [ ] Formal MIPS semantics integration.
 **Estimate:** 3–6 months.
 
