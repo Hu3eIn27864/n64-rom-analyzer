@@ -120,6 +120,13 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   switch (operation.kind) {
     case 'assign':
       return assignment(operation.target, operation.value);
+    case 'hiloDivide':
+      return returnIfFalse(cCall('vr4300_hilo_divide64', [
+        cVariable('fpu'),
+        lowerExpr(operation.left, 64),
+        lowerExpr(operation.right, 64),
+        cConstant(operation.signed ? 1 : 0),
+      ], 'uint32_t'));
     case 'hiloMultiply':
       return {
         kind: 'expr',
@@ -730,7 +737,7 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
   const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store' || operation.kind === 'mergeLoad' || operation.kind === 'mergeStore');
   const hasSignedArithmetic = operations.some(operation => operation.kind === 'signedArithmetic');
-  const hasHiloTransfer = operations.some(operation => operation.kind === 'hiloTransfer' || operation.kind === 'hiloMultiply');
+  const hasHiloTransfer = operations.some(operation => operation.kind === 'hiloTransfer' || operation.kind === 'hiloMultiply' || operation.kind === 'hiloDivide');
   const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory || hasSignedArithmetic || hasHiloTransfer;
   const usesSra = operations.some(operation => operation.kind === 'assign' && expressionUsesSra(operation.value));
   const usesSignExtend32 = operations.some(operation => operation.kind === 'assign' && expressionUsesSignExtend32(operation.value));
