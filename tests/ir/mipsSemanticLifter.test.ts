@@ -61,12 +61,15 @@ test('lifts 64-bit immediate and variable shifts with the correct shift widths',
   ), [
     { kind: 'binary', op: '<<', left: { kind: 'value', name: 'rt1', width: 64 }, right: { kind: 'const', value: 3 }, width: 64 },
     { kind: 'binary', op: '>>', left: { kind: 'value', name: 'rt3', width: 64 }, right: { kind: 'const', value: 39 }, width: 64 },
-    { kind: 'cast', type: 'uint64_t', value: { kind: 'binary', op: '>>', left: { kind: 'cast', type: 'int64_t', value: { kind: 'value', name: 'rt5', width: 64 }, width: 64 }, right: { kind: 'const', value: 5 }, width: 64 }, width: 64 },
+    { kind: 'binary', op: 'sra', left: { kind: 'value', name: 'rt5', width: 64 }, right: { kind: 'const', value: 5 }, width: 64 },
     { kind: 'binary', op: '<<', left: { kind: 'value', name: 'rt7', width: 64 }, right: { kind: 'binary', op: '&', left: { kind: 'value', name: 'rt8', width: 64 }, right: { kind: 'const', value: 63 }, width: 64 }, width: 64 },
     { kind: 'binary', op: '>>', left: { kind: 'value', name: 'rs0', width: 64 }, right: { kind: 'binary', op: '&', left: { kind: 'value', name: 'rs1', width: 64 }, right: { kind: 'const', value: 63 }, width: 64 }, width: 64 },
-    { kind: 'cast', type: 'uint64_t', value: { kind: 'binary', op: '>>', left: { kind: 'cast', type: 'int64_t', value: { kind: 'value', name: 'rs3', width: 64 }, width: 64 }, right: { kind: 'binary', op: '&', left: { kind: 'value', name: 'rs4', width: 64 }, right: { kind: 'const', value: 63 }, width: 64 }, width: 64 }, width: 64 },
+    { kind: 'binary', op: 'sra', left: { kind: 'value', name: 'rs3', width: 64 }, right: { kind: 'binary', op: '&', left: { kind: 'value', name: 'rs4', width: 64 }, right: { kind: 'const', value: 63 }, width: 64 }, width: 64 },
   ]);
   assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_sra64/);
+  assert.match(c, /UINT64_MAX << \(64u - shift\)/);
 });
 
 test('lifts memory operations with explicit widths and effective addresses', () => {
