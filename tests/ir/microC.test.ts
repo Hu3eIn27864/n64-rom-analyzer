@@ -1,6 +1,7 @@
 import test from 'node:test';
 import { strict as assert } from 'node:assert';
 import { liftInstructionsToMicroC } from '../../engine/ir/lifter';
+import { canStructureFunction } from '../../engine/decompiler/functionBodyStructurer';
 import { mipsInstruction } from '../helpers/mipsInstruction';
 
 test('lifts register arithmetic into canonical Micro-C operations', () => {
@@ -33,4 +34,10 @@ test('keeps unknown operations conservative', () => {
     mnemonic: 'UNKNOWN',
     reason: 'No complete Micro-C semantics are available for this instruction',
   }]);
+});
+
+
+test('does not structure a function with unsupported instruction semantics', () => {
+  const ir = liftInstructionsToMicroC(0x3000, [mipsInstruction(0x3000, 'JALR', ['$t9'])]);
+  assert.equal(canStructureFunction(ir), false);
 });
