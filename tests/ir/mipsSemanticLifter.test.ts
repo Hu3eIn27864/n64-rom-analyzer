@@ -131,8 +131,22 @@ test('lifts conditional branch-and-link with a taken-only return-address write',
         value: { kind: 'const', value: 0x80001008 },
       });
     }
-    assert.equal(ir.unsupportedInstructions, undefined);
+    assert.deepEqual(ir.unsupportedInstructions?.map(item => item.reason), [
+      '64-bit GPR comparison semantics are not yet modeled',
+    ]);
   }
+});
+
+test('retains GPR branch CFG expressions but diagnoses missing 64-bit comparison semantics', () => {
+  const ir = liftInstructionsToMicroC(0x80001000, [
+    createMipsInstruction({ address: 0x80001000, raw: 0, mnemonic: 'BEQ', operands: ['$t0', '$t1'], targetAddress: 0x80001020 }),
+    createMipsInstruction({ address: 0x80001004, raw: 0, mnemonic: 'BLTZ', operands: ['$t2'], targetAddress: 0x80001030 }),
+  ]);
+  assert.equal(ir.blocks[0].operations.length, 2);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BEQ', 'BLTZ']);
+  assert.ok(ir.unsupportedInstructions?.every(item =>
+    item.reason === '64-bit GPR comparison semantics are not yet modeled',
+  ));
 });
 
 test('rejects architecturally unpredictable branch-and-link use of the link register as source', () => {

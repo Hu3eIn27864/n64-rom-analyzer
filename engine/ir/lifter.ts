@@ -239,6 +239,11 @@ export function liftInstructionsToMicroC(
             trueTarget: targetAddress,
             ...(instruction.isLinkBranch ? { linkOnTaken: { target: 'rra', value: constant((instruction.address + 8) >>> 0) } } : {}),
           });
+          if (!fpuBranch) unsupportedInstructions.push({
+            address: instruction.address >>> 0,
+            mnemonic: instruction.mnemonic,
+            reason: '64-bit GPR comparison semantics are not yet modeled',
+          });
           if (fpuBranch && !knownFcc.has(instruction.branchConditionCode ?? 0)) unsupportedInstructions.push({
             address: instruction.address >>> 0,
             mnemonic: instruction.mnemonic,
