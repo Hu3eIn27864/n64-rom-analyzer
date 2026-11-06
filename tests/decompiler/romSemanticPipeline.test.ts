@@ -38,7 +38,7 @@ test('does not hide an unresolved CFG failure behind the pipeline', () => {
 
 test('rejects ROM functions whose branch condition has no Micro-C semantics', () => {
   const rom = new Uint8Array([
-    ...bigEndianWord(0x19000003), // BLEZ $t0, 0x80001010
+    ...bigEndianWord(0x05100003), // BLTZAL $t0, 0x80001010
     ...bigEndianWord(0x00000000),
     ...bigEndianWord(0x03e00008),
     ...bigEndianWord(0x00000000),
