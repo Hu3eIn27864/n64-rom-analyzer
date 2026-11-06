@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMipsInstruction } from '../../engine/model/instruction';
 import { liftBasicBlocks, liftInstructionsToMicroC } from '../../engine/ir/lifter';
+import { decompileStructuredFunctionIR } from '../../engine/decompiler/structuredC';
 
 const instruction = (mnemonic: string, operands: string[], targetAddress?: number) =>
   createMipsInstruction({ address: 0x80000000, raw: 0, mnemonic, operands, targetAddress });
@@ -264,4 +265,15 @@ test('keeps FCC provenance unknown after a predecessor writes FCSR', () => {
     block(3, [], [2], []),
   ]);
   assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BC1T']);
+});
+
+
+test('refuses to silently drop FPU IR during structured C lowering', () => {
+  const ir = liftInstructionsToMicroC(0x80008000, [
+    instruction('LWC1', ['$f2', '0($sp)']),
+  ]);
+  assert.throws(
+    () => decompileStructuredFunctionIR(ir),
+    /Status\\.FR-dependent FPR storage or FCSR compare side effects/,
+  );
 });
