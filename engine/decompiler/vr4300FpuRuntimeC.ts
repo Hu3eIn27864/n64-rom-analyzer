@@ -53,7 +53,8 @@ static inline bool vr4300_fpu_write_s(vr4300_fpu_state *fpu, unsigned reg, uint3
 
 static inline bool vr4300_fpu_check_d(vr4300_fpu_state *fpu, unsigned reg)
 {
-    if (!vr4300_fpu_check_cop1(fpu) || reg >= 32 || !fpu->mode64_or_kernel ||
+    if (!vr4300_fpu_check_cop1(fpu)) return false;
+    if (reg >= 32 || !fpu->mode64_or_kernel ||
         (!(fpu->status & (1u << 26)) && ((reg & 1u) != 0))) {
         fpu->exception_pending = true;
         fpu->exception_code = 10u; /* Reserved Instruction */
