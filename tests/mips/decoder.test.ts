@@ -31,6 +31,7 @@ const cases: Case[] = [
   { name: 'bc1fl', raw: 0x45020004, address: 0x1058, mnemonic: 'BC1FL', operands: ['0x0000106C'], controlFlow: 'likely' },
   { name: 'bc1tl', raw: 0x45030004, address: 0x105c, mnemonic: 'BC1TL', operands: ['0x00001070'], controlFlow: 'likely' },
   { name: 'bc1tl-fcc3', raw: 0x450f0004, address: 0x1060, mnemonic: 'BC1TL', operands: ['$fcc3', '0x00001074'], controlFlow: 'likely' },
+  { name: 'bc1fl-fcc7', raw: 0x451e0004, address: 0x1064, mnemonic: 'BC1FL', operands: ['$fcc7', '0x00001078'], controlFlow: 'likely' },
   { name: 'j', raw: 0x08000410, address: 0x1010, mnemonic: 'J', operands: ['0x00001040'], controlFlow: 'jump' },
   { name: 'jal', raw: 0x0c000410, address: 0x1014, mnemonic: 'JAL', operands: ['0x00001040'], controlFlow: 'call' },
   { name: 'jr-ra', raw: 0x03e00008, address: 0x1018, mnemonic: 'JR', operands: ['$ra'], controlFlow: 'return' },
@@ -50,6 +51,7 @@ test('VR4300 decoder corpus', () => {
     assert.equal(instruction.isLinkBranch, fixture.controlFlow === 'link' || fixture.controlFlow === 'link-likely', fixture.name);
     assert.equal(instruction.isFpuBranch, fixture.name.startsWith('bc1'), fixture.name);
     if (fixture.name === 'bc1tl-fcc3') assert.equal(instruction.branchConditionCode, 3);
+    if (fixture.name === 'bc1fl-fcc7') assert.equal(instruction.branchConditionCode, 7);
     assert.equal(instruction.isJump, ['jump', 'call', 'return', 'indirect'].includes(fixture.controlFlow), fixture.name);
     assert.equal(instruction.isCall, fixture.controlFlow === 'call' || fixture.controlFlow === 'indirect', fixture.name);
     assert.equal(instruction.isReturn, fixture.controlFlow === 'return', fixture.name);
