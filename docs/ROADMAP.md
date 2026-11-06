@@ -38,7 +38,8 @@ This roadmap reflects the current implementation checklist and verification mode
 - [x] Trivial MemoryPhi collapse when predecessor versions converge.
 - [x] Derive memory accesses from canonical FunctionIR loads, stores, merge operations, LL/SC and COP1 memory operations.
 - [x] Normalize exact stack/frame effective addresses, including aligned merge-operation addresses.
-- [ ] Byte-range overlap, pointer aliasing, globals and interprocedural memory reasoning.
+- [x] Descriptive byte-range overlap metadata for exact stack/frame accesses (partial overlaps are not reaching definitions).
+- [ ] Pointer aliasing, globals and full interprocedural memory reasoning.
 - [ ] External/device write invalidation and complete atomic memory semantics.
 - [ ] Formal MIPS semantics integration.
 **Estimate:** 3–6 months.
