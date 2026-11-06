@@ -96,9 +96,7 @@ test('lifts signed and zero-relative MIPS branch predicates explicitly', async (
       assert.equal(branch.condition.kind, 'binary', instruction.mnemonic);
       if (branch.condition.kind === 'binary') assert.equal(branch.condition.op, fixture.op, instruction.mnemonic);
     }
-    assert.deepEqual(ir.unsupportedInstructions?.map(item => item.reason), [
-      '64-bit GPR comparison semantics are not yet modeled',
-    ], instruction.mnemonic);
+    assert.deepEqual(ir.unsupportedInstructions, undefined, instruction.mnemonic);
   }
 });
 
