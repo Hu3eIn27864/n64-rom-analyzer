@@ -177,6 +177,36 @@ test('models signed and unsigned 64-bit SLT comparisons and sign-extended immedi
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
+test('models unaligned doubleword merge loads and stores', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('LDL', ['$t0', '3($sp)']),
+    instruction('LDR', ['$t1', '4($sp)']),
+    instruction('SDL', ['$t2', '5($sp)']),
+    instruction('SDR', ['$t3', '6($sp)']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind === 'mergeLoad'
+    ? ['load', operation.target, operation.direction]
+    : operation.kind === 'mergeStore'
+      ? ['store', operation.value.kind === 'value' ? operation.value.name : '', operation.direction]
+      : [operation.kind]), [
+    ['load', 'rt0', 'left'],
+    ['load', 'rt1', 'right'],
+    ['store', 'rt2', 'left'],
+    ['store', 'rt3', 'right'],
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_memory_merge_load64\(fpu,/);
+  assert.match(c, /vr4300_memory_merge_store64\(fpu,/);
+  assert.match(c, /exception_code = 10u/);
+  const load = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_merge_load64\([\s\S]*?\n\}/)?.[0] ?? '';
+  const store = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_merge_store64\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(load, /reverse_endian_enabled/);
+  assert.match(store, /reverse_endian_enabled/);
+  assert.match(load, /8u - lane/);
+  assert.match(store, /lane \+ 1u/);
+});
+
 test('lifts memory operations with explicit widths and effective addresses', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LW', ['$t0', '8($sp)']),
