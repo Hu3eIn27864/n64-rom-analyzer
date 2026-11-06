@@ -6,10 +6,12 @@ function hexAddress(address: number): string {
   return `func_${(address >>> 0).toString(16).padStart(8, '0')}`;
 }
 
-function lowerExpr(expr: MicroCExpr): CExpr {
+function lowerExpr(expr: MicroCExpr, inheritedWidth: 32 | 64 = 32): CExpr {
+  const width = expr.width ?? inheritedWidth;
+  const integerType = width === 64 ? 'uint64_t' : 'uint32_t';
   switch (expr.kind) {
     case 'const':
-      return { kind: 'literal', value: expr.value, type: 'uint32_t' };
+      return { kind: 'literal', value: expr.value, type: integerType };
     case 'value': {
       const fcc = expr.name.match(/^fcc([0-7])$/);
       if (fcc) {
@@ -29,36 +31,39 @@ function lowerExpr(expr: MicroCExpr): CExpr {
           type: 'uint32_t',
         };
       }
-      return { kind: 'variable', value: expr.name, type: 'uint32_t' };
+      return { kind: 'variable', value: expr.name, type: integerType };
     }
     case 'binary':
-      return { kind: 'binary', op: expr.op, left: lowerExpr(expr.left), right: lowerExpr(expr.right), type: 'uint32_t' };
+      return { kind: 'binary', op: expr.op, left: lowerExpr(expr.left, width), right: lowerExpr(expr.right, width), type: integerType };
     case 'unary':
-      return { kind: 'unary', op: expr.op, operand: lowerExpr(expr.value), type: 'uint32_t' };
+      return { kind: 'unary', op: expr.op, operand: lowerExpr(expr.value, width), type: integerType };
     case 'cast':
-      return { kind: 'cast', type: expr.type as CExpr['type'], operand: lowerExpr(expr.value) };
+      return { kind: 'cast', type: expr.type as CExpr['type'], operand: lowerExpr(expr.value, width) };
   }
 }
 
 function assignment(target: string, value: MicroCExpr): CStmt {
+  const width = value.width ?? 32;
+  const type = width === 64 ? 'uint64_t' : 'uint32_t';
   return {
     kind: 'expr',
     expr: {
       kind: 'binary',
       op: '=',
-      left: { kind: 'variable', value: target, type: 'uint32_t' },
-      right: lowerExpr(value),
-      type: 'uint32_t',
+      left: { kind: 'variable', value: target, type },
+      right: lowerExpr(value, width),
+      type,
     },
   };
 }
 
 function declaration(name: string, value: MicroCExpr): CStmt {
+  const width = value.width ?? 32;
   return {
     kind: 'decl',
     name,
-    type: 'uint32_t',
-    init: lowerExpr(value),
+    type: width === 64 ? 'uint64_t' : 'uint32_t',
+    init: lowerExpr(value, width),
   };
 }
 
@@ -100,7 +105,7 @@ function returnIfFalse(condition: CExpr): CStmt {
 }
 
 function fpuAddress(address: MicroCExpr): CExpr {
-  return cCast('uintptr_t', lowerExpr(address));
+  return cCast('uintptr_t', lowerExpr(address, 64));
 }
 
 
@@ -111,26 +116,28 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
     case 'load': {
       const accessType = operation.size === 1 ? (operation.signed ? 'int8_t' : 'uint8_t')
         : operation.size === 2 ? (operation.signed ? 'int16_t' : 'uint16_t')
-        : (operation.signed ? 'int32_t' : 'uint32_t');
+        : operation.size === 4 ? (operation.signed ? 'int32_t' : 'uint32_t')
+        : 'uint64_t';
       const pointerType = `${accessType} *` as CExpr['type'];
       const read: CExpr = {
         kind: 'unary', op: '*',
-        operand: cCast(pointerType, lowerExpr(operation.address)),
+        operand: cCast(pointerType, lowerExpr(operation.address, 64)),
         type: accessType,
       };
-      return typedAssignment(operation.target, 'uint32_t', cCast('uint32_t', read));
+      return typedAssignment(operation.target, 'uint64_t', cCast('uint64_t', read));
     }
     case 'store': {
-      const accessType = operation.size === 1 ? 'uint8_t' : operation.size === 2 ? 'uint16_t' : 'uint32_t';
+      const accessType = operation.size === 1 ? 'uint8_t' : operation.size === 2 ? 'uint16_t'
+        : operation.size === 4 ? 'uint32_t' : 'uint64_t';
       const pointerType = `${accessType} *` as CExpr['type'];
       const destination: CExpr = {
         kind: 'unary', op: '*',
-        operand: cCast(pointerType, lowerExpr(operation.address)),
+        operand: cCast(pointerType, lowerExpr(operation.address, 64)),
         type: accessType,
       };
       return { kind: 'expr', expr: {
         kind: 'binary', op: '=', left: destination,
-        right: cCast(accessType, lowerExpr(operation.value)), type: accessType,
+        right: cCast(accessType, lowerExpr(operation.value, 64)), type: accessType,
       } };
     }
     case 'call': {

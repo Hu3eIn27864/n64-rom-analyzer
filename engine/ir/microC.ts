@@ -1,15 +1,15 @@
 export type MicroCValue = string | number;
 
 export type MicroCExpr =
-  | { kind: 'const'; value: number }
-  | { kind: 'value'; name: string }
-  | { kind: 'binary'; op: string; left: MicroCExpr; right: MicroCExpr }
-  | { kind: 'unary'; op: string; value: MicroCExpr }
-  | { kind: 'cast'; type: string; value: MicroCExpr };
+  | { kind: 'const'; value: number; width?: 32 | 64 }
+  | { kind: 'value'; name: string; width?: 32 | 64 }
+  | { kind: 'binary'; op: string; left: MicroCExpr; right: MicroCExpr; width?: 32 | 64 }
+  | { kind: 'unary'; op: string; value: MicroCExpr; width?: 32 | 64 }
+  | { kind: 'cast'; type: string; value: MicroCExpr; width?: 32 | 64 };
 
 export type MicroCOperation =
   | { kind: 'assign'; target: string; value: MicroCExpr }
-  | { kind: 'load'; target: string; address: MicroCExpr; size: 1 | 2 | 4; signed: boolean }
+  | { kind: 'load'; target: string; address: MicroCExpr; size: 1 | 2 | 4 | 8; signed: boolean }
   | { kind: 'store'; address: MicroCExpr; value: MicroCExpr; size: 1 | 2 | 4 | 8 }
   | { kind: 'fpuLoad'; register: number; address: MicroCExpr; size: 4 | 8; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuStore'; register: number; address: MicroCExpr; size: 4 | 8; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }

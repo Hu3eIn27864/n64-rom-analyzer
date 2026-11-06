@@ -1,4 +1,4 @@
-export type CType = 'void' | 'int8_t' | 'uint8_t' | 'int16_t' | 'uint16_t' | 'int32_t' | 'uint32_t' | 'int64_t' | 'uint64_t' | 'uintptr_t' | 'int8_t *' | 'uint8_t *' | 'int16_t *' | 'uint16_t *' | 'int32_t *' | 'uint32_t *' | 'vr4300_fpu_state *' | 'float' | 'double' | 'pointer' | 'unknown';
+export type CType = 'void' | 'int8_t' | 'uint8_t' | 'int16_t' | 'uint16_t' | 'int32_t' | 'uint32_t' | 'int64_t' | 'uint64_t' | 'uintptr_t' | 'int8_t *' | 'uint8_t *' | 'int16_t *' | 'uint16_t *' | 'int32_t *' | 'uint32_t *' | 'uint64_t *' | 'vr4300_fpu_state *' | 'float' | 'double' | 'pointer' | 'unknown';
 
 export interface CExpr {
   kind: 'literal' | 'variable' | 'binary' | 'unary' | 'call' | 'cast';
