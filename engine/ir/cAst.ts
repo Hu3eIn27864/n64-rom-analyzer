@@ -42,7 +42,7 @@ export function renderExpr(expr: CExpr): string {
     case 'literal': return String(expr.value ?? '0');
     case 'variable': return String(expr.value ?? 'unknown');
     case 'binary': return `(${renderExpr(expr.left!)} ${expr.op ?? '?'} ${renderExpr(expr.right!)})`;
-    case 'unary': return `(${expr.op ?? '?'}${renderExpr(expr.operand!)})`;
+    case 'unary': return `${expr.op ?? '?'}${renderExpr(expr.operand!)}`;
     case 'call': return `${expr.callee ?? 'unknown'}(${(expr.args ?? []).map(renderExpr).join(', ')})`;
     case 'cast': return `((${expr.type ?? 'unknown'})${renderExpr(expr.operand!)})`;
   }
