@@ -64,8 +64,21 @@ export function discoverReachableCode(
   while (queue.length > 0 && instructions.length < maxInstructions) {
     const start = queue.shift()!;
     let address = start >>> 0;
+    let delaySlotOwner: MipsInstruction | undefined;
 
-    while (!visited.has(address) && instructions.length < maxInstructions) {
+    while (instructions.length < maxInstructions) {
+      if (visited.has(address)) {
+        if (delaySlotOwner) {
+          const owner = delaySlotOwner;
+          delaySlotOwner = undefined;
+          if (owner.isCall || owner.isConditionalBranch) {
+            address = (owner.address + 8) >>> 0;
+            continue;
+          }
+        }
+        break;
+      }
+
       if (!isAddressValid(address)) {
         invalidTargets.add(address);
         break;
@@ -83,6 +96,18 @@ export function discoverReachableCode(
       visited.add(address);
       instructions.push(instruction);
 
+      // A control transfer in a delay slot has architecturally unpredictable
+      // behavior. Decode the slot for reachability, but do not follow its flow.
+      if (delaySlotOwner) {
+        const owner = delaySlotOwner;
+        delaySlotOwner = undefined;
+        if (owner.isCall || owner.isConditionalBranch) {
+          address = (owner.address + 8) >>> 0;
+          continue;
+        }
+        break;
+      }
+
       if (!isControlTransfer(instruction)) {
         address = (address + 4) >>> 0;
         continue;
@@ -92,15 +117,21 @@ export function discoverReachableCode(
       if (target !== undefined && !visited.has(target) && !queued.has(target)) {
         queue.push(target);
         queued.add(target);
-      } else if (instruction.isJump && !instruction.targetAddress) {
+      } else if (instruction.isJump && instruction.targetAddress === undefined) {
         unknownTargets.add(address);
       }
 
-      if (instruction.isCall || instruction.isConditionalBranch) {
-        address = (address + 8) >>> 0;
-      } else {
+      const delaySlotAddress = (instruction.address + 4) >>> 0;
+      if (visited.has(delaySlotAddress)) {
+        if (instruction.isCall || instruction.isConditionalBranch) {
+          address = (instruction.address + 8) >>> 0;
+          continue;
+        }
         break;
       }
+
+      delaySlotOwner = instruction;
+      address = delaySlotAddress;
     }
   }
 
