@@ -151,7 +151,7 @@ export function liftInstructionsToMicroC(
         const register = parseFpuRegister(a);
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'LWC1' ? 4 : 8;
-        if (register !== undefined && address) operations.push({ kind: 'fpuLoad', register, address, size, ...(size === 8 ? { modeConstraint: 'kernel-or-64bit' as const } : {}), registerMode: 'status-fr' });
+        if (register !== undefined && address) operations.push({ kind: 'fpuLoad', register, address, size, ...(size === 8 ? { registerConstraint: 'even-when-fr0' as const } : {}), registerMode: 'status-fr' });
         break;
       }
       case 'SWC1':
@@ -159,7 +159,7 @@ export function liftInstructionsToMicroC(
         const register = parseFpuRegister(a);
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'SWC1' ? 4 : 8;
-        if (register !== undefined && address) operations.push({ kind: 'fpuStore', register, address, size, ...(size === 8 ? { modeConstraint: 'kernel-or-64bit' as const } : {}), registerMode: 'status-fr' });
+        if (register !== undefined && address) operations.push({ kind: 'fpuStore', register, address, size, ...(size === 8 ? { registerConstraint: 'even-when-fr0' as const } : {}), registerMode: 'status-fr' });
         break;
       }
       case 'MFC1':
@@ -175,10 +175,10 @@ export function liftInstructionsToMicroC(
             direction: fromFpu ? 'from-fpu' : 'to-fpu',
             gpr, fpr,
             width: instruction.mnemonic.startsWith('D') ? 64 : 32,
-            gprSemantics: instruction.mnemonic === 'MFC1' ? 'sign-extend'
+            gprSemantics: instruction.mnemonic === 'MFC1' ? 'mode-dependent'
               : instruction.mnemonic === 'MTC1' ? 'truncate'
               : 'full-width',
-            ...(instruction.mnemonic.startsWith('D') ? { modeConstraint: 'kernel-or-64bit' as const } : {}),
+            ...(instruction.mnemonic.startsWith('D') ? { modeConstraint: 'kernel-or-64bit' as const, registerConstraint: 'even-when-fr0' as const } : {}),
             registerMode: 'status-fr',
           });
         }
@@ -266,6 +266,7 @@ export function liftInstructionsToMicroC(
             predicate: instruction.fpuComparePredicate,
             leftRegister: instruction.fpuSourceRegister,
             rightRegister: instruction.fpuTargetRegister,
+            ...(instruction.fpuFormat === 0x11 ? { registerConstraint: 'even-when-fr0' as const } : {}),
             registerMode: 'status-fr',
           });
           knownFcc.add(conditionCode);
