@@ -22,8 +22,8 @@ This roadmap reflects the current implementation checklist and verification mode
 - [x] Deterministic function recovery with caller/callee relationships and return delay-slot inclusion (isolated).
 - [x] Canonical CFG and call graph components.
 - [x] Canonical structural pipeline composing recovery, CFG and call graph.
-- [x] Narrow legacy-parity fixtures for direct-call and conditional-branch function boundaries.
-- [ ] Broader CFG/edge parity for branch-likely, indirect control flow, jump tables and exceptional paths.
+- [x] Narrow legacy-parity fixtures for direct calls, multiple calls, conditional branches and branch-likely function boundaries.
+- [ ] Broader CFG/edge parity for indirect control flow, jump tables and exceptional paths.
 - [ ] Production-pipeline integration.
 **Estimate:** 1–3 months.
 
@@ -31,8 +31,8 @@ This roadmap reflects the current implementation checklist and verification mode
 - [x] Canonical Micro-C IR.
 - [x] Evidence-driven type inference.
 - [x] Conservative block-local memory definition/use versions.
-- [x] Acyclic CFG Memory SSA with reaching definitions and MemoryPhi nodes at conflicting joins.
-- [ ] Loop-carried memory definitions and fixed-point Memory SSA.
+- [x] CFG Memory SSA with reaching definitions, join MemoryPhi nodes and loop-carried fixed-point propagation.
+- [x] Trivial MemoryPhi collapse when predecessor versions converge.
 - [ ] Byte-range overlap, pointer aliasing and interprocedural memory reasoning.
 - [ ] Formal MIPS semantics integration.
 **Estimate:** 3–6 months.
@@ -40,6 +40,7 @@ This roadmap reflects the current implementation checklist and verification mode
 ## M4 — Structured source generation (not complete)
 - [x] C AST and source renderer primitives.
 - [x] Narrow proof-gated branch/loop lowering for supported shapes.
+- [x] Fail-closed lowering when IR contains diagnostics for omitted instruction semantics.
 - [ ] General control-flow structuring for loops, branches and irreducible graphs.
 - [ ] Stable expression and statement lowering across the supported semantic subset.
 - [ ] Compile generated C with a real toolchain.
@@ -58,7 +59,7 @@ This roadmap reflects the current implementation checklist and verification mode
 |---|---|---|
 | Weeks 1–4 | M1 hardening | Expanded decoder/ROM fixtures |
 | Months 2–3 | M2 integration and validation | Broader side-by-side canonical/legacy parity on synthetic programs |
-| Months 3–6 | M3 | Loop-capable CFG memory data-flow prototype |
+| Months 3–6 | M3 | Byte-range alias model and interprocedural memory effects |
 | Months 6–12 | M4 | First structured C output for constrained cases |
 | Months 12–18+ | M5 | Independent verification prototype and test corpus |
 
