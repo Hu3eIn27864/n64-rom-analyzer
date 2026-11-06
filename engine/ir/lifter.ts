@@ -51,8 +51,8 @@ function parseSignedImmediate16(valueText: string): number | undefined {
 function memoryAddress(operand: string): MicroCExpr | undefined {
   const match = operand.match(/^(-?(?:0x[0-9a-f]+|[0-9]+))?\((\$[^)]+)\)$/i);
   if (!match) return undefined;
-  const offset = match[1] === undefined ? 0 : Number(match[1]);
-  if (!Number.isFinite(offset)) return undefined;
+  const offset = match[1] === undefined ? 0 : parseSignedImmediate16(match[1]);
+  if (offset === undefined) return undefined;
   return offset === 0
     ? value(normalizeRegister(match[2]), 64)
     : binary('+', value(normalizeRegister(match[2]), 64), constant(offset), 64);
