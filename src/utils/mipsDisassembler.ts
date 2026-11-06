@@ -450,12 +450,12 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
     const ftReg = `$f${rt}`;
     const fsReg = `$f${rd}`;
     const fdReg = `$f${shamt}`;
-    if (fmt === 0x00) { opcodeName = 'MFC1'; asm = `mfc1 ${rtName}, ${fsReg}`; }
-    else if (fmt === 0x01) { opcodeName = 'DMFC1'; asm = `dmfc1 ${rtName}, ${fsReg}`; }
-    else if (fmt === 0x02) { opcodeName = 'CFC1'; asm = `cfc1 ${rtName}, fcr${rd}`; }
-    else if (fmt === 0x04) { opcodeName = 'MTC1'; asm = `mtc1 ${rtName}, ${fsReg}`; }
-    else if (fmt === 0x05) { opcodeName = 'DMTC1'; asm = `dmtc1 ${rtName}, ${fsReg}`; }
-    else if (fmt === 0x06) { opcodeName = 'CTC1'; asm = `ctc1 ${rtName}, fcr${rd}`; }
+    if (fmt === 0x00) { opcodeName = 'MFC1'; asm = `mfc1 ${rtName}, ${fsReg}`; args = [rtName, fsReg]; }
+    else if (fmt === 0x01) { opcodeName = 'DMFC1'; asm = `dmfc1 ${rtName}, ${fsReg}`; args = [rtName, fsReg]; }
+    else if (fmt === 0x02) { opcodeName = 'CFC1'; asm = `cfc1 ${rtName}, fcr${rd}`; args = [rtName, `fcr${rd}`]; }
+    else if (fmt === 0x04) { opcodeName = 'MTC1'; asm = `mtc1 ${rtName}, ${fsReg}`; args = [rtName, fsReg]; }
+    else if (fmt === 0x05) { opcodeName = 'DMTC1'; asm = `dmtc1 ${rtName}, ${fsReg}`; args = [rtName, fsReg]; }
+    else if (fmt === 0x06) { opcodeName = 'CTC1'; asm = `ctc1 ${rtName}, fcr${rd}`; args = [rtName, `fcr${rd}`]; }
     else if (fmt === 0x08) {
       // BC1
       const branchTarget = pc + 4 + (signImm16 * 4);
@@ -534,17 +534,17 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
   } else if (opcode === 0x30) {
     opcodeName = 'LL'; asm = `ll ${rtName}, ${signImm16}(${rsName})`;
   } else if (opcode === 0x31) {
-    opcodeName = 'LWC1'; asm = `lwc1 $f${rt}, ${signImm16}(${rsName})`;
+    opcodeName = 'LWC1'; asm = `lwc1 $f${rt}, ${signImm16}(${rsName})`; args = [`$f${rt}`, `${signImm16}(${rsName})`];
   } else if (opcode === 0x35) {
-    opcodeName = 'LDC1'; asm = `ldc1 $f${rt}, ${signImm16}(${rsName})`;
+    opcodeName = 'LDC1'; asm = `ldc1 $f${rt}, ${signImm16}(${rsName})`; args = [`$f${rt}`, `${signImm16}(${rsName})`];
   } else if (opcode === 0x37) {
     opcodeName = 'LD'; asm = `ld ${rtName}, ${signImm16}(${rsName})`; args = [rtName, `${signImm16}(${rsName})`];
   } else if (opcode === 0x38) {
     opcodeName = 'SC'; asm = `sc ${rtName}, ${signImm16}(${rsName})`;
   } else if (opcode === 0x39) {
-    opcodeName = 'SWC1'; asm = `swc1 $f${rt}, ${signImm16}(${rsName})`;
+    opcodeName = 'SWC1'; asm = `swc1 $f${rt}, ${signImm16}(${rsName})`; args = [`$f${rt}`, `${signImm16}(${rsName})`];
   } else if (opcode === 0x3D) {
-    opcodeName = 'SDC1'; asm = `sdc1 $f${rt}, ${signImm16}(${rsName})`;
+    opcodeName = 'SDC1'; asm = `sdc1 $f${rt}, ${signImm16}(${rsName})`; args = [`$f${rt}`, `${signImm16}(${rsName})`];
   } else if (opcode === 0x3F) {
     opcodeName = 'SD'; asm = `sd ${rtName}, ${signImm16}(${rsName})`; args = [rtName, `${signImm16}(${rsName})`];
   } else {
