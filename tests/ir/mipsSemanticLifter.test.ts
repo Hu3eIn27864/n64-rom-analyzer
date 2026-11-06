@@ -116,6 +116,23 @@ test('models full-width HI/LO register transfers', () => {
   assert.match(c, /rt3 = vr4300_hilo_read_lo\(fpu\)/);
 });
 
+test('guards doubleword arithmetic and HI/LO operations by processor mode', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('DADDU', ['$t0', '$t1', '$t2']),
+    instruction('DSLL', ['$t3', '$t4', '4']),
+    instruction('DMULT', ['$t5', '$t6']),
+    instruction('DDIVU', ['$t7', '$t8']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind), [
+    'modeCheck', 'assign', 'modeCheck', 'assign',
+    'modeCheck', 'hiloMultiply', 'modeCheck', 'hiloDivide',
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.equal((c.match(/vr4300_require_mode64_or_kernel\(fpu\)/g) ?? []).length, 4);
+  assert.match(c, /exception_code = 10u/);
+});
+
 test('models signed 32-bit and 64-bit arithmetic with overflow-aware operations', () => {
   const mnemonics = ['ADD', 'ADDI', 'SUB', 'DADD', 'DADDI', 'DSUB'];
   const ir = liftInstructionsToMicroC(0x80000000, mnemonics.map(mnemonic =>
