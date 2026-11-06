@@ -13,6 +13,8 @@ export interface MipsInstruction {
   /** COP1 condition-code branch (BC1F/T and likely variants). */
   isFpuBranch: boolean;
   branchConditionCode?: number;
+  /** FCC destination encoded by a COP1 compare instruction. */
+  fpuCompareConditionCode?: number;
   isJump: boolean;
   isCall: boolean;
   isReturn: boolean;
@@ -34,6 +36,7 @@ export function createMipsInstruction(input: {
   operands?: readonly string[];
   targetAddress?: number;
   branchConditionCode?: number;
+  fpuCompareConditionCode?: number;
 }): MipsInstruction {
   const mnemonic = input.mnemonic.toUpperCase();
   const operands = [...(input.operands ?? [])];
@@ -52,6 +55,7 @@ export function createMipsInstruction(input: {
     isLinkBranch: ['BLTZAL', 'BGEZAL', 'BLTZALL', 'BGEZALL'].includes(mnemonic),
     isFpuBranch: ['BC1F', 'BC1T', 'BC1FL', 'BC1TL'].includes(mnemonic),
     branchConditionCode: input.branchConditionCode,
+    fpuCompareConditionCode: input.fpuCompareConditionCode,
     isJump,
     isCall: mnemonic === 'JAL' || mnemonic === 'JALR',
     isReturn: mnemonic === 'JR' && operands[0] === '$ra',
