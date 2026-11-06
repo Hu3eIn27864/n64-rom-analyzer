@@ -318,6 +318,15 @@ export function liftInstructionsToMicroC(
         });
         break;
       }
+      case 'LWL':
+      case 'LWR': {
+        const address = b ? memoryAddress(b) : undefined;
+        if (a && address) operations.push({
+          kind: 'mergeLoadWord', target: normalizeRegister(a), address,
+          direction: instruction.mnemonic === 'LWL' ? 'left' : 'right',
+        });
+        break;
+      }
       case 'LDL':
       case 'LDR': {
         const address = b ? memoryAddress(b) : undefined;
@@ -353,6 +362,15 @@ export function liftInstructionsToMicroC(
           address,
           value: value(normalizeRegister(a), 64),
           size,
+        });
+        break;
+      }
+      case 'SWL':
+      case 'SWR': {
+        const address = b ? memoryAddress(b) : undefined;
+        if (a && address) operations.push({
+          kind: 'mergeStoreWord', address, value: value(normalizeRegister(a), 64),
+          direction: instruction.mnemonic === 'SWL' ? 'left' : 'right',
         });
         break;
       }
