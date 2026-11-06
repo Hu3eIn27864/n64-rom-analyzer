@@ -530,9 +530,9 @@ static inline bool vr4300_fpu_convert_word(
     if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
     raised |= initial_raised;
     if (!isfinite(input) || rounded < -2147483648.0 || rounded >= 2147483648.0)
-        raised |= FE_INVALID;
+        return vr4300_fpu_raise_unimplemented(fpu);
     if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
-    int32_t integer = (raised & FE_INVALID) ? INT32_MIN : (int32_t)rounded;
+    const int32_t integer = (int32_t)rounded;
     return vr4300_fpu_write_s(fpu, fd, (uint32_t)integer);
 }
 
