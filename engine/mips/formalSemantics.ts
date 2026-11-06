@@ -2,6 +2,10 @@ export type MipsMemoryAccess = {
   kind: 'read' | 'write';
   address: string;
   size: 1 | 2 | 4 | 8;
+  /** Word/doubleword merge accesses preserve the untouched register or memory lanes. */
+  merge?: 'left' | 'right';
+  /** LL/LLD establish a reservation; SC/SCD conditionally consume it. */
+  atomic?: 'load-linked' | 'store-conditional';
 };
 
 export interface MipsInstructionSemantics {
@@ -13,17 +17,17 @@ export interface MipsInstructionSemantics {
   description: string;
 }
 
-const register = (name: string): string => name.replace(/^\$/, '');
+const register = (name: string): string => name.replace(/^\\$/, '');
 const memoryBase = (operand: string): string | undefined => {
-  const match = operand.match(/\((\$[^)]+)\)/);
+  const match = operand.match(/\\((\\$[^)]+)\\)/);
   return match ? register(match[1]) : undefined;
 };
 
 function memorySize(mnemonic: string): 1 | 2 | 4 | 8 | undefined {
   if (/^(LB|LBU|SB)$/.test(mnemonic)) return 1;
   if (/^(LH|LHU|SH)$/.test(mnemonic)) return 2;
-  if (/^(LW|LWU|SW)$/.test(mnemonic)) return 4;
-  if (/^(LD|SD)$/.test(mnemonic)) return 8;
+  if (/^(LW|LWU|SW|LL|SC)$/.test(mnemonic)) return 4;
+  if (/^(LD|SD|LLD|SCD)$/.test(mnemonic)) return 8;
   return undefined;
 }
 
@@ -73,19 +77,50 @@ export function analyzeInstructionSemantics(
     addRead(a); addRead(b);
     control = 'branch-likely';
     description = `${op} is a branch-likely instruction with annulled delay-slot behavior when not taken.`;
+  } else if (/^(LWL|LWR|SWL|SWR)$/.test(op) && a && b) {
+    const isStore = op === 'SWL' || op === 'SWR';
+    const base = memoryBase(b);
+    if (base) addRead(base);
+    if (isStore) {
+      addRead(a);
+      description = `${op} writes selected lanes of an aligned word to memory.`;
+    } else {
+      addRead(a);
+      addWrite(a);
+      description = `${op} reads selected lanes of an aligned word and preserves the other destination-register lanes.`;
+    }
+    memory.push({
+      kind: isStore ? 'write' : 'read',
+      address: b,
+      size: 4,
+      merge: op.endsWith('L') ? 'left' : 'right',
+    });
   } else {
     const size = memorySize(op);
     if (size !== undefined && b) {
-      const isStore = /^(SB|SH|SW|SD)$/.test(op);
+      const isStore = /^(SB|SH|SW|SD|SC|SCD)$/.test(op);
       const base = memoryBase(b);
       if (base) addRead(base);
-      memory.push({ kind: isStore ? 'write' : 'read', address: b, size });
+      const atomic = op === 'LL' || op === 'LLD' ? 'load-linked'
+        : op === 'SC' || op === 'SCD' ? 'store-conditional'
+        : undefined;
+      memory.push({
+        kind: isStore ? 'write' : 'read',
+        address: b,
+        size,
+        ...(atomic ? { atomic } : {}),
+      });
       if (isStore) {
         addRead(a);
-        description = `${op} writes register data to memory at the effective address.`;
+        if (op === 'SC' || op === 'SCD') addWrite(a);
+        description = atomic
+          ? `${op} conditionally writes register data to memory and writes the success result to the source register.`
+          : `${op} writes register data to memory at the effective address.`;
       } else {
         addWrite(a);
-        description = `${op} reads memory at the effective address into the destination register.`;
+        description = atomic
+          ? `${op} reads memory into the destination register and establishes a linked reservation.`
+          : `${op} reads memory at the effective address into the destination register.`;
       }
     }
   }
