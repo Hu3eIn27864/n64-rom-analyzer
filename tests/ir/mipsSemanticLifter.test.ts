@@ -23,6 +23,17 @@ test('lifts arithmetic, immediate, and LUI semantics', () => {
   ]);
 });
 
+test('rejects signed arithmetic until overflow exceptions and result widths are modeled', () => {
+  const mnemonics = ['ADD', 'ADDI', 'SUB', 'DADD', 'DADDI', 'DSUB'];
+  const ir = liftInstructionsToMicroC(0x80000000, mnemonics.map(mnemonic =>
+    instruction(mnemonic, mnemonic.endsWith('I') ? ['$t0', '$t1', '1'] : ['$t0', '$t1', '$t2']),
+  ));
+
+  assert.deepEqual(ir.blocks[0].operations, []);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), mnemonics);
+  assert.ok(ir.unsupportedInstructions?.every(item => item.reason.includes('No complete Micro-C semantics')));
+});
+
 test('lifts memory operations with explicit widths and effective addresses', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LW', ['$t0', '8($sp)']),
