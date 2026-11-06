@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { decodeRomFunctionCfg } from '../../engine/mips/romFunctionCfg';
+import { lowerRomCfgToFunctionIR } from '../../engine/decompiler/romCfgToFunctionIR';
 import type { RomFunctionEntry } from '../../engine/decompiler/romFunctionEntry';
 
 const entry: RomFunctionEntry = { address: 0x80001000, romOffset: 0 };
@@ -27,6 +28,39 @@ test('builds two-way CFG with a branch delay slot and fallthrough', () => {
   assert.equal(cfg.blocks.length, 3);
   assert.deepEqual(cfg.blocks.map(b => b.startAddress), [0x80001000, 0x80001008, 0x80001014]);
   assert.deepEqual(cfg.blocks[0].successors, [0x80001014, 0x80001008]);
+});
+
+test('models a branch-likely annulled delay slot as a taken-only block', () => {
+  const rom = words([
+    0x50850003, // beql a0,a1,+3 -> 0x1010
+    0x24020001, // delay slot: executes only when branch is taken
+    0x24030002, // not-taken path skips delay slot
+    0x03e00008, // jr ra
+    0x00000000, // return delay slot
+    0x03e00008, // target: jr ra
+    0x00000000,
+  ]);
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  const branch = cfg.blocks.find(block => block.startAddress === 0x80001000)!;
+  const delay = cfg.blocks.find(block => block.startAddress === 0x80001004)!;
+  assert.deepEqual(branch.instructions.map(instruction => instruction.mnemonic), ['BEQL']);
+  assert.deepEqual(branch.successors, [0x80001004, 0x80001008]);
+  assert.deepEqual(delay.instructions.map(instruction => instruction.mnemonic), ['ADDIU']);
+  assert.deepEqual(delay.successors, [0x80001010]);
+  assert.equal(cfg.instructionCount, 7);
+
+  const lowered = lowerRomCfgToFunctionIR(cfg).functionIR;
+  const branchOperation = lowered.blocks[0].operations.at(-1)!;
+  assert.equal(branchOperation.kind, 'branch');
+  if (branchOperation.kind === 'branch') {
+    assert.equal(branchOperation.trueTarget, 1);
+    assert.equal(branchOperation.falseTarget, 2);
+  }
+});
+
+test('rejects a control transfer in a delay slot', () => {
+  const rom = words([0x10850002, 0x08000400, 0x00000000, 0x00000000]);
+  assert.throws(() => decodeRomFunctionCfg(rom, entry), /control transfer in delay slot/);
 });
 
 test('follows a direct jump but does not inline a call target', () => {
