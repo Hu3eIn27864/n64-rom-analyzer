@@ -44,9 +44,9 @@ test('links exact same-block loads to the nearest preceding store version', () =
     previousVersion: access.previousVersion,
     reachingVersion: access.reachingVersion,
   })), [
-    { id: 0, version: 0, previousVersion: undefined, reachingVersion: undefined },
-    { id: 1, version: undefined, previousVersion: undefined, reachingVersion: 0 },
-    { id: 2, version: 2, previousVersion: 0, reachingVersion: undefined },
+    { id: 0, version: 1, previousVersion: 0, reachingVersion: undefined },
+    { id: 1, version: undefined, previousVersion: undefined, reachingVersion: 1 },
+    { id: 2, version: 2, previousVersion: 1, reachingVersion: undefined },
     { id: 3, version: undefined, previousVersion: undefined, reachingVersion: 2 },
   ]);
 });
