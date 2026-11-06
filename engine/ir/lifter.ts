@@ -18,6 +18,20 @@ function normalizeRegister(register: string): string {
   return register.replace(/^\$/, 'r');
 }
 
+function parseFpuRegister(register: string | undefined): number | undefined {
+  const match = register?.match(/^\$f(\d{1,2})$/i);
+  if (!match) return undefined;
+  const index = Number(match[1]);
+  return index >= 0 && index < 32 ? index : undefined;
+}
+
+function parseControlRegister(register: string | undefined): number | undefined {
+  const match = register?.match(/^fcr(\d{1,2})$/i);
+  if (!match) return undefined;
+  const index = Number(match[1]);
+  return index >= 0 && index < 32 ? index : undefined;
+}
+
 function parseImmediate(valueText: string): number | undefined {
   const valueNumber = Number(valueText);
   return Number.isFinite(valueNumber) ? valueNumber : undefined;
@@ -47,6 +61,7 @@ export function liftInstructionsToMicroC(
 ): FunctionIR {
   const operations: MicroCOperation[] = [];
   const unsupportedInstructions: UnsupportedInstruction[] = [];
+  const knownFcc = new Set<number>();
 
   for (const instruction of instructions) {
     const operationCount = operations.length;
@@ -131,6 +146,55 @@ export function liftInstructionsToMicroC(
         if (a && address) operations.push({ kind: 'store', address, value: value(normalizeRegister(a)), size: size as 1 | 2 | 4 | 8 });
         break;
       }
+      case 'LWC1':
+      case 'LDC1': {
+        const register = parseFpuRegister(a);
+        const address = b ? memoryAddress(b) : undefined;
+        const size = instruction.mnemonic === 'LWC1' ? 4 : 8;
+        if (register !== undefined && address) operations.push({ kind: 'fpuLoad', register, address, size, ...(size === 8 ? { modeConstraint: 'kernel-or-64bit' as const } : {}), registerMode: 'status-fr' });
+        break;
+      }
+      case 'SWC1':
+      case 'SDC1': {
+        const register = parseFpuRegister(a);
+        const address = b ? memoryAddress(b) : undefined;
+        const size = instruction.mnemonic === 'SWC1' ? 4 : 8;
+        if (register !== undefined && address) operations.push({ kind: 'fpuStore', register, address, size, ...(size === 8 ? { modeConstraint: 'kernel-or-64bit' as const } : {}), registerMode: 'status-fr' });
+        break;
+      }
+      case 'MFC1':
+      case 'DMFC1':
+      case 'MTC1':
+      case 'DMTC1': {
+        const fpr = parseFpuRegister(b);
+        const gpr = a ? normalizeRegister(a) : undefined;
+        if (fpr !== undefined && gpr) {
+          const fromFpu = instruction.mnemonic === 'MFC1' || instruction.mnemonic === 'DMFC1';
+          operations.push({
+            kind: 'fpuTransfer',
+            direction: fromFpu ? 'from-fpu' : 'to-fpu',
+            gpr, fpr,
+            width: instruction.mnemonic.startsWith('D') ? 64 : 32,
+            gprSemantics: instruction.mnemonic === 'MFC1' ? 'sign-extend'
+              : instruction.mnemonic === 'MTC1' ? 'truncate'
+              : 'full-width',
+            ...(instruction.mnemonic.startsWith('D') ? { modeConstraint: 'kernel-or-64bit' as const } : {}),
+            registerMode: 'status-fr',
+          });
+        }
+        break;
+      }
+      case 'CTC1': {
+        const controlRegister = parseControlRegister(b);
+        if (a && controlRegister !== undefined) {
+          operations.push({ kind: 'fpuControlWrite', controlRegister, value: value(normalizeRegister(a)) });
+          if (controlRegister === 31) knownFcc.clear();
+        }
+        break;
+      }
+      case 'CFC1':
+        // FCR reads, including FCSR, are not modeled as plain GPR values.
+        break;
       case 'JAL': {
         const targetAddress = parseBranchTarget(instruction);
         if (targetAddress !== undefined) operations.push({ kind: 'call', target: constant(targetAddress), args: [], result: 'rra' });
@@ -180,7 +244,7 @@ export function liftInstructionsToMicroC(
             trueTarget: targetAddress,
             ...(instruction.isLinkBranch ? { linkOnTaken: { target: 'rra', value: constant((instruction.address + 8) >>> 0) } } : {}),
           });
-          if (fpuBranch) unsupportedInstructions.push({
+          if (fpuBranch && !knownFcc.has(instruction.branchConditionCode ?? 0)) unsupportedInstructions.push({
             address: instruction.address >>> 0,
             mnemonic: instruction.mnemonic,
             reason: 'COP1 condition-code provenance is not yet modeled',
@@ -188,8 +252,26 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
-      default:
+      default: {
+        if (instruction.fpuCompareConditionCode !== undefined
+          && instruction.fpuComparePredicate !== undefined
+          && (instruction.fpuFormat === 0x10 || instruction.fpuFormat === 0x11)
+          && instruction.fpuSourceRegister !== undefined
+          && instruction.fpuTargetRegister !== undefined) {
+          const conditionCode = instruction.fpuCompareConditionCode;
+          operations.push({
+            kind: 'fpuCompare',
+            conditionCode,
+            format: instruction.fpuFormat === 0x10 ? 'S' : 'D',
+            predicate: instruction.fpuComparePredicate,
+            leftRegister: instruction.fpuSourceRegister,
+            rightRegister: instruction.fpuTargetRegister,
+            registerMode: 'status-fr',
+          });
+          knownFcc.add(conditionCode);
+        }
         break;
+      }
     }
     if (instruction.mnemonic !== 'NOP' && operations.length === operationCount) {
       unsupportedInstructions.push({
@@ -228,10 +310,92 @@ export function liftBasicBlocks(functionAddress: number, blocks: readonly BasicB
       }),
     };
   });
-  const unsupportedInstructions = liftedBlocks.flatMap(item => item.unsupportedInstructions);
+  const cfgBlocks = liftedBlocks.map(item => item.block);
+  const byId = new Map(cfgBlocks.map(block => [block.id, block]));
+  const roots = cfgBlocks.filter(block => block.predecessors.length === 0);
+  const reachable = new Set<number>();
+  const queue = roots.map(block => block.id);
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (reachable.has(id)) continue;
+    reachable.add(id);
+    for (const successor of byId.get(id)?.successors ?? []) queue.push(successor);
+  }
+
+  const allFcc = new Set(Array.from({ length: 8 }, (_, index) => index));
+  const incoming = new Map<number, Set<number>>();
+  const outgoing = new Map<number, Set<number>>();
+  for (const block of cfgBlocks) {
+    incoming.set(block.id, reachable.has(block.id) && block.predecessors.length > 0 ? new Set(allFcc) : new Set());
+    outgoing.set(block.id, reachable.has(block.id) ? new Set(allFcc) : new Set());
+  }
+
+  const transfer = (block: BasicBlock, initial: Set<number>): Set<number> => {
+    const state = new Set(initial);
+    for (const instruction of block.instructions) {
+      if (instruction.fpuCompareConditionCode !== undefined
+        && instruction.fpuComparePredicate !== undefined
+        && (instruction.fpuFormat === 0x10 || instruction.fpuFormat === 0x11)) {
+        state.add(instruction.fpuCompareConditionCode);
+      } else if (instruction.mnemonic === 'CTC1' && parseControlRegister(instruction.operands[1]) === 31) {
+        state.clear();
+      }
+    }
+    return state;
+  };
+
+  const same = (left: Set<number>, right: Set<number>) =>
+    left.size === right.size && [...left].every(value => right.has(value));
+  // Forward must-analysis: a condition code is known only if every reachable
+  // predecessor establishes it. Top initialization computes loop fixed points.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const block of blocks) {
+      if (!reachable.has(block.id)) continue;
+      let nextIn: Set<number>;
+      if (block.predecessors.length === 0) {
+        nextIn = new Set();
+      } else {
+        const preds = block.predecessors.filter(id => reachable.has(id));
+        nextIn = preds.length === 0 ? new Set() : new Set(outgoing.get(preds[0]) ?? []);
+        for (const pred of preds.slice(1)) {
+          const predOut = outgoing.get(pred) ?? new Set<number>();
+          nextIn = new Set([...nextIn].filter(cc => predOut.has(cc)));
+        }
+      }
+      const nextOut = transfer(block, nextIn);
+      if (!same(incoming.get(block.id) ?? new Set(), nextIn) || !same(outgoing.get(block.id) ?? new Set(), nextOut)) {
+        incoming.set(block.id, nextIn);
+        outgoing.set(block.id, nextOut);
+        changed = true;
+      }
+    }
+  }
+
+  const unsupportedInstructions = liftedBlocks.flatMap(item => {
+    const original = blocks.find(block => block.id === item.block.id);
+    if (!original) return item.unsupportedInstructions;
+    const state = new Set(incoming.get(original.id) ?? []);
+    const provenBranches = new Set<number>();
+    for (const instruction of original.instructions) {
+      if (instruction.isFpuBranch && state.has(instruction.branchConditionCode ?? 0)) {
+        provenBranches.add(instruction.address >>> 0);
+      }
+      if (instruction.fpuCompareConditionCode !== undefined
+        && instruction.fpuComparePredicate !== undefined
+        && (instruction.fpuFormat === 0x10 || instruction.fpuFormat === 0x11)) {
+        state.add(instruction.fpuCompareConditionCode);
+      } else if (instruction.mnemonic === 'CTC1' && parseControlRegister(instruction.operands[1]) === 31) {
+        state.clear();
+      }
+    }
+    return item.unsupportedInstructions.filter(diagnostic =>
+      !(diagnostic.reason === 'COP1 condition-code provenance is not yet modeled' && provenBranches.has(diagnostic.address)));
+  });
   return {
     functionAddress,
-    blocks: liftedBlocks.map(item => item.block),
+    blocks: cfgBlocks,
     ...(unsupportedInstructions.length > 0 ? { unsupportedInstructions } : {}),
   };
 }

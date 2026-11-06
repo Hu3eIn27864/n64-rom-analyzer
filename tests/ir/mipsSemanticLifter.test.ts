@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMipsInstruction } from '../../engine/model/instruction';
 import { liftBasicBlocks, liftInstructionsToMicroC } from '../../engine/ir/lifter';
+import { decompileStructuredFunctionIR } from '../../engine/decompiler/structuredC';
 
 const instruction = (mnemonic: string, operands: string[], targetAddress?: number) =>
   createMipsInstruction({ address: 0x80000000, raw: 0, mnemonic, operands, targetAddress });
@@ -142,4 +143,144 @@ test('lifts COP1 condition-code branches but retains an unknown-FCC provenance d
     }
     assert.deepEqual(ir.unsupportedInstructions?.map(item => item.reason), ['COP1 condition-code provenance is not yet modeled']);
   }
+});
+
+
+test('lifts VR4300 FPU memory, transfer, compare and FCSR-write operations', () => {
+  const compare = createMipsInstruction({
+    address: 0x80004008, raw: 0, mnemonic: 'C.EQ.S',
+    operands: ['$f2', '$f3'],
+    fpuFormat: 0x10, fpuSourceRegister: 2, fpuTargetRegister: 3,
+    fpuCompareConditionCode: 4, fpuComparePredicate: 0x2,
+  });
+  const ir = liftInstructionsToMicroC(0x80004000, [
+    instruction('LWC1', ['$f6', '8($sp)']),
+    instruction('LDC1', ['$f8', '16($sp)']),
+    instruction('SWC1', ['$f6', '24($sp)']),
+    instruction('SDC1', ['$f8', '32($sp)']),
+    instruction('MFC1', ['$t0', '$f6']),
+    instruction('DMFC1', ['$t1', '$f8']),
+    instruction('MTC1', ['$t2', '$f10']),
+    instruction('DMTC1', ['$t3', '$f12']),
+    compare,
+    instruction('CTC1', ['$t4', 'fcr31']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind), [
+    'fpuLoad', 'fpuLoad', 'fpuStore', 'fpuStore',
+    'fpuTransfer', 'fpuTransfer', 'fpuTransfer', 'fpuTransfer',
+    'fpuCompare', 'fpuControlWrite',
+  ]);
+  assert.deepEqual(ir.blocks[0].operations[8], {
+    kind: 'fpuCompare', conditionCode: 4, format: 'S', predicate: 2,
+    leftRegister: 2, rightRegister: 3, registerMode: 'status-fr',
+  });
+  assert.deepEqual(ir.blocks[0].operations.slice(4, 8).map(operation =>
+    operation.kind === 'fpuTransfer' ? operation.gprSemantics : undefined,
+  ), ['sign-extend', 'full-width', 'truncate', 'full-width']);
+  const doubleLoad = ir.blocks[0].operations[1];
+  const doubleMove = ir.blocks[0].operations[5];
+  assert.equal(doubleLoad?.kind === 'fpuLoad' ? doubleLoad.modeConstraint : undefined, 'kernel-or-64bit');
+  assert.equal(doubleMove?.kind === 'fpuTransfer' ? doubleMove.modeConstraint : undefined, 'kernel-or-64bit');
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+});
+
+test('proves FCC provenance within a block but invalidates it after CTC1 FCR31', () => {
+  const compare = createMipsInstruction({
+    address: 0x80005000, raw: 0, mnemonic: 'C.EQ.D', operands: ['$f1', '$f2'],
+    fpuFormat: 0x11, fpuSourceRegister: 1, fpuTargetRegister: 2,
+    fpuCompareConditionCode: 2, fpuComparePredicate: 2,
+  });
+  const branch = createMipsInstruction({
+    address: 0x80005004, raw: 0, mnemonic: 'BC1T', operands: ['$fcc2', '0x80005020'],
+    targetAddress: 0x80005020, branchConditionCode: 2,
+  });
+  const proven = liftInstructionsToMicroC(0x80005000, [compare, branch]);
+  assert.deepEqual(proven.unsupportedInstructions, undefined);
+
+  const invalidated = liftInstructionsToMicroC(0x80005000, [
+    compare,
+    instruction('CTC1', ['$t0', 'fcr31']),
+    branch,
+  ]);
+  assert.deepEqual(invalidated.unsupportedInstructions?.map(item => item.reason), [
+    'COP1 condition-code provenance is not yet modeled',
+  ]);
+});
+
+test('propagates FCC provenance across CFG blocks only when every incoming path defines it', () => {
+  const compare = createMipsInstruction({
+    address: 0x80006000, raw: 0, mnemonic: 'C.EQ.S', operands: ['$f0', '$f1'],
+    fpuFormat: 0x10, fpuSourceRegister: 0, fpuTargetRegister: 1,
+    fpuCompareConditionCode: 0, fpuComparePredicate: 2,
+  });
+  const branch = createMipsInstruction({
+    address: 0x80006010, raw: 0, mnemonic: 'BC1T', operands: ['$fcc0', '0x80006030'],
+    targetAddress: 0x80006030, branchConditionCode: 0,
+  });
+  const block = (id: number, instructions: ReturnType<typeof createMipsInstruction>[], predecessors: number[], successors: number[]) => ({
+    id, start: 0x80006000 + id * 0x10, end: 0x8000600c + id * 0x10,
+    instructions, predecessors, successors, terminator: 'fallthrough' as const,
+  });
+
+  const singlePath = liftBasicBlocks(0x80006000, [
+    block(0, [compare], [], [1]),
+    block(1, [branch], [0], [2]),
+    block(2, [], [1], []),
+  ]);
+  assert.deepEqual(singlePath.unsupportedInstructions, undefined);
+
+  const mixedDiamond = liftBasicBlocks(0x80006000, [
+    block(0, [], [], [1, 2]),
+    block(1, [compare], [0], [3]),
+    block(2, [], [0], [3]),
+    block(3, [branch], [1, 2], [4]),
+    block(4, [], [3], []),
+  ]);
+  assert.deepEqual(mixedDiamond.unsupportedInstructions?.map(item => item.mnemonic), ['BC1T']);
+
+  const definedDiamond = liftBasicBlocks(0x80006000, [
+    block(0, [], [], [1, 2]),
+    block(1, [compare], [0], [3]),
+    block(2, [createMipsInstruction({
+      ...compare, address: 0x80006020,
+    })], [0], [3]),
+    block(3, [branch], [1, 2], [4]),
+    block(4, [], [3], []),
+  ]);
+  assert.deepEqual(definedDiamond.unsupportedInstructions, undefined);
+});
+
+test('keeps FCC provenance unknown after a predecessor writes FCSR', () => {
+  const compare = createMipsInstruction({
+    address: 0x80007000, raw: 0, mnemonic: 'C.EQ.S', operands: ['$f0', '$f1'],
+    fpuFormat: 0x10, fpuSourceRegister: 0, fpuTargetRegister: 1,
+    fpuCompareConditionCode: 1, fpuComparePredicate: 2,
+  });
+  const ctc1 = instruction('CTC1', ['$t0', 'fcr31']);
+  const branch = createMipsInstruction({
+    address: 0x80007020, raw: 0, mnemonic: 'BC1T', operands: ['$fcc1', '0x80007040'],
+    targetAddress: 0x80007040, branchConditionCode: 1,
+  });
+  const block = (id: number, instructions: ReturnType<typeof createMipsInstruction>[], predecessors: number[], successors: number[]) => ({
+    id, start: 0x80007000 + id * 0x10, end: 0x8000700c + id * 0x10,
+    instructions, predecessors, successors, terminator: 'fallthrough' as const,
+  });
+  const ir = liftBasicBlocks(0x80007000, [
+    block(0, [compare], [], [1]),
+    block(1, [ctc1], [0], [2]),
+    block(2, [branch], [1], [3]),
+    block(3, [], [2], []),
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BC1T']);
+});
+
+
+test('refuses to silently drop FPU IR during structured C lowering', () => {
+  const ir = liftInstructionsToMicroC(0x80008000, [
+    instruction('LWC1', ['$f2', '0($sp)']),
+  ]);
+  assert.throws(
+    () => decompileStructuredFunctionIR(ir),
+    /Status\.FR-dependent FPR storage or FCSR compare side effects/,
+  );
 });

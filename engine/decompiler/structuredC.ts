@@ -61,6 +61,12 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       return { kind: 'return', expr: operation.value ? lowerExpr(operation.value) : undefined };
     case 'phi':
       return undefined;
+    case 'fpuLoad':
+    case 'fpuStore':
+    case 'fpuTransfer':
+    case 'fpuCompare':
+    case 'fpuControlWrite':
+      throw new Error('FPU operation reached structured lowering without a verified FR/FCSR lowering');
     case 'branch':
     case 'jump':
       return undefined;
@@ -362,6 +368,15 @@ function isLoopWithPhi(ir: FunctionIR): boolean {
  * guessed; all function identity still comes from FunctionIR.functionAddress.
  */
 export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
+  const fpuOperations = ir.blocks.flatMap(block => block.operations)
+    .filter(operation => operation.kind === 'fpuLoad'
+      || operation.kind === 'fpuStore'
+      || operation.kind === 'fpuTransfer'
+      || operation.kind === 'fpuCompare'
+      || operation.kind === 'fpuControlWrite');
+  if (fpuOperations.length > 0) {
+    throw new Error('structured C lowering does not yet model Status.FR-dependent FPR storage or FCSR compare side effects');
+  }
   if (ir.blocks.length === 1) return lowerSingleBlock(ir);
   if (ir.blocks.length === 3) {
     const { entry, branch } = branchFromEntry(ir);
