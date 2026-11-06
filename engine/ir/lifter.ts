@@ -180,7 +180,11 @@ export function liftBasicBlocks(functionAddress: number, blocks: readonly BasicB
       },
       unsupportedInstructions: (lifted.unsupportedInstructions ?? []).filter(item => {
         // A direct J is represented by the recovered CFG edge, not by a Micro-C operation.
-        const terminator = block.instructions.at(-1);
+        const last = block.instructions.at(-1);
+        const delaySlotOwner = block.instructions.at(-2);
+        const terminator = delaySlotOwner && (delaySlotOwner.isConditionalBranch || delaySlotOwner.isJump || delaySlotOwner.isReturn)
+          ? delaySlotOwner
+          : last;
         return !(block.terminator === 'jump' && terminator?.mnemonic === 'J' && item.address === terminator.address);
       }),
     };
