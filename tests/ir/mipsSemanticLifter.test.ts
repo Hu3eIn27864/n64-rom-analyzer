@@ -139,7 +139,7 @@ test('models signed 32-bit and 64-bit arithmetic with overflow-aware operations'
     instruction(mnemonic, mnemonic.endsWith('I') ? ['$t0', '$t1', '0xffff'] : ['$t0', '$t1', '$t2']),
   ));
 
-  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'signedArithmetic').map(operation =>
     operation.kind === 'signedArithmetic' ? [operation.operation, operation.width, operation.right.kind === 'const' ? operation.right.value : undefined] : undefined,
   ), [
     ['add', 32, undefined], ['add', 32, -1], ['sub', 32, undefined],
@@ -171,7 +171,7 @@ test('models 64-bit logical operations and sign-extends 32-bit shift results', (
     instruction('SRLV', ['$t9', '$s0', '$s1']),
     instruction('SRAV', ['$s2', '$s3', '$s4']),
   ]);
-  const values = ir.blocks[0].operations.map(operation =>
+  const values = ir.blocks[0].operations.filter(operation => operation.kind === 'assign').map(operation =>
     operation.kind === 'assign' ? operation.value : undefined,
   );
   assert.ok(values.slice(0, 7).every(value => value?.width === 64));
@@ -189,10 +189,10 @@ test('lifts 64-bit integer arithmetic into explicitly wide Micro-C expressions',
     instruction(mnemonic, mnemonic === 'DADDIU' ? ['$t0', '$t1', '1'] : ['$t0', '$t1', '$t2']),
   ));
 
-  assert.equal(ir.blocks[0].operations.length, 3);
-  assert.ok(ir.blocks[0].operations.every(operation =>
-    operation.kind === 'assign' && operation.value.kind === 'binary' && operation.value.width === 64,
-  ));
+  assert.equal(ir.blocks[0].operations.filter(operation => operation.kind === 'modeCheck').length, 3);
+  const assignments = ir.blocks[0].operations.filter(operation => operation.kind === 'assign');
+  assert.equal(assignments.length, 3);
+  assert.ok(assignments.every(operation => operation.kind === 'assign' && operation.value.kind === 'binary' && operation.value.width === 64));
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
@@ -205,7 +205,7 @@ test('lifts 64-bit immediate and variable shifts with the correct shift widths',
     instruction('DSRLV', ['$t9', '$s0', '$s1']),
     instruction('DSRAV', ['$s2', '$s3', '$s4']),
   ]);
-  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'assign').map(operation =>
     operation.kind === 'assign' ? operation.value : undefined,
   ), [
     { kind: 'binary', op: '<<', left: { kind: 'value', name: 'rt1', width: 64 }, right: { kind: 'const', value: 3 }, width: 64 },
