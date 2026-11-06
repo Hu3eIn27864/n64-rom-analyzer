@@ -35,19 +35,25 @@ export class RomAddressMap {
     return {
       segment,
       offset: offset - segment.romStart,
-      vram: segment.vramStart === undefined ? undefined : segment.vramStart + (offset - segment.romStart),
+      vram: segment.vramStart === undefined || segment.vramEnd === undefined
+        ? undefined
+        : segment.vramStart + (offset - segment.romStart) < segment.vramEnd
+          ? segment.vramStart + (offset - segment.romStart)
+          : undefined,
     };
   }
 
   romToVram(offset: number): number | undefined {
     const segment = this.findSegmentByRomOffset(offset);
-    if (!segment || segment.vramStart === undefined) return undefined;
-    return segment.vramStart + (offset - segment.romStart);
+    if (!segment || segment.vramStart === undefined || segment.vramEnd === undefined) return undefined;
+    const mapped = segment.vramStart + (offset - segment.romStart);
+    return mapped < segment.vramEnd ? mapped : undefined;
   }
 
   vramToRom(vram: number): number | undefined {
     const segment = this.findSegmentByVramAddress(vram);
     if (!segment || segment.vramStart === undefined) return undefined;
-    return segment.romStart + (vram - segment.vramStart);
+    const mapped = segment.romStart + (vram - segment.vramStart);
+    return mapped < segment.romEnd ? mapped : undefined;
   }
 }
