@@ -125,13 +125,13 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       return undefined;
     case 'fpuLoad': {
       const call = operation.size === 4
-        ? cCall('vr4300_fpu_load_s', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)])
+        ? cCall('vr4300_fpu_load_s', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t')
         : cCall('vr4300_fpu_load_d', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t');
       return returnIfFalse(call);
     }
     case 'fpuStore': {
       const call = operation.size === 4
-        ? cCall('vr4300_fpu_store_s', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)])
+        ? cCall('vr4300_fpu_store_s', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t')
         : cCall('vr4300_fpu_store_d', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t');
       return operation.size === 4 ? { kind: 'expr', expr: call } : returnIfFalse(call);
     }
@@ -151,7 +151,7 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       if (operation.direction === 'to-fpu' && operation.width === 32) {
         const write = cCall('vr4300_fpu_write_s', [
           cVariable('fpu'), cConstant(operation.fpr), cCast('uint32_t', cVariable(operation.gpr, 'uint64_t')),
-        ]);
+        ], 'uint32_t');
         return returnIfFalse(write);
       }
       if (operation.direction === 'from-fpu') {
