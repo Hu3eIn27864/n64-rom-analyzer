@@ -86,6 +86,50 @@ static inline bool vr4300_hilo_divide64(vr4300_fpu_state *fpu, uint64_t dividend
     return true;
 }
 
+static inline uint64_t vr4300_sign_extend_word(uint32_t value)
+{
+    return (value & UINT32_C(0x80000000)) != 0u
+        ? (UINT64_C(0xffffffff00000000) | value) : (uint64_t)value;
+}
+
+static inline void vr4300_hilo_multiply32(vr4300_fpu_state *fpu, uint32_t left, uint32_t right, bool is_signed)
+{
+    uint64_t product = (uint64_t)left * (uint64_t)right;
+    if (is_signed) {
+        if ((left & UINT32_C(0x80000000)) != 0u) product -= (uint64_t)right << 32;
+        if ((right & UINT32_C(0x80000000)) != 0u) product -= (uint64_t)left << 32;
+    }
+    fpu->lo = vr4300_sign_extend_word((uint32_t)product);
+    fpu->hi = vr4300_sign_extend_word((uint32_t)(product >> 32));
+}
+
+static inline bool vr4300_hilo_divide32(vr4300_fpu_state *fpu, uint32_t dividend, uint32_t divisor, bool is_signed)
+{
+    /* A zero divisor has architecturally undefined HI/LO results. Preserve
+     * the previous values rather than invoking host C divide-by-zero UB. */
+    if (divisor == 0u) return true;
+
+    uint32_t quotient;
+    uint32_t remainder;
+    if (is_signed) {
+        const bool dividend_negative = (dividend & UINT32_C(0x80000000)) != 0u;
+        const bool divisor_negative = (divisor & UINT32_C(0x80000000)) != 0u;
+        const uint32_t dividend_magnitude = dividend_negative ? UINT32_C(0) - dividend : dividend;
+        const uint32_t divisor_magnitude = divisor_negative ? UINT32_C(0) - divisor : divisor;
+        quotient = dividend_magnitude / divisor_magnitude;
+        remainder = dividend_magnitude % divisor_magnitude;
+        if (dividend_negative != divisor_negative) quotient = UINT32_C(0) - quotient;
+        if (dividend_negative) remainder = UINT32_C(0) - remainder;
+    } else {
+        quotient = dividend / divisor;
+        remainder = dividend % divisor;
+    }
+
+    fpu->lo = vr4300_sign_extend_word(quotient);
+    fpu->hi = vr4300_sign_extend_word(remainder);
+    return true;
+}
+
 /* 64x64 -> 128 multiply using 32-bit limbs; no compiler-specific int128. */
 static inline void vr4300_hilo_multiply64(vr4300_fpu_state *fpu, uint64_t left, uint64_t right, bool is_signed)
 {
