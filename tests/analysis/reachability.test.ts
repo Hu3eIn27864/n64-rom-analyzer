@@ -49,3 +49,58 @@ test('ROM-backed reachability', async (t) => {
     assert.throws(() => readWord(0), RangeError);
   });
 });
+
+
+test('reachability includes delay-slot instructions for calls, jumps and returns', () => {
+  const words: Record<number, number> = {
+    0x00: 0x0c000040, // JAL 0x100
+    0x04: 0x24080001, // delay slot
+    0x08: 0x03e00008, // JR $ra
+    0x0c: 0x24090002, // return delay slot
+    0x100: 0x240a0003,
+    0x104: 0x03e00008,
+    0x108: 0x240b0004,
+  };
+  const readWord = (address: number) => {
+    if (!(address in words)) throw new RangeError('missing synthetic instruction');
+    return words[address] >>> 0;
+  };
+
+  const result = discoverReachableCode([0], { readWord });
+  assert.deepEqual(result.visitedAddresses, [0x00, 0x04, 0x08, 0x100, 0x104, 0x108]);
+  assert.equal(result.instructions.find(item => item.address === 0x04)?.mnemonic, 'ADDIU');
+  assert.equal(result.instructions.find(item => item.address === 0x108)?.mnemonic, 'ADDIU');
+});
+
+test('reachability follows conditional-branch fallthrough after decoding its delay slot', () => {
+  const words: Record<number, number> = {
+    0x00: 0x10000003, // BEQ $zero, $zero, 0x10
+    0x04: 0x24080001, // delay slot
+    0x08: 0x24090002,
+    0x0c: 0x03e00008,
+    0x10: 0x240a0003, // branch target / return delay slot reached by fallthrough
+  };
+  const readWord = (address: number) => {
+    if (!(address in words)) throw new RangeError('missing synthetic instruction');
+    return words[address] >>> 0;
+  };
+
+  const result = discoverReachableCode([0], { readWord });
+  assert.deepEqual(result.visitedAddresses, [0x00, 0x04, 0x08, 0x0c, 0x10]);
+});
+
+test('reachability decodes an unconditional jump delay slot before following its target', () => {
+  const words: Record<number, number> = {
+    0x00: 0x08000040, // J 0x100
+    0x04: 0x24080001, // delay slot
+    0x100: 0x03e00008, // JR $ra
+    0x104: 0x24090002, // return delay slot
+  };
+  const readWord = (address: number) => {
+    if (!(address in words)) throw new RangeError('missing synthetic instruction');
+    return words[address] >>> 0;
+  };
+
+  const result = discoverReachableCode([0], { readWord });
+  assert.deepEqual(result.visitedAddresses, [0x00, 0x04, 0x100, 0x104]);
+});
