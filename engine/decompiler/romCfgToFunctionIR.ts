@@ -65,7 +65,7 @@ export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunct
   });
 
   const lifted = liftBasicBlocks(cfg.entry.address >>> 0, blocks);
-  // CFG edges carry control transfers; do not duplicate them as ordinary IR operations.
+  // CFG edges carry target identity; preserve conditional predicates and delay-slot effects in IR.
   const functionIR: FunctionIR = {
     ...lifted,
     blocks: lifted.blocks.map((block, id) => {
