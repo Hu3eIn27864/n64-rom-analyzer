@@ -123,7 +123,7 @@ export function liftInstructionsToMicroC(
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'LB' || instruction.mnemonic === 'LBU' ? 1
           : instruction.mnemonic === 'LH' || instruction.mnemonic === 'LHU' ? 2
-          : instruction.mnemonic === 'LD' ? 8 : 4;
+          : 4;
         if (target && address) operations.push({ kind: 'load', target, address, size: size as 1 | 2 | 4, signed: !['LBU', 'LHU', 'LWU'].includes(instruction.mnemonic) });
         break;
       }
@@ -132,7 +132,7 @@ export function liftInstructionsToMicroC(
       case 'SB': {
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'SB' ? 1 : instruction.mnemonic === 'SH' ? 2 : 4;
-        if (a && address) operations.push({ kind: 'store', address, value: value(normalizeRegister(a)), size: size as 1 | 2 | 4 | 8 });
+        if (a && address) operations.push({ kind: 'store', address, value: value(normalizeRegister(a)), size: size as 1 | 2 | 4 });
         break;
       }
       case 'LD':
