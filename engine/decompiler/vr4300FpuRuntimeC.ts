@@ -137,6 +137,11 @@ static inline bool vr4300_fpu_write_d_register(vr4300_fpu_state *fpu, unsigned r
     return true;
 }
 
+static inline bool vr4300_fpu_read_compare_d(vr4300_fpu_state *fpu, unsigned reg, uint64_t *bits)
+{
+    return vr4300_fpu_read_d_register(fpu, reg, bits);
+}
+
 static inline bool vr4300_fpu_read_d(vr4300_fpu_state *fpu, unsigned reg, uint64_t *bits)
 {
     if (!vr4300_fpu_check_d(fpu, reg)) return false;
