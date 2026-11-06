@@ -463,20 +463,27 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
   if (fpuOperations.some(operation => operation.kind === 'fpuCompare')) {
     throw new Error('COP1 compare C lowering is blocked until FCSR exception-enable and trap semantics are represented');
   }
-  let lowered: CFunction;\n  if (ir.blocks.length === 1) lowered = lowerSingleBlock(ir);
-  if (ir.blocks.length === 3) {
+  let lowered: CFunction;
+  if (ir.blocks.length === 1) {
+    lowered = lowerSingleBlock(ir);
+  } else if (ir.blocks.length === 3) {
     const { entry, branch } = branchFromEntry(ir);
     const targets = [branch.trueTarget, branch.falseTarget];
     const targetBlocks = targets.map(target => blockById(ir, target));
-    const hasBackEdge = targetBlocks.some(block => block.successors.length === 1 && block.successors[0] === entry.id) || targetBlocks.some(block => block.successors.length === 2 && block.successors.includes(entry.id));
-    if (hasBackEdge) return lowerWhile(ir);
-    return lowerTwoWayBranch(ir);
+    const hasBackEdge = targetBlocks.some(block => block.successors.length === 1 && block.successors[0] === entry.id)
+      || targetBlocks.some(block => block.successors.length === 2 && block.successors.includes(entry.id));
+    lowered = hasBackEdge ? lowerWhile(ir) : lowerTwoWayBranch(ir);
+  } else if (ir.blocks.length === 4) {
+    lowered = isLoopWithPhi(ir) ? lowerLoopWithPhi(ir) : lowerDiamond(ir);
+  } else {
+    throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
   }
-  if (ir.blocks.length === 4) {
-    if (isLoopWithPhi(ir)) return lowerLoopWithPhi(ir);
-    return lowerDiamond(ir);
-  }
-  else throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);\n  if (fpuOperations.length === 0) return lowered;\n  return {\n    ...lowered,\n    parameters: [{ name: 'fpu', type: 'vr4300_fpu_state *' }],\n    useVoidForEmptyParameters: false,\n    preamble: [VR4300_FPU_C_RUNTIME],\n  };
+  if (fpuOperations.length === 0) return lowered;
+  return {
+    ...lowered,
+    parameters: [{ name: 'fpu', type: 'vr4300_fpu_state *' }],
+    useVoidForEmptyParameters: false,
+    preamble: [VR4300_FPU_C_RUNTIME],
+  };
 }
-
 export const decompileLinearFunctionIR = decompileStructuredFunctionIR;
