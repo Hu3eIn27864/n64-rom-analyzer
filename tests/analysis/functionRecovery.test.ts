@@ -72,5 +72,7 @@ test('function recovery keeps confidence separate from verification', () => {
   const fn = recoverFunctions([0], { readWord })[0];
 
   assert.equal(fn.confidence, 0.9);
+  assert.equal(fn.instructions.at(-1)?.mnemonic, 'JR');
+  assert.equal(fn.endAddress, 8);
   assert.equal('verification' in fn, false);
 });
