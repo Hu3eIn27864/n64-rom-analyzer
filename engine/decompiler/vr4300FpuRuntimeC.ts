@@ -55,6 +55,35 @@ static inline void vr4300_hilo_write_lo(vr4300_fpu_state *fpu, uint64_t value)
     fpu->lo = value;
 }
 
+static inline bool vr4300_hilo_divide64(vr4300_fpu_state *fpu, uint64_t dividend, uint64_t divisor, bool is_signed)
+{
+    if (!fpu->mode64_or_kernel) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u; /* Reserved Instruction */
+        return false;
+    }
+
+    /* Division by zero has architecturally undefined HI/LO results. Keep the
+     * prior values rather than invoking undefined behavior in host C. */
+    if (divisor == 0u) return true;
+
+    uint64_t dividend_magnitude = dividend;
+    uint64_t divisor_magnitude = divisor;
+    const bool dividend_negative = is_signed && ((dividend >> 63) != 0u);
+    const bool divisor_negative = is_signed && ((divisor >> 63) != 0u);
+    if (dividend_negative) dividend_magnitude = UINT64_C(0) - dividend_magnitude;
+    if (divisor_negative) divisor_magnitude = UINT64_C(0) - divisor_magnitude;
+
+    uint64_t quotient = dividend_magnitude / divisor_magnitude;
+    uint64_t remainder = dividend_magnitude % divisor_magnitude;
+    if (dividend_negative != divisor_negative) quotient = UINT64_C(0) - quotient;
+    if (dividend_negative) remainder = UINT64_C(0) - remainder;
+
+    fpu->lo = quotient;
+    fpu->hi = remainder;
+    return true;
+}
+
 /* 64x64 -> 128 multiply using 32-bit limbs; no compiler-specific int128. */
 static inline void vr4300_hilo_multiply64(vr4300_fpu_state *fpu, uint64_t left, uint64_t right, bool is_signed)
 {
