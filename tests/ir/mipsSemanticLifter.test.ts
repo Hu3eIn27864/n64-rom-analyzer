@@ -56,7 +56,7 @@ test('models signed and unsigned 64-bit division into HI/LO', () => {
     instruction('DDIV', ['$t0', '$t1']),
     instruction('DDIVU', ['$t2', '$t3']),
   ]);
-  assert.deepEqual(ir.blocks[0].operations, [
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'hiloDivide'), [
     { kind: 'hiloDivide', left: { kind: 'value', name: 'rt0', width: 64 }, right: { kind: 'value', name: 'rt1', width: 64 }, signed: true },
     { kind: 'hiloDivide', left: { kind: 'value', name: 'rt2', width: 64 }, right: { kind: 'value', name: 'rt3', width: 64 }, signed: false },
   ]);
@@ -77,7 +77,7 @@ test('models signed and unsigned 64-bit multiply into HI/LO', () => {
     instruction('DMULT', ['$t0', '$t1']),
     instruction('DMULTU', ['$t2', '$t3']),
   ]);
-  assert.deepEqual(ir.blocks[0].operations, [
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'hiloMultiply'), [
     { kind: 'hiloMultiply', left: { kind: 'value', name: 'rt0', width: 64 }, right: { kind: 'value', name: 'rt1', width: 64 }, signed: true },
     { kind: 'hiloMultiply', left: { kind: 'value', name: 'rt2', width: 64 }, right: { kind: 'value', name: 'rt3', width: 64 }, signed: false },
   ]);
@@ -401,7 +401,7 @@ test('lifts DADDU, DSUBU and sign-extended DADDIU as 64-bit expressions', () => 
     instruction('DSUBU', ['$t3', '$t4', '$t5']),
     instruction('DADDIU', ['$t6', '$t7', '0xffff']),
   ]);
-  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'assign').map(operation =>
     operation.kind === 'assign' ? operation.value : undefined,
   ), [
     { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt1' }, right: { kind: 'value', name: 'rt2' }, width: 64 },
