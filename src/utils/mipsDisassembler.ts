@@ -530,7 +530,7 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
   } else if (opcode === 0x2E) {
     opcodeName = 'SWR'; asm = `swr ${rtName}, ${signImm16}(${rsName})`;
   } else if (opcode === 0x2F) {
-    opcodeName = 'CACHE'; asm = `cache 0x${rt.toString(16)}, ${signImm16}(${rsName})`;
+    opcodeName = 'CACHE'; asm = `cache 0x${rt.toString(16)}, ${signImm16}(${rsName})`; args = [`0x${rt.toString(16)}`, `${signImm16}(${rsName})`];
   } else if (opcode === 0x30) {
     opcodeName = 'LL'; asm = `ll ${rtName}, ${signImm16}(${rsName})`;
   } else if (opcode === 0x31) {
