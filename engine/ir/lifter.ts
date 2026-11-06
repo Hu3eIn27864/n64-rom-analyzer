@@ -98,6 +98,43 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
+      case 'DSLL':
+      case 'DSRL':
+      case 'DSRA':
+      case 'DSLL32':
+      case 'DSRL32':
+      case 'DSRA32': {
+        const encodedShift = c ? parseImmediate(c) : undefined;
+        const shift = encodedShift === undefined ? undefined
+          : encodedShift + (instruction.mnemonic.endsWith('32') ? 32 : 0);
+        if (target && b && shift !== undefined && shift >= 0 && shift < 64) {
+          const source = value(normalizeRegister(b), 64);
+          const shifted = instruction.mnemonic.startsWith('DSRA')
+            ? binary('>>', { kind: 'cast', type: 'int64_t', value: source, width: 64 }, constant(shift), 64)
+            : binary(instruction.mnemonic.startsWith('DSLL') ? '<<' : '>>', source, constant(shift), 64);
+          const result: MicroCExpr = instruction.mnemonic.startsWith('DSRA')
+            ? { kind: 'cast', type: 'uint64_t', value: shifted, width: 64 }
+            : shifted;
+          operations.push({ kind: 'assign', target, value: result });
+        }
+        break;
+      }
+      case 'DSLLV':
+      case 'DSRLV':
+      case 'DSRAV': {
+        if (target && b && c) {
+          const source = value(normalizeRegister(b), 64);
+          const shift = binary('&', value(normalizeRegister(c), 64), constant(0x3f), 64);
+          const shifted = instruction.mnemonic === 'DSRAV'
+            ? binary('>>', { kind: 'cast', type: 'int64_t', value: source, width: 64 }, shift, 64)
+            : binary(instruction.mnemonic === 'DSLLV' ? '<<' : '>>', source, shift, 64);
+          const result: MicroCExpr = instruction.mnemonic === 'DSRAV'
+            ? { kind: 'cast', type: 'uint64_t', value: shifted, width: 64 }
+            : shifted;
+          operations.push({ kind: 'assign', target, value: result });
+        }
+        break;
+      }
       case 'ADDIU':
       case 'ANDI':
       case 'ORI':
