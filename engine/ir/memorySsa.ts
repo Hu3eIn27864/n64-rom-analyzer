@@ -116,7 +116,6 @@ export function buildMemorySSAForCFG(
     byId.set(block.id, block);
   }
 
-  const successors = new Map<number, number[]>(blocks.map(block => [block.id, []]));
   for (const block of blocks) {
     const uniquePredecessors = new Set(block.predecessors);
     if (uniquePredecessors.size !== block.predecessors.length) {
@@ -126,7 +125,6 @@ export function buildMemorySSAForCFG(
       if (!byId.has(predecessor)) {
         throw new Error('unknown predecessor ' + predecessor + ' for memory CFG block ' + block.id);
       }
-      successors.get(predecessor)!.push(block.id);
     }
   }
 
