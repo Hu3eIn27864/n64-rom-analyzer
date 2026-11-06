@@ -312,3 +312,20 @@ test('structured decompilation rejects unsupported CFG shapes instead of guessin
     /two-way terminal branch/,
   );
 });
+
+
+test('structured decompilation refuses IR with unsupported instruction diagnostics', () => {
+  const incomplete: FunctionIR = {
+    ...ir,
+    unsupportedInstructions: [{
+      address: 0x1004,
+      mnemonic: 'MFC0',
+      reason: 'CP0 register access requires privilege checks and register-specific masks',
+    }],
+  };
+
+  assert.throws(
+    () => decompileStructuredFunctionIR(incomplete),
+    /refuses 1 unsupported instruction diagnostic.*0x00001004 MFC0.*privilege checks/,
+  );
+});

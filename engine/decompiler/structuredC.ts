@@ -794,6 +794,23 @@ function isLoopWithPhi(ir: FunctionIR): boolean {
  * guessed; all function identity still comes from FunctionIR.functionAddress.
  */
 export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
+  // COP1 FCC provenance is an informational analysis diagnostic when the
+  // branch operation itself is present: the runtime branch reads the selected
+  // FCSR condition-code bit directly. All diagnostics for omitted semantics
+  // remain fatal to structured lowering.
+  const unsupported = (ir.unsupportedInstructions ?? []).filter(item =>
+    item.reason !== 'COP1 condition-code provenance is not yet modeled',
+  );
+  if (unsupported.length > 0) {
+    const details = unsupported.slice(0, 5).map(item =>
+      '0x' + (item.address >>> 0).toString(16).padStart(8, '0') + ' ' + item.mnemonic + ': ' + item.reason,
+    ).join('; ');
+    const omitted = unsupported.length > 5 ? '; ' + (unsupported.length - 5) + ' more' : '';
+    throw new Error(
+      'structured decompilation refuses ' + unsupported.length
+      + ' unsupported instruction diagnostic(s): ' + details + omitted,
+    );
+  }
   const operations = ir.blocks.flatMap(block => block.operations);
   const fpuOperations = operations.filter(operation => operation.kind === 'fpuLoad'
     || operation.kind === 'fpuStore'
