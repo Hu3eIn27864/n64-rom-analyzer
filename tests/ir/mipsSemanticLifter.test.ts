@@ -77,3 +77,17 @@ test('preserves unsupported-instruction diagnostics when lifting CFG blocks', ()
   }]);
   assert.deepEqual(lifted.unsupportedInstructions?.map(item => item.mnemonic), ['JALR']);
 });
+
+
+test('does not flag a direct jump already represented by the CFG terminator', () => {
+  const lifted = liftBasicBlocks(0x80000000, [{
+    id: 0,
+    start: 0x80000000,
+    end: 0x80000004,
+    instructions: [instruction('J', ['0x80000010'], 0x80000010)],
+    predecessors: [],
+    successors: [1],
+    terminator: 'jump',
+  }]);
+  assert.deepEqual(lifted.unsupportedInstructions, undefined);
+});
