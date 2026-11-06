@@ -333,6 +333,46 @@ test('lowers COP1 compares with predicate selection, FCC writes and FCSR invalid
 });
 
 
+test('lifts typed COP1 arithmetic with FR-aware double register constraints', () => {
+  const addSingle = createMipsInstruction({
+    address: 0x80008300, raw: 0, mnemonic: 'ADD.S', operands: ['$f6', '$f2', '$f4'],
+    fpuFormat: 0x10, fpuSourceRegister: 2, fpuTargetRegister: 4, fpuDestinationRegister: 6,
+  });
+  const sqrtDouble = createMipsInstruction({
+    address: 0x80008304, raw: 0, mnemonic: 'SQRT.D', operands: ['$f10', '$f8'],
+    fpuFormat: 0x11, fpuSourceRegister: 8, fpuTargetRegister: 0, fpuDestinationRegister: 10,
+  });
+  const ir = liftInstructionsToMicroC(0x80008300, [addSingle, sqrtDouble]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind), ['fpuArithmetic', 'fpuArithmetic']);
+  const single = ir.blocks[0].operations[0];
+  assert.deepEqual(single, {
+    kind: 'fpuArithmetic', operation: 'add', format: 'S',
+    sourceRegister: 2, targetRegister: 4, destinationRegister: 6, registerMode: 'status-fr',
+  });
+  const double = ir.blocks[0].operations[1];
+  assert.equal(double?.kind === 'fpuArithmetic' ? double.operation : undefined, 'sqrt');
+  assert.equal(double?.kind === 'fpuArithmetic' ? double.registerConstraint : undefined, 'even-when-fr0');
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_fpu_arithmetic_s\(fpu, 0, 2, 4, 6\)/);
+  assert.match(c, /vr4300_fpu_arithmetic_d\(fpu, 4, 8, 0, 10\)/);
+  assert.match(c, /fesetround/);
+  assert.match(c, /FE_TOWARDZERO/);
+  assert.match(c, /vr4300_fpu_commit_arithmetic_exceptions/);
+  assert.match(c, /FE_INVALID/);
+});
+
+test('lifts CFC1 FCSR reads as typed control-register operations', () => {
+  const cfc1 = instruction('CFC1', ['$t0', 'fcr31']);
+  const ir = liftInstructionsToMicroC(0x80008400, [cfc1]);
+  assert.deepEqual(ir.blocks[0].operations, [{
+    kind: 'fpuControlRead', controlRegister: 31, gpr: 'rt0', gprSemantics: 'mode-dependent',
+  }]);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_fpu_read_fcsr/);
+  assert.match(c, /fpu->gpr64_mode/);
+  assert.match(c, /\(\(int32_t\)/);
+});
+
 test('lowers BC1 predicates by reading the selected FCSR condition-code bit', () => {
   const branchInstruction = createMipsInstruction({
     address: 0x80008200, raw: 0, mnemonic: 'BC1T',
