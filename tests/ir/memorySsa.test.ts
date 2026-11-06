@@ -184,3 +184,42 @@ test('does not propagate probable or unknown locations across CFG edges', () => 
   assert.equal(result.accesses[3].confidence, 'unknown');
   assert.equal(result.accesses[3].reachingVersion, undefined);
 });
+
+
+test('annotates exact byte-range overlaps without conflating access widths', () => {
+  const result = buildMemorySSA([
+    { kind: 'def', address: '0x10($sp)', size: 4, blockId: 0 },
+    { kind: 'use', address: '0x12($sp)', size: 2, blockId: 0 },
+    { kind: 'use', address: '0x14($sp)', size: 4, blockId: 0 },
+    { kind: 'def', address: '0x10($fp)', size: 4, blockId: 0 },
+    { kind: 'use', address: '0xfffffffc($sp)', size: 4, blockId: 0 },
+  ]);
+
+  assert.deepEqual(result.accesses.map(access => access.overlappingAccesses ?? []), [
+    [1],
+    [0],
+    [],
+    [],
+    [],
+  ]);
+  // A partial-width overlap is not promoted to an exact reaching definition.
+  assert.equal(result.accesses[1].reachingVersion, 0);
+});
+
+test('reports overlap symmetrically across CFG blocks but keeps bases distinct', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x20($sp)', size: 8, blockId: 0 },
+    { kind: 'use', address: '0x24($sp)', size: 4, blockId: 1 },
+    { kind: 'use', address: '0x24($fp)', size: 4, blockId: 1 },
+  ], [
+    { id: 0, predecessors: [] },
+    { id: 1, predecessors: [0] },
+  ]);
+
+  assert.deepEqual(result.accesses.map(access => access.overlappingAccesses ?? []), [
+    [1],
+    [0],
+    [],
+  ]);
+  assert.equal(result.accesses[1].reachingVersion, 0);
+});
