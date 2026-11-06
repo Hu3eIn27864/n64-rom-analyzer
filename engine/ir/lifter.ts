@@ -159,7 +159,7 @@ export function liftInstructionsToMicroC(
         const register = parseFpuRegister(a);
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'SWC1' ? 4 : 8;
-        if (register !== undefined && address) operations.push({ kind: 'fpuStore', register, address, size, ...(size === 8 ? { modeConstraint: 'kernel-or-64bit' as const, registerConstraint: 'even-when-fr0' as const } : {}), registerMode: 'status-fr' });
+        if (register !== undefined && address) operations.push({ kind: 'fpuStore', register, address, size, ...(size === 8 ? { registerConstraint: 'even-when-fr0' as const } : {}), registerMode: 'status-fr' });
         break;
       }
       case 'MFC1':
