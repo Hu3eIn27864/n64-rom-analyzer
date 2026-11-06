@@ -640,6 +640,89 @@ static inline bool vr4300_fpu_convert_s_to_d(vr4300_fpu_state *fpu, unsigned fs,
     return vr4300_fpu_write_d_register(fpu, fd, result);
 }
 
+/* The VR4300 implements 64-bit fixed-point conversions only in 64-bit
+ * mode or 32-bit Kernel mode. Out-of-range, infinite, and NaN inputs use
+ * Unimplemented Operation (NEC VR4300 UM §17.5 and Appendix D). */
+static inline bool vr4300_fpu_check_long_conversion(vr4300_fpu_state *fpu)
+{
+    if (!vr4300_fpu_check_cop1(fpu)) return false;
+    if (!fpu->mode64_or_kernel) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u; /* Reserved Instruction */
+        return false;
+    }
+    return true;
+}
+
+static inline bool vr4300_fpu_convert_long(
+    vr4300_fpu_state *fpu, unsigned operation, double input, unsigned fd)
+{
+    const int requested = operation == 0u ? vr4300_fpu_host_rounding(fpu->fcsr)
+        : operation == 1u ? FE_TONEAREST
+        : operation == 2u ? FE_TOWARDZERO
+        : operation == 3u ? FE_UPWARD
+        : operation == 4u ? FE_DOWNWARD : -1;
+    if (requested == -1) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u;
+        return false;
+    }
+    if (!isfinite(input)) return vr4300_fpu_raise_unimplemented(fpu);
+
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, requested)) return false;
+    volatile double rounded;
+    switch (operation) {
+        case 0: case 1: rounded = rint(input); break;
+        case 2: rounded = trunc(input); break;
+        case 3: rounded = ceil(input); break;
+        case 4: rounded = floor(input); break;
+        default: {
+            int ignored;
+            (void)vr4300_fpu_end_host_fenv(fpu, &saved_env, &ignored);
+            fpu->exception_pending = true;
+            fpu->exception_code = 10u;
+            return false;
+        }
+    }
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
+    if (rounded < -9223372036854775808.0 || rounded >= 9223372036854775808.0)
+        return vr4300_fpu_raise_unimplemented(fpu);
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
+    const int64_t integer = (int64_t)rounded;
+    uint64_t result_bits;
+    memcpy(&result_bits, &integer, sizeof(result_bits));
+    return vr4300_fpu_write_d_register(fpu, fd, result_bits);
+}
+
+static inline bool vr4300_fpu_convert_long_s(
+    vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned fd)
+{
+    if (!vr4300_fpu_check_long_conversion(fpu)) return false;
+    const uint32_t bits = vr4300_fpu_read_s(fpu, fs);
+    if (!vr4300_fpu_check_operand_s(fpu, bits)) return false;
+    if ((bits & UINT32_C(0x7f800000)) == UINT32_C(0x7f800000))
+        return vr4300_fpu_raise_unimplemented(fpu);
+    float value;
+    memcpy(&value, &bits, sizeof(value));
+    return vr4300_fpu_convert_long(fpu, operation, (double)value, fd);
+}
+
+static inline bool vr4300_fpu_convert_long_d(
+    vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned fd)
+{
+    if (!vr4300_fpu_check_long_conversion(fpu)) return false;
+    uint64_t bits;
+    if (!vr4300_fpu_read_d_register(fpu, fs, &bits)) return false;
+    if (!vr4300_fpu_check_operand_d(fpu, bits)) return false;
+    if ((bits & UINT64_C(0x7ff0000000000000)) == UINT64_C(0x7ff0000000000000))
+        return vr4300_fpu_raise_unimplemented(fpu);
+    double value;
+    memcpy(&value, &bits, sizeof(value));
+    return vr4300_fpu_convert_long(fpu, operation, value, fd);
+}
+
 static inline bool vr4300_fpu_read_fir(vr4300_fpu_state *fpu, uint32_t *value)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
