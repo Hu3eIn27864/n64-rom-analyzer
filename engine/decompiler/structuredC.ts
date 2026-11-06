@@ -508,8 +508,9 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     || operation.kind === 'fpuTransfer'
     || operation.kind === 'fpuCompare'
     || operation.kind === 'fpuControlWrite');
-  const usesFpuState = fpuOperations.length > 0 || operations.some(operation =>
+  const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
+  const usesFpuState = fpuOperations.length > 0 || hasFccBranch;
   let lowered: CFunction;
   if (ir.blocks.length === 1) {
     lowered = lowerSingleBlock(ir);
@@ -530,6 +531,9 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     ...lowered,
     parameters: [{ name: 'fpu', type: 'vr4300_fpu_state *' }],
     useVoidForEmptyParameters: false,
+    body: hasFccBranch
+      ? [returnIfFalse(cCall('vr4300_fpu_check_cop1', [cVariable('fpu')], 'uint32_t')), ...lowered.body]
+      : lowered.body,
     preamble: [VR4300_FPU_C_RUNTIME],
   };
 }
