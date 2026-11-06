@@ -185,8 +185,10 @@ test('recovers and analyzes direct-call-reachable functions across explicit ROM 
     callee.analysis.memorySSA.accesses[0].version);
   assert.deepEqual(result.unresolvedDirectTargets, []);
   assert.deepEqual(result.unresolvedIndirectCallers, []);
-  assert.equal(result.memoryEffects.get(0x80001000)?.unknown, false);
-  assert.equal(result.memoryEffects.get(0x80002000)?.unknown, false);
+  // Stack-relative addresses are not yet constant-address summaries, so both
+  // functions remain conservative rather than claiming a complete effect set.
+  assert.equal(result.memoryEffects.get(0x80001000)?.unknown, true);
+  assert.equal(result.memoryEffects.get(0x80002000)?.unknown, true);
   assert.deepEqual(result.callMemoryValidations.map(item => [item.address, item.validation.valid]), [
     [0x80001000, true],
     [0x80002000, true],
