@@ -332,6 +332,47 @@ static inline bool vr4300_fpu_commit_arithmetic_exceptions(vr4300_fpu_state *fpu
     return true;
 }
 
+/* VR4300 FS handling for denormalized and underflow results. */
+static inline uint32_t vr4300_fpu_flush_result_s(vr4300_fpu_state *fpu, uint32_t bits)
+{
+    const bool negative = (bits & UINT32_C(0x80000000)) != 0;
+    const unsigned rounding = fpu->fcsr & 3u;
+    const bool minimum_normal = (rounding == 2u && !negative) || (rounding == 3u && negative);
+    return (negative ? UINT32_C(0x80000000) : 0u) | (minimum_normal ? UINT32_C(0x00800000) : 0u);
+}
+
+static inline uint64_t vr4300_fpu_flush_result_d(vr4300_fpu_state *fpu, uint64_t bits)
+{
+    const bool negative = (bits & UINT64_C(0x8000000000000000)) != 0;
+    const unsigned rounding = fpu->fcsr & 3u;
+    const bool minimum_normal = (rounding == 2u && !negative) || (rounding == 3u && negative);
+    return (negative ? UINT64_C(0x8000000000000000) : 0u) | (minimum_normal ? UINT64_C(0x0010000000000000) : 0u);
+}
+
+static inline bool vr4300_fpu_commit_result_s(vr4300_fpu_state *fpu, int raised, uint32_t *bits)
+{
+    const bool denormal = (*bits & UINT32_C(0x7f800000)) == 0 && (*bits & UINT32_C(0x007fffff)) != 0;
+    if (!denormal && (raised & FE_UNDERFLOW) == 0) return vr4300_fpu_commit_arithmetic_exceptions(fpu, raised);
+    if ((fpu->fcsr & ((UINT32_C(1) << 8) | (UINT32_C(1) << 7))) != 0 || (fpu->fcsr & (UINT32_C(1) << 24)) == 0)
+        return vr4300_fpu_raise_unimplemented(fpu);
+    fpu->fcsr &= ~(UINT32_C(0x3f) << 12);
+    fpu->fcsr |= (UINT32_C(1) << 13) | (UINT32_C(1) << 12) | (UINT32_C(1) << 3) | (UINT32_C(1) << 2);
+    *bits = vr4300_fpu_flush_result_s(fpu, *bits);
+    return true;
+}
+
+static inline bool vr4300_fpu_commit_result_d(vr4300_fpu_state *fpu, int raised, uint64_t *bits)
+{
+    const bool denormal = (*bits & UINT64_C(0x7ff0000000000000)) == 0 && (*bits & UINT64_C(0x000fffffffffffff)) != 0;
+    if (!denormal && (raised & FE_UNDERFLOW) == 0) return vr4300_fpu_commit_arithmetic_exceptions(fpu, raised);
+    if ((fpu->fcsr & ((UINT32_C(1) << 8) | (UINT32_C(1) << 7))) != 0 || (fpu->fcsr & (UINT32_C(1) << 24)) == 0)
+        return vr4300_fpu_raise_unimplemented(fpu);
+    fpu->fcsr &= ~(UINT32_C(0x3f) << 12);
+    fpu->fcsr |= (UINT32_C(1) << 13) | (UINT32_C(1) << 12) | (UINT32_C(1) << 3) | (UINT32_C(1) << 2);
+    *bits = vr4300_fpu_flush_result_d(fpu, *bits);
+    return true;
+}
+
 static inline int vr4300_fpu_host_rounding(uint32_t fcsr)
 {
     switch (fcsr & 3u) {
@@ -401,10 +442,10 @@ static inline bool vr4300_fpu_arithmetic_s(
     }
     int raised;
     if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
-    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     uint32_t result_bits;
     float rounded = result;
     memcpy(&result_bits, &rounded, sizeof(result_bits));
+    if (!vr4300_fpu_commit_result_s(fpu, raised, &result_bits)) return false;
     return vr4300_fpu_write_s(fpu, fd, result_bits);
 }
 
@@ -446,10 +487,10 @@ static inline bool vr4300_fpu_arithmetic_d(
     }
     int raised;
     if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
-    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     uint64_t result_bits;
     double rounded = result;
     memcpy(&result_bits, &rounded, sizeof(result_bits));
+    if (!vr4300_fpu_commit_result_d(fpu, raised, &result_bits)) return false;
     return vr4300_fpu_write_d_register(fpu, fd, result_bits);
 }
 
@@ -572,10 +613,10 @@ static inline bool vr4300_fpu_convert_d_to_s(vr4300_fpu_state *fpu, unsigned fs,
     volatile float converted = (float)input;
     int raised;
     if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
-    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     uint32_t result;
     float value = converted;
     memcpy(&result, &value, sizeof(result));
+    if (!vr4300_fpu_commit_result_s(fpu, raised, &result)) return false;
     return vr4300_fpu_write_s(fpu, fd, result);
 }
 
