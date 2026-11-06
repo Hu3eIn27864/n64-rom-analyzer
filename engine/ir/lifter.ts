@@ -119,24 +119,25 @@ export function liftInstructionsToMicroC(
       case 'LB':
       case 'LBU':
       case 'LHU':
-      case 'LWU':
-      case 'LD': {
+      case 'LWU': {
         const address = b ? memoryAddress(b) : undefined;
         const size = instruction.mnemonic === 'LB' || instruction.mnemonic === 'LBU' ? 1
           : instruction.mnemonic === 'LH' || instruction.mnemonic === 'LHU' ? 2
           : instruction.mnemonic === 'LD' ? 8 : 4;
-        if (target && address) operations.push({ kind: 'load', target, address, size: size as 1 | 2 | 4 | 8 });
+        if (target && address) operations.push({ kind: 'load', target, address, size: size as 1 | 2 | 4, signed: !['LBU', 'LHU', 'LWU'].includes(instruction.mnemonic) });
         break;
       }
       case 'SW':
       case 'SH':
-      case 'SB':
-      case 'SD': {
+      case 'SB': {
         const address = b ? memoryAddress(b) : undefined;
-        const size = instruction.mnemonic === 'SB' ? 1 : instruction.mnemonic === 'SH' ? 2 : instruction.mnemonic === 'SD' ? 8 : 4;
+        const size = instruction.mnemonic === 'SB' ? 1 : instruction.mnemonic === 'SH' ? 2 : 4;
         if (a && address) operations.push({ kind: 'store', address, value: value(normalizeRegister(a)), size: size as 1 | 2 | 4 | 8 });
         break;
       }
+      case 'LD':
+      case 'SD':
+        break;
       case 'LWC1':
       case 'LDC1': {
         const register = parseFpuRegister(a);
