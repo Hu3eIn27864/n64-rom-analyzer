@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeMappedRomFunction, analyzeRomFunction } from '../../engine/analysis/romFunctionAnalysis';
+import { analyzeMappedRomFunction, analyzeMappedRomProgram, analyzeRomFunction } from '../../engine/analysis/romFunctionAnalysis';
 import type { RomFunctionEntry } from '../../engine/decompiler/romFunctionEntry';
 
 const entry: RomFunctionEntry = { address: 0x80001000, romOffset: 0 };
@@ -139,4 +139,70 @@ test('decodes a function across non-contiguous ROM segments using each virtual a
   assert.equal(result.cfg.blocks.length, 3);
   assert.ok(result.cfg.blocks.some(block => block.startAddress === 0x80002000));
   assert.equal(result.instructionCount, 6);
+});
+
+
+test('recovers and analyzes direct-call-reachable functions across explicit ROM segments', () => {
+  const rom = new Uint8Array(0x190);
+  const view = new DataView(rom.buffer);
+  const mappedWords = [
+    [0x100, 0x0c000800], // jal 0x80002000
+    [0x104, 0x00000000], // call delay slot
+    [0x108, 0x03e00008], // root return
+    [0x10c, 0x00000000],
+    [0x180, 0xafa80000], // callee: sw t0,0(sp)
+    [0x184, 0x8fa20000], // lw v0,0(sp)
+    [0x188, 0x03e00008],
+    [0x18c, 0x00000000],
+  ] as const;
+  for (const [offset, word] of mappedWords) view.setUint32(offset, word, false);
+
+  const result = analyzeMappedRomProgram(rom, [
+    {
+      romStart: 0x100,
+      romEnd: 0x110,
+      vramStart: 0x80001000,
+      vramEnd: 0x80001010,
+      type: 'code',
+    },
+    {
+      romStart: 0x180,
+      romEnd: 0x190,
+      vramStart: 0x80002000,
+      vramEnd: 0x80002010,
+      type: 'code',
+    },
+  ], [0x80001000]);
+
+  assert.deepEqual(result.structural.functions.map(fn => fn.address), [0x80001000, 0x80002000]);
+  assert.deepEqual(result.structural.callGraph.edges, [
+    { from: 0x80001000, to: 0x80002000, kind: 'direct-jal' },
+  ]);
+  assert.deepEqual(result.functions.map(fn => fn.address), [0x80001000, 0x80002000]);
+  assert.deepEqual(result.failures, []);
+  const callee = result.functions.find(fn => fn.address === 0x80002000)!;
+  assert.equal(callee.analysis.memorySSA.accesses[1].reachingVersion,
+    callee.analysis.memorySSA.accesses[0].version);
+  assert.deepEqual(result.unresolvedDirectTargets, []);
+  assert.deepEqual(result.unresolvedIndirectCallers, []);
+});
+
+test('reports direct call targets that are not covered by the validated segment map', () => {
+  const rom = new Uint8Array(0x110);
+  const view = new DataView(rom.buffer);
+  view.setUint32(0x100, 0x0c000800, false); // jal 0x80002000
+  view.setUint32(0x104, 0x00000000, false);
+  view.setUint32(0x108, 0x03e00008, false);
+  view.setUint32(0x10c, 0x00000000, false);
+
+  const result = analyzeMappedRomProgram(rom, [{
+    romStart: 0x100,
+    romEnd: 0x110,
+    vramStart: 0x80001000,
+    vramEnd: 0x80001010,
+    type: 'code',
+  }], [0x80001000]);
+
+  assert.deepEqual(result.structural.functions.map(fn => fn.address), [0x80001000]);
+  assert.deepEqual(result.unresolvedDirectTargets, [0x80002000]);
 });
