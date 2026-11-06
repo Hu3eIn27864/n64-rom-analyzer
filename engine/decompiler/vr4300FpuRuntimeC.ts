@@ -121,7 +121,7 @@ static inline bool vr4300_fpu_read_d(vr4300_fpu_state *fpu, unsigned reg, uint64
     if (fpu->status & (1u << 26)) {
         *bits = fpu->wide[reg];
     } else {
-        *bits = ((uint64_t)fpu->words[reg] << 32) | fpu->words[reg + 1];
+        *bits = ((uint64_t)fpu->words[reg + 1] << 32) | fpu->words[reg];
     }
     return true;
 }
@@ -132,7 +132,7 @@ static inline bool vr4300_fpu_read_compare_d(vr4300_fpu_state *fpu, unsigned reg
     if (fpu->status & (1u << 26)) {
         *bits = fpu->wide[reg];
     } else {
-        *bits = ((uint64_t)fpu->words[reg] << 32) | fpu->words[reg + 1];
+        *bits = ((uint64_t)fpu->words[reg + 1] << 32) | fpu->words[reg];
     }
     return true;
 }
@@ -143,8 +143,8 @@ static inline bool vr4300_fpu_write_d(vr4300_fpu_state *fpu, unsigned reg, uint6
     if (fpu->status & (1u << 26)) {
         fpu->wide[reg] = bits;
     } else {
-        fpu->words[reg] = (uint32_t)(bits >> 32);
-        fpu->words[reg + 1] = (uint32_t)bits;
+        fpu->words[reg] = (uint32_t)bits;
+        fpu->words[reg + 1] = (uint32_t)(bits >> 32);
     }
     return true;
 }
