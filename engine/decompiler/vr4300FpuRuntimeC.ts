@@ -268,15 +268,18 @@ static inline bool vr4300_memory_load(vr4300_fpu_state *fpu, uintptr_t address, 
     switch (size) {
     case 1u:
         value = bytes[0];
-        if (is_signed) value = (uint64_t)(int64_t)(int8_t)value;
+        if (is_signed && (value & UINT64_C(0x80)) != 0u)
+            value |= UINT64_C(0xffffffffffffff00);
         break;
     case 2u:
         value = ((uint16_t)bytes[0] << 8) | bytes[1];
-        if (is_signed) value = (uint64_t)(int64_t)(int16_t)value;
+        if (is_signed && (value & UINT64_C(0x8000)) != 0u)
+            value |= UINT64_C(0xffffffffffff0000);
         break;
     case 4u:
         value = vr4300_fpu_read_be32(address);
-        if (is_signed) value = (uint64_t)(int64_t)(int32_t)value;
+        if (is_signed && (value & UINT64_C(0x80000000)) != 0u)
+            value |= UINT64_C(0xffffffff00000000);
         break;
     case 8u:
         value = vr4300_fpu_read_be64(address);
