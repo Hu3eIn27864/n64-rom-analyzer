@@ -12,6 +12,7 @@ export type MicroCOperation =
   | { kind: 'signedArithmetic'; operation: 'add' | 'sub'; target: string; left: MicroCExpr; right: MicroCExpr; width: 32 | 64 }
   | { kind: 'hiloTransfer'; direction: 'from-hi' | 'from-lo' | 'to-hi' | 'to-lo'; register: string }
   | { kind: 'hiloMultiply'; left: MicroCExpr; right: MicroCExpr; signed: boolean }
+  | { kind: 'hiloDivide'; left: MicroCExpr; right: MicroCExpr; signed: boolean }
   | { kind: 'load'; target: string; address: MicroCExpr; size: 1 | 2 | 4 | 8; signed: boolean }
   | { kind: 'mergeLoad'; target: string; address: MicroCExpr; direction: 'left' | 'right' }
   | { kind: 'store'; address: MicroCExpr; value: MicroCExpr; size: 1 | 2 | 4 | 8 }
