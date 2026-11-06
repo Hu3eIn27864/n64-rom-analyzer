@@ -325,7 +325,8 @@ export function liftInstructionsToMicroC(
             sourceRegister: instruction.fpuSourceRegister!,
             destinationRegister: instruction.fpuDestinationRegister!,
             modeConstraint: 'kernel-or-64bit',
-            registerConstraint: 'even-when-fr0',
+            ...(conversionFormat === 'D' ? { sourceRegisterConstraint: 'even-when-fr0' as const } : {}),
+            destinationRegisterConstraint: 'even-when-fr0',
             registerMode: 'status-fr',
           });
         } else if (!isFormatConversion && isWordConversion) {
