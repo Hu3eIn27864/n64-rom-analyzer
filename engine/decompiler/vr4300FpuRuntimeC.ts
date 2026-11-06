@@ -23,6 +23,7 @@ typedef struct vr4300_fpu_state {
     uint32_t words[32];
     uint64_t wide[32];
     uint32_t fcsr;
+    uint32_t fir; /* FCR0: implementation-defined FPU identification value */
     uint32_t status;
     bool mode64_or_kernel;
     bool gpr64_mode;
@@ -423,6 +424,49 @@ static inline bool vr4300_fpu_convert_word_d(
     double value;
     memcpy(&value, &bits, sizeof(value));
     return vr4300_fpu_convert_word(fpu, operation, value, fd);
+}
+
+
+/* CVT.S.D and CVT.D.S. Conversion is performed under the FCSR RM mode;
+ * the host floating environment is restored before returning. */
+static inline bool vr4300_fpu_convert_d_to_s(vr4300_fpu_state *fpu, unsigned fs, unsigned fd)
+{
+    uint64_t bits;
+    if (!vr4300_fpu_read_compare_d(fpu, fs, &bits)) return false;
+    double input;
+    memcpy(&input, &bits, sizeof(input));
+    int old_round = fegetround();
+    if (old_round == -1 || fesetround(vr4300_fpu_host_rounding(fpu->fcsr)) != 0) {
+        fpu->exception_pending = true; fpu->exception_code = 10u; return false;
+    }
+    feclearexcept(FE_ALL_EXCEPT);
+    volatile float converted = (float)input;
+    int raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
+    fesetround(old_round);
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
+    uint32_t result;
+    float value = converted;
+    memcpy(&result, &value, sizeof(result));
+    return vr4300_fpu_write_s(fpu, fd, result);
+}
+
+static inline bool vr4300_fpu_convert_s_to_d(vr4300_fpu_state *fpu, unsigned fs, unsigned fd)
+{
+    uint32_t bits = vr4300_fpu_read_s(fpu, fs);
+    float input;
+    memcpy(&input, &bits, sizeof(input));
+    /* Every finite binary32 value is exactly representable as binary64. */
+    double converted = (double)input;
+    uint64_t result;
+    memcpy(&result, &converted, sizeof(result));
+    return vr4300_fpu_write_d_register(fpu, fd, result);
+}
+
+static inline bool vr4300_fpu_read_fir(vr4300_fpu_state *fpu, uint32_t *value)
+{
+    if (!vr4300_fpu_check_cop1(fpu)) return false;
+    *value = fpu->fir;
+    return true;
 }
 
 static inline bool vr4300_fpu_read_fcsr(vr4300_fpu_state *fpu, uint32_t *value)
