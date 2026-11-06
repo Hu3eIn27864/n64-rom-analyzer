@@ -36,8 +36,8 @@ import { decodeInstruction } from '../../engine/mips/decoder';
 
 test('decoder-to-lifter audit retains diagnostics for privileged and ordering instructions', () => {
   const words = [
-    0x40086000, // MFC0 $t0, c0_reg12
-    0x40886000, // MTC0 $t0, c0_reg12
+    0x40086003, // MFC0 $t0, c0_reg12_sel3
+    0x40886003, // MTC0 $t0, c0_reg12_sel3
     0x42000008, // TLBP
     0x42000001, // TLBR
     0x42000002, // TLBWI
@@ -52,7 +52,9 @@ test('decoder-to-lifter audit retains diagnostics for privileged and ordering in
   const ir = liftInstructionsToMicroC(0x80006000, decoded);
   assert.deepEqual(ir.blocks[0].operations, []);
   assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), decoded.map(item => item.mnemonic));
-  assert.ok(decoded[0].operands.length === 2 && decoded[1].operands.length === 2);
+  assert.deepEqual(ir.unsupportedInstructions?.slice(0, 2).map(item => item.operands), [
+    ['$t0', 'c0_reg12_sel3'], ['$t0', 'c0_reg12_sel3'],
+  ]);
   assert.deepEqual(decoded.at(-1)?.operands, ['0x1c', '-4($zero)']);
 });
 

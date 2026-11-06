@@ -52,6 +52,8 @@ export interface MicroCBasicBlock {
 export interface UnsupportedInstruction {
   readonly address: number;
   readonly mnemonic: string;
+  /** Original decoded operands, retained even when semantics are unsupported. */
+  readonly operands?: readonly string[];
   readonly reason: string;
 }
 
