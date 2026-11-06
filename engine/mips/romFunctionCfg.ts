@@ -86,7 +86,7 @@ export function decodeRomFunctionCfg(
       }
 
       if (instruction.isConditionalBranch) {
-        if (instruction.targetAddress === undefined) throw new Error(`conditional branch at 0x${address.toString(16)} has no resolved target`);
+        if (instruction.targetAddress === undefined || instruction.targetAddress === after) throw new Error(`conditional branch at 0x${address.toString(16)} has no resolved target`);
         const delay = decodeAt(after);
         instructions.push(delay);
         instructionCount += 1;
@@ -107,8 +107,9 @@ export function decodeRomFunctionCfg(
           successors = [fallthrough];
           pending.push(fallthrough);
         } else if (instruction.targetAddress !== undefined) {
-          // An unconditional jump is a function tail transfer unless separate
-          // evidence establishes that its destination belongs to this function.
+          // Validate a direct target against the evidenced ROM extent, but do
+          // not import the destination into this function's recovered CFG.
+          decodeAt(instruction.targetAddress >>> 0);
           successors = [];
         } else {
           successors = [];
