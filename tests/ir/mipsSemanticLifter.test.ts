@@ -93,14 +93,14 @@ test('lowers memory accesses through width-correct typed pointers', () => {
     instruction('SD', ['$t7', '32($sp)']),
   ]);
   const c = renderFunction(decompileStructuredFunctionIR(ir));
-  assert.match(c, /vr4300_memory_load\\(fpu,/);
-  assert.match(c, /vr4300_memory_store\\(fpu,/);
+  assert.match(c, /vr4300_memory_load\(fpu,/);
+  assert.match(c, /vr4300_memory_store\(fpu,/);
   assert.match(c, /vr4300_memory_adjust_address/);
   assert.match(c, /reverse_endian_enabled/);
   assert.match(c, /vr4300_fpu_memory_alignment/);
   assert.match(c, /vr4300_fpu_read_be64/);
   assert.match(c, /vr4300_fpu_write_be64/);
-  assert.match(c, /vr4300_fpu_state \\* fpu/);
+  assert.match(c, /vr4300_fpu_state \* fpu/);
 
 
 
