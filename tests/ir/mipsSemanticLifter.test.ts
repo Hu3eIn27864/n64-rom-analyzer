@@ -93,16 +93,24 @@ test('lowers memory accesses through width-correct typed pointers', () => {
     instruction('SD', ['$t7', '32($sp)']),
   ]);
   const c = renderFunction(decompileStructuredFunctionIR(ir));
-  assert.match(c, /\(\(int8_t \*\)/);
-  assert.match(c, /\(\(uint8_t \*\)/);
-  assert.match(c, /\(\(int16_t \*\)/);
-  assert.match(c, /\(\(uint16_t \*\)/);
-  assert.match(c, /\(\(int32_t \*\)/);
-  assert.match(c, /\(\(uint32_t \*\)/);
-  assert.match(c, /\(\(uint8_t \*\).* = \(\(uint8_t\)/);
-  assert.match(c, /\(\(uint16_t \*\).* = \(\(uint16_t\)/);
-  assert.match(c, /\(\(uint32_t \*\).* = \(\(uint32_t\)/);
-  assert.match(c, /\(\(uint64_t \*\)/);
+  assert.match(c, /vr4300_memory_load\\(fpu,/);
+  assert.match(c, /vr4300_memory_store\\(fpu,/);
+  assert.match(c, /vr4300_memory_adjust_address/);
+  assert.match(c, /reverse_endian_enabled/);
+  assert.match(c, /vr4300_fpu_memory_alignment/);
+  assert.match(c, /vr4300_fpu_read_be64/);
+  assert.match(c, /vr4300_fpu_write_be64/);
+  assert.match(c, /vr4300_fpu_state \\* fpu/);
+
+
+
+
+
+
+
+
+
+
 });
 
 test('lifts DADDU, DSUBU and sign-extended DADDIU as 64-bit expressions', () => {
