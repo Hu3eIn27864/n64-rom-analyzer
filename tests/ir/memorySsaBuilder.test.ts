@@ -119,10 +119,10 @@ test('maps merge, linked, conditional and FPU memory operations to access widths
       predecessors: [],
       successors: [],
       operations: [
-        { kind: 'mergeLoadWord', target: 'r2', address, direction: 'left' },
-        { kind: 'mergeStoreWord', address, value: { kind: 'value', name: 'r2' }, direction: 'right' },
-        { kind: 'mergeLoad', target: 'r3', address, direction: 'left' },
-        { kind: 'mergeStore', address, value: { kind: 'value', name: 'r3' }, direction: 'right' },
+        { kind: 'mergeLoadWord', target: 'r2', address: stackAddress(3), direction: 'left' },
+        { kind: 'mergeStoreWord', address: stackAddress(1), value: { kind: 'value', name: 'r2' }, direction: 'right' },
+        { kind: 'mergeLoad', target: 'r3', address: stackAddress(7), direction: 'left' },
+        { kind: 'mergeStore', address: stackAddress(2), value: { kind: 'value', name: 'r3' }, direction: 'right' },
         { kind: 'linkedLoad', target: 'r4', address, size: 8, signed: true },
         { kind: 'conditionalStore', target: 'r5', address, value: { kind: 'value', name: 'r6' }, size: 8 },
         { kind: 'fpuLoad', register: 2, address, size: 4, registerMode: 'status-fr' },
@@ -132,10 +132,10 @@ test('maps merge, linked, conditional and FPU memory operations to access widths
   };
 
   assert.deepEqual(collectMemoryAccesses(ir).map(access => [access.kind, access.address, access.size]), [
-    ['use', '0xfffffffc($sp)', 4],
-    ['def', '0xfffffffc($sp)', 4],
-    ['use', '0xfffffffc($sp)', 8],
-    ['def', '0xfffffffc($sp)', 8],
+    ['use', '0x0($sp)', 4],
+    ['def', '0x0($sp)', 4],
+    ['use', '0x0($sp)', 8],
+    ['def', '0x0($sp)', 8],
     ['use', '0xfffffffc($sp)', 8],
     ['def', '0xfffffffc($sp)', 8],
     ['use', '0xfffffffc($sp)', 4],
