@@ -262,6 +262,7 @@ export function liftInstructionsToMicroC(
             predicate: instruction.fpuComparePredicate,
             leftRegister: instruction.fpuSourceRegister,
             rightRegister: instruction.fpuTargetRegister,
+            registerMode: 'status-fr',
           });
           knownFcc.add(conditionCode);
         }
