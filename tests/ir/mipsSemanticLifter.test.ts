@@ -56,7 +56,7 @@ test('lifts memory operations with explicit widths and effective addresses', () 
   ]);
 });
 
-test('preserves signedness for narrow and word loads and rejects unmodeled doubleword GPR memory', () => {
+test('preserves signedness and all four GPR load widths', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LB', ['$t0', '0($sp)']),
     instruction('LBU', ['$t1', '1($sp)']),
@@ -70,8 +70,9 @@ test('preserves signedness for narrow and word loads and rejects unmodeled doubl
 
   assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'load').map(operation =>
     operation.kind === 'load' ? [operation.size, operation.signed] : [],
-  ), [[1, true], [1, false], [2, true], [2, false], [4, true], [4, false]]);
-  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['LD', 'SD']);
+  ), [[1, true], [1, false], [2, true], [2, false], [4, true], [4, false], [8, false]]);
+  assert.equal(ir.blocks[0].operations.at(-1)?.kind, 'store');
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
 test('lowers memory accesses through width-correct typed pointers', () => {
@@ -85,6 +86,8 @@ test('lowers memory accesses through width-correct typed pointers', () => {
     instruction('SB', ['$t0', '16($sp)']),
     instruction('SH', ['$t1', '18($sp)']),
     instruction('SW', ['$t2', '20($sp)']),
+    instruction('LD', ['$t6', '24($sp)']),
+    instruction('SD', ['$t7', '32($sp)']),
   ]);
   const c = renderFunction(decompileStructuredFunctionIR(ir));
   assert.match(c, /\(\(int8_t \*\)/);
@@ -96,6 +99,28 @@ test('lowers memory accesses through width-correct typed pointers', () => {
   assert.match(c, /\(\(uint8_t \*\).* = \(\(uint8_t\)/);
   assert.match(c, /\(\(uint16_t \*\).* = \(\(uint16_t\)/);
   assert.match(c, /\(\(uint32_t \*\).* = \(\(uint32_t\)/);
+});
+
+test('lifts DADDU, DSUBU and sign-extended DADDIU as 64-bit expressions', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('DADDU', ['$t0', '$t1', '$t2']),
+    instruction('DSUBU', ['$t3', '$t4', '$t5']),
+    instruction('DADDIU', ['$t6', '$t7', '0xffff']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation =>
+    operation.kind === 'assign' ? operation.value : undefined,
+  ), [
+    { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt1' }, right: { kind: 'value', name: 'rt2' }, width: 64 },
+    { kind: 'binary', op: '-', left: { kind: 'value', name: 'rt4' }, right: { kind: 'value', name: 'rt5' }, width: 64 },
+    { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt7' }, right: { kind: 'const', value: -1 }, width: 64 },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+
+  const fn = decompileStructuredFunctionIR(ir);
+  for (const statement of fn.body) {
+    assert.equal(statement.expr?.left?.type, 'uint64_t');
+    assert.equal(statement.expr?.right?.type, 'uint64_t');
+  }
 });
 
 test('lifts calls and returns without inventing unknown targets', () => {
