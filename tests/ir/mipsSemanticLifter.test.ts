@@ -462,3 +462,13 @@ test('lifts CFC1 reads of both FIR and FCSR while leaving other control register
   assert.match(c, /vr4300_fpu_read_fcsr/);
   assert.match(c, /uint32_t fir/);
 });
+
+
+test('restores the complete host floating-point environment after VR4300 operations', () => {
+  assert.match(VR4300_FPU_C_RUNTIME, /fegetenv\(saved\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /fesetenv\(saved\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_begin_host_fenv\(fpu, &saved_env/);
+  assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_end_host_fenv\(fpu, &saved_env, &raised\)/);
+  assert.doesNotMatch(VR4300_FPU_C_RUNTIME, /fegetround\(\)|fesetround\(old_round\)/);
+  assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 4);
+});
