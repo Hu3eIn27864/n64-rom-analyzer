@@ -433,11 +433,14 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
     if (imm16 === 0x0480) comment = 'SI (Serial Interface) Base Address';
     if (imm16 === 0x8000) comment = 'RDRAM KSEG0 Base Pointer';
   } else if (opcode === 0x10) {
-    // COP0
-    if (rs === 0x00) { opcodeName = 'MFC0'; asm = `mfc0 ${rtName}, c0_reg${rd}`; args = [rtName, `c0_reg${rd}`]; }
-    else if (rs === 0x01) { opcodeName = 'DMFC0'; asm = `dmfc0 ${rtName}, c0_reg${rd}`; args = [rtName, `c0_reg${rd}`]; }
-    else if (rs === 0x04) { opcodeName = 'MTC0'; asm = `mtc0 ${rtName}, c0_reg${rd}`; args = [rtName, `c0_reg${rd}`]; }
-    else if (rs === 0x05) { opcodeName = 'DMTC0'; asm = `dmtc0 ${rtName}, c0_reg${rd}`; args = [rtName, `c0_reg${rd}`]; }
+    // COP0 transfer register selects are part of the architectural register
+    // identity; retain them even when the common select-zero form is used.
+    const cp0Select = word & 0x7;
+    const cp0Register = cp0Select === 0 ? `c0_reg${rd}` : `c0_reg${rd}_sel${cp0Select}`;
+    if (rs === 0x00) { opcodeName = 'MFC0'; asm = `mfc0 ${rtName}, ${cp0Register}`; args = [rtName, cp0Register]; }
+    else if (rs === 0x01) { opcodeName = 'DMFC0'; asm = `dmfc0 ${rtName}, ${cp0Register}`; args = [rtName, cp0Register]; }
+    else if (rs === 0x04) { opcodeName = 'MTC0'; asm = `mtc0 ${rtName}, ${cp0Register}`; args = [rtName, cp0Register]; }
+    else if (rs === 0x05) { opcodeName = 'DMTC0'; asm = `dmtc0 ${rtName}, ${cp0Register}`; args = [rtName, cp0Register]; }
     else if (funct === 0x18) { opcodeName = 'ERET'; asm = 'eret'; }
     else if (funct === 0x01) { opcodeName = 'TLBR'; asm = 'tlbr'; }
     else if (funct === 0x02) { opcodeName = 'TLBWI'; asm = 'tlbwi'; }
