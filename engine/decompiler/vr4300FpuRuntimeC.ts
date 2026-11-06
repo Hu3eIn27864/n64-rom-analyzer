@@ -158,6 +158,52 @@ static inline uintptr_t vr4300_memory_adjust_address(vr4300_fpu_state *fpu, uint
     return address;
 }
 
+static inline bool vr4300_memory_merge_load64(vr4300_fpu_state *fpu, uintptr_t address, uint64_t current, bool left, uint64_t *result)
+{
+    if (!fpu->mode64_or_kernel) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u; /* Reserved Instruction */
+        return false;
+    }
+
+    unsigned lane = (unsigned)(address & 7u);
+    if (fpu->reverse_endian_enabled) lane ^= 7u;
+    const uintptr_t base = address & ~(uintptr_t)7u;
+    const uint8_t *bytes = (const uint8_t *)base;
+    uint64_t merged = current;
+    const unsigned count = left ? 8u - lane : lane + 1u;
+    for (unsigned i = 0; i < count; ++i) {
+        const unsigned register_byte = left ? i : 8u - count + i;
+        const unsigned shift = 56u - 8u * register_byte;
+        const uint64_t mask = UINT64_C(0xff) << shift;
+        const uint64_t byte = (uint64_t)bytes[left ? lane + i : i] << shift;
+        merged = (merged & ~mask) | byte;
+    }
+    *result = merged;
+    return true;
+}
+
+static inline bool vr4300_memory_merge_store64(vr4300_fpu_state *fpu, uintptr_t address, uint64_t value, bool left)
+{
+    if (!fpu->mode64_or_kernel) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u; /* Reserved Instruction */
+        return false;
+    }
+
+    unsigned lane = (unsigned)(address & 7u);
+    if (fpu->reverse_endian_enabled) lane ^= 7u;
+    const uintptr_t base = address & ~(uintptr_t)7u;
+    uint8_t *bytes = (uint8_t *)base;
+    const unsigned count = left ? 8u - lane : lane + 1u;
+    for (unsigned i = 0; i < count; ++i) {
+        const unsigned register_byte = left ? i : 8u - count + i;
+        const unsigned memory_byte = left ? lane + i : i;
+        bytes[memory_byte] = (uint8_t)(value >> (56u - 8u * register_byte));
+    }
+    return true;
+}
+
 static inline bool vr4300_memory_load(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, bool is_signed, uint64_t *result)
 {
     address = vr4300_memory_adjust_address(fpu, address, size);
