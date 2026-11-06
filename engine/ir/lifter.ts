@@ -186,9 +186,9 @@ export function liftInstructionsToMicroC(
       }
       case 'CTC1': {
         const controlRegister = parseControlRegister(b);
-        if (a && controlRegister !== undefined) {
+        if (a && controlRegister === 31) {
           operations.push({ kind: 'fpuControlWrite', controlRegister, value: value(normalizeRegister(a)) });
-          if (controlRegister === 31) knownFcc.clear();
+          knownFcc.clear();
         }
         break;
       }
