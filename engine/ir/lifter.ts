@@ -104,6 +104,15 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
+      case 'DIV':
+      case 'DIVU':
+        if (a && b) operations.push({
+          kind: 'hiloDivideWord',
+          left: value(normalizeRegister(a), 32),
+          right: value(normalizeRegister(b), 32),
+          signed: instruction.mnemonic === 'DIV',
+        });
+        break;
       case 'DDIV':
       case 'DDIVU':
         if (a && b) operations.push({
@@ -111,6 +120,15 @@ export function liftInstructionsToMicroC(
           left: value(normalizeRegister(a), 64),
           right: value(normalizeRegister(b), 64),
           signed: instruction.mnemonic === 'DDIV',
+        });
+        break;
+      case 'MULT':
+      case 'MULTU':
+        if (a && b) operations.push({
+          kind: 'hiloMultiplyWord',
+          left: value(normalizeRegister(a), 32),
+          right: value(normalizeRegister(b), 32),
+          signed: instruction.mnemonic === 'MULT',
         });
         break;
       case 'DMULT':
