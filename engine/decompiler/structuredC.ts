@@ -167,6 +167,24 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       };
     }
 
+    case 'mergeLoad': {
+      const temporary = `__merge_load_${operation.target}`;
+      const read = cCall('vr4300_memory_merge_load64', [
+        cVariable('fpu'),
+        fpuAddress(operation.address),
+        cVariable(operation.target, 'uint64_t'),
+        cConstant(operation.direction === 'left' ? 1 : 0),
+        { kind: 'unary', op: '&', operand: cVariable(temporary, 'uint64_t'), type: 'pointer' },
+      ], 'uint32_t');
+      return {
+        kind: 'block',
+        body: [
+          { kind: 'decl', name: temporary, type: 'uint64_t' },
+          returnIfFalse(read),
+          typedAssignment(operation.target, 'uint64_t', cVariable(temporary, 'uint64_t')),
+        ],
+      };
+    }
     case 'load': {
       const temporary = `__memory_load_${operation.target}`;
       const read = cCall('vr4300_memory_load', [
@@ -185,6 +203,13 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
         ],
       };
     }
+    case 'mergeStore':
+      return returnIfFalse(cCall('vr4300_memory_merge_store64', [
+        cVariable('fpu'),
+        fpuAddress(operation.address),
+        lowerExpr(operation.value, 64),
+        cConstant(operation.direction === 'left' ? 1 : 0),
+      ], 'uint32_t'));
     case 'store': {
       return returnIfFalse(cCall('vr4300_memory_store', [
         cVariable('fpu'),
@@ -703,7 +728,7 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     || operation.kind === 'fpuConvertLong');
   const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
-  const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store');
+  const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store' || operation.kind === 'mergeLoad' || operation.kind === 'mergeStore');
   const hasSignedArithmetic = operations.some(operation => operation.kind === 'signedArithmetic');
   const hasHiloTransfer = operations.some(operation => operation.kind === 'hiloTransfer' || operation.kind === 'hiloMultiply');
   const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory || hasSignedArithmetic || hasHiloTransfer;
