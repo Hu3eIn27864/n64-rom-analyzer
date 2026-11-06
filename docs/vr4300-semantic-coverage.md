@@ -6,15 +6,15 @@ This ledger distinguishes decoding from semantic lifting. A mnemonic appearing i
 
 - Integer ALU: supported operations are represented in `engine/ir/lifter.ts`; signed overflow and 64-bit mode restrictions are explicit where modeled.
 - HI/LO: word and doubleword multiply/divide plus HI/LO transfers.
-- Integer memory: byte/halfword/word/doubleword loads and stores, LL/SC, and doubleword merge operations. Reverse-endian lanes and alignment/mode exceptions are modeled by the runtime helpers.
+- Integer memory: byte/halfword/word/doubleword loads and stores, LL/SC, and both word (`LWL/LWR/SWL/SWR`) and doubleword (`LDL/LDR/SDL/SDR`) merge operations. Word loads sign-extend to 64-bit GPR width; merge stores invalidate a matching LLbit reservation. Reverse-endian lanes and alignment/mode exceptions are modeled by the runtime helpers.
+- Decoder metadata: CP0 transfer and CACHE operands are preserved explicitly, even though the corresponding stateful semantics remain unsupported.
 - COP1: the currently supported transfers, arithmetic, comparisons, conversions, FCSR behavior, and runtime exceptions are represented in Micro-C.
 
 ## Explicitly incomplete families
 
 | Family | Current policy | Work required |
 |---|---|---|
-| LWL/LWR/SWL/SWR | Unsupported diagnostic | Implement VR4300 32-bit merge behavior, sign extension, RE lane mapping, alignment and reservation invalidation |
-| CP0 MFC0/DMFC0/MTC0/DMTC0 | Unsupported diagnostic | Model register-specific access, privilege, read/write masks and side effects |
+| MFC0/DMFC0/MTC0/DMTC0 | Unsupported diagnostic | Model register-specific access, privilege, read/write masks and side effects |
 | TLBP/TLBR/TLBWI/TLBWR | Unsupported diagnostic | Model TLB entries, probe/write rules and architectural state |
 | ERET | Unsupported diagnostic | Model Status.EXL/ERL, EPC/ErrorEPC selection, mode transition and control-flow termination |
 | SYSCALL/BREAK/TRAP instructions | Unsupported diagnostic | Model exception code, EPC/BD, delay-slot state and exception vector |
@@ -31,10 +31,9 @@ This ledger distinguishes decoding from semantic lifting. A mnemonic appearing i
 
 ## Implementation sequence
 
-1. LWL/LWR/SWL/SWR.
-2. CP0 register access and privileged instructions.
-3. TLB and exception/control-flow state.
-4. SYNC and CACHE, only after the memory/cache model is explicit.
-5. Decoder-to-lifter coverage audit and reproducible synthetic ROM regression corpus.
+1. CP0 register access and privileged instructions.
+2. TLB and exception/control-flow state.
+3. SYNC and CACHE, only after the memory/cache model is explicit.
+4. Decoder-to-lifter coverage audit and reproducible synthetic ROM regression corpus.
 
 The sequence is dependency-aware: exception state and memory semantics must be trustworthy before privileged control-flow instructions are advertised as supported.
