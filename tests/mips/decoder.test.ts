@@ -61,3 +61,27 @@ test('golden fixture arithmetic sequence decodes as expected', () => {
   assert.equal(decoded[4].isCall, true);
   assert.equal(decoded[10].mnemonic, 'ADDU');
 });
+
+
+test('lifts signed and zero-relative MIPS branch predicates explicitly', async () => {
+  const { liftInstructionsToMicroC } = await import('../../engine/ir/lifter');
+  const fixtures = [
+    { raw: 0x18800001, op: '<=' }, // BLEZ
+    { raw: 0x1c800001, op: '>' },  // BGTZ
+    { raw: 0x04800001, op: '<' },  // BLTZ
+    { raw: 0x05010001, op: '>=' }, // BGEZ
+    { raw: 0x50850001, op: '==' }, // BEQL
+    { raw: 0x54a50001, op: '!=' }, // BNEL
+  ];
+  for (const fixture of fixtures) {
+    const instruction = decodeInstruction(fixture.raw, 0x80001000);
+    const ir = liftInstructionsToMicroC(0x80001000, [instruction]);
+    const branch = ir.blocks[0].operations[0];
+    assert.equal(branch?.kind, 'branch', instruction.mnemonic);
+    if (branch?.kind === 'branch') {
+      assert.equal(branch.condition.kind, 'binary', instruction.mnemonic);
+      if (branch.condition.kind === 'binary') assert.equal(branch.condition.op, fixture.op, instruction.mnemonic);
+    }
+    assert.deepEqual(ir.unsupportedInstructions, [], instruction.mnemonic);
+  }
+});
