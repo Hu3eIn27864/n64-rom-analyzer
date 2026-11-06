@@ -108,10 +108,31 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   switch (operation.kind) {
     case 'assign':
       return assignment(operation.target, operation.value);
-    case 'load':
-      return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'variable', value: operation.target, type: 'uint32_t' }, right: { kind: 'unary', op: '*', operand: lowerExpr(operation.address), type: 'uint32_t' }, type: 'uint32_t' } };
-    case 'store':
-      return { kind: 'expr', expr: { kind: 'binary', op: '=', left: { kind: 'unary', op: '*', operand: lowerExpr(operation.address), type: 'uint32_t' }, right: lowerExpr(operation.value), type: 'uint32_t' } };
+    case 'load': {
+      const accessType = operation.size === 1 ? (operation.signed ? 'int8_t' : 'uint8_t')
+        : operation.size === 2 ? (operation.signed ? 'int16_t' : 'uint16_t')
+        : (operation.signed ? 'int32_t' : 'uint32_t');
+      const pointerType = `${accessType} *` as CExpr['type'];
+      const read: CExpr = {
+        kind: 'unary', op: '*',
+        operand: cCast(pointerType, lowerExpr(operation.address)),
+        type: accessType,
+      };
+      return typedAssignment(operation.target, 'uint32_t', cCast('uint32_t', read));
+    }
+    case 'store': {
+      const accessType = operation.size === 1 ? 'uint8_t' : operation.size === 2 ? 'uint16_t' : 'uint32_t';
+      const pointerType = `${accessType} *` as CExpr['type'];
+      const destination: CExpr = {
+        kind: 'unary', op: '*',
+        operand: cCast(pointerType, lowerExpr(operation.address)),
+        type: accessType,
+      };
+      return { kind: 'expr', expr: {
+        kind: 'binary', op: '=', left: destination,
+        right: cCast(accessType, lowerExpr(operation.value)), type: accessType,
+      } };
+    }
     case 'call': {
       const callee = operation.target.kind === 'const' ? hexAddress(operation.target.value) : undefined;
       if (!callee) return undefined;

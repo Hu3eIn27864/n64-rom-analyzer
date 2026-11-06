@@ -51,9 +51,51 @@ test('lifts memory operations with explicit widths and effective addresses', () 
   ]);
 
   assert.deepEqual(ir.blocks[0].operations, [
-    { kind: 'load', target: 'rt0', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp' }, right: { kind: 'const', value: 8 } }, size: 4 },
+    { kind: 'load', target: 'rt0', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp' }, right: { kind: 'const', value: 8 } }, size: 4, signed: true },
     { kind: 'store', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp' }, right: { kind: 'const', value: 12 } }, value: { kind: 'value', name: 'rt0' }, size: 2 },
   ]);
+});
+
+test('preserves signedness for narrow and word loads and rejects unmodeled doubleword GPR memory', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('LB', ['$t0', '0($sp)']),
+    instruction('LBU', ['$t1', '1($sp)']),
+    instruction('LH', ['$t2', '2($sp)']),
+    instruction('LHU', ['$t3', '4($sp)']),
+    instruction('LW', ['$t4', '8($sp)']),
+    instruction('LWU', ['$t5', '12($sp)']),
+    instruction('LD', ['$t6', '16($sp)']),
+    instruction('SD', ['$t7', '24($sp)']),
+  ]);
+
+  assert.deepEqual(ir.blocks[0].operations.filter(operation => operation.kind === 'load').map(operation =>
+    operation.kind === 'load' ? [operation.size, operation.signed] : [],
+  ), [[1, true], [1, false], [2, true], [2, false], [4, true], [4, false]]);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['LD', 'SD']);
+});
+
+test('lowers memory accesses through width-correct typed pointers', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('LB', ['$t0', '0($sp)']),
+    instruction('LBU', ['$t1', '1($sp)']),
+    instruction('LH', ['$t2', '2($sp)']),
+    instruction('LHU', ['$t3', '4($sp)']),
+    instruction('LW', ['$t4', '8($sp)']),
+    instruction('LWU', ['$t5', '12($sp)']),
+    instruction('SB', ['$t0', '16($sp)']),
+    instruction('SH', ['$t1', '18($sp)']),
+    instruction('SW', ['$t2', '20($sp)']),
+  ]);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /\(\(int8_t \*\)/);
+  assert.match(c, /\(\(uint8_t \*\)/);
+  assert.match(c, /\(\(int16_t \*\)/);
+  assert.match(c, /\(\(uint16_t \*\)/);
+  assert.match(c, /\(\(int32_t \*\)/);
+  assert.match(c, /\(\(uint32_t \*\)/);
+  assert.match(c, /\(\(uint8_t \*\).* = \(\(uint8_t\)/);
+  assert.match(c, /\(\(uint16_t \*\).* = \(\(uint16_t\)/);
+  assert.match(c, /\(\(uint32_t \*\).* = \(\(uint32_t\)/);
 });
 
 test('lifts calls and returns without inventing unknown targets', () => {
