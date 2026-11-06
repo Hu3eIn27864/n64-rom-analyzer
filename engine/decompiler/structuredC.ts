@@ -179,6 +179,40 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       ], 'uint32_t');
       return returnIfFalse(write);
     }
+    case 'fpuControlRead': {
+      if (operation.controlRegister !== 31) throw new Error(`C lowering does not yet model CFC1 FCR${operation.controlRegister}`);
+      const temporary = `__fpu_fcsr_read_${operation.gpr}`;
+      const read = cCall('vr4300_fpu_read_fcsr', [
+        cVariable('fpu'),
+        { kind: 'unary', op: '&', operand: cVariable(temporary, 'uint32_t'), type: 'pointer' },
+      ], 'uint32_t');
+      const signed = cCast('uint64_t', cCast('int64_t', cCast('int32_t', cVariable(temporary))));
+      const word = cCast('uint64_t', cVariable(temporary));
+      return {
+        kind: 'block',
+        body: [
+          { kind: 'decl', name: temporary, type: 'uint32_t' },
+          returnIfFalse(read),
+          {
+            kind: 'if',
+            condition: cVariable('fpu->gpr64_mode'),
+            thenBranch: { kind: 'block', body: [typedAssignment(operation.gpr, 'uint64_t', signed)] },
+            elseBranch: { kind: 'block', body: [typedAssignment(operation.gpr, 'uint64_t', word)] },
+          },
+        ],
+      };
+    }
+    case 'fpuArithmetic': {
+      const helper = operation.format === 'S' ? 'vr4300_fpu_arithmetic_s' : 'vr4300_fpu_arithmetic_d';
+      const operationCode = ({ add: 0, sub: 1, mul: 2, div: 3, sqrt: 4, abs: 5, mov: 6, neg: 7 } as const)[operation.operation];
+      return returnIfFalse(cCall(helper, [
+        cVariable('fpu'),
+        cConstant(operationCode),
+        cConstant(operation.sourceRegister),
+        cConstant(operation.targetRegister),
+        cConstant(operation.destinationRegister),
+      ], 'uint32_t'));
+    }
     case 'fpuControlWrite':
       if (operation.controlRegister !== 31) throw new Error(`C lowering does not yet model CTC1 FCR${operation.controlRegister}`);
       return returnIfFalse(cCall('vr4300_fpu_write_fcsr', [cVariable('fpu'), cCast('uint32_t', lowerExpr(operation.value))], 'uint32_t'));
@@ -513,7 +547,9 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     || operation.kind === 'fpuStore'
     || operation.kind === 'fpuTransfer'
     || operation.kind === 'fpuCompare'
-    || operation.kind === 'fpuControlWrite');
+    || operation.kind === 'fpuControlWrite'
+    || operation.kind === 'fpuControlRead'
+    || operation.kind === 'fpuArithmetic');
   const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
   const usesFpuState = fpuOperations.length > 0 || hasFccBranch;
