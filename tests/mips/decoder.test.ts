@@ -112,3 +112,18 @@ test('decodes COP1 compare operands and FCC destinations', () => {
     assert.equal(instruction.isFpuBranch, false);
   }
 });
+
+
+test('retains COP1 register fields and compare predicate metadata', () => {
+  const encode = (fmt: number, ft: number, fs: number, fd: number, funct: number) =>
+    ((0x11 << 26) | (fmt << 21) | (ft << 16) | (fs << 11) | (fd << 6) | funct) >>> 0;
+  const arithmetic = decodeInstruction(encode(0x10, 7, 4, 9, 0x00), 0x80002000);
+  assert.equal(arithmetic.fpuFormat, 0x10);
+  assert.equal(arithmetic.fpuSourceRegister, 4);
+  assert.equal(arithmetic.fpuTargetRegister, 7);
+  assert.equal(arithmetic.fpuDestinationRegister, 9);
+  const compare = decodeInstruction(encode(0x11, 7, 4, 0, 0x3c), 0x80002004);
+  assert.equal(compare.fpuComparePredicate, 0x0c);
+  assert.equal(compare.fpuCompareConditionCode, 0);
+  assert.equal(compare.fpuDestinationRegister, undefined);
+});
