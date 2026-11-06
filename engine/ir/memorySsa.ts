@@ -90,14 +90,6 @@ export function buildMemorySSA(
 }
 
 /**
- * Build Memory SSA for an acyclic CFG.
- *
- * Exact stack/frame locations are propagated through predecessor states.
- * A join receives a MemoryPhi only when its predecessors carry different
- * versions. Version 0 represents live-on-entry memory. Cycles are rejected
- * until a loop fixed-point solver is implemented.
- */
-/**
  * Build Memory SSA for a CFG using a forward fixed-point solver.
  *
  * Exact stack/frame locations are propagated through predecessor states.
