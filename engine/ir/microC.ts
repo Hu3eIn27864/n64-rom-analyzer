@@ -14,7 +14,7 @@ export type MicroCOperation =
   | { kind: 'fpuLoad'; register: number; address: MicroCExpr; size: 4 | 8; registerMode: 'status-fr' }
   | { kind: 'fpuStore'; register: number; address: MicroCExpr; size: 4 | 8; registerMode: 'status-fr' }
   | { kind: 'fpuTransfer'; direction: 'from-fpu' | 'to-fpu'; gpr: string; fpr: number; width: 32 | 64; registerMode: 'status-fr' }
-  | { kind: 'fpuCompare'; conditionCode: number; format: 'S' | 'D'; predicate: number; leftRegister: number; rightRegister: number }
+  | { kind: 'fpuCompare'; conditionCode: number; format: 'S' | 'D'; predicate: number; leftRegister: number; rightRegister: number; registerMode: 'status-fr' }
   | { kind: 'fpuControlWrite'; controlRegister: number; value: MicroCExpr }
   | { kind: 'call'; target: MicroCExpr; args: MicroCExpr[]; result?: string }
   | { kind: 'branch'; condition: MicroCExpr; trueTarget: number; falseTarget?: number; linkOnTaken?: { target: string; value: MicroCExpr } }
