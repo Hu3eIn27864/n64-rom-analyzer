@@ -172,7 +172,7 @@ test('lifts VR4300 FPU memory, transfer, compare and FCSR-write operations', () 
   ]);
   assert.deepEqual(ir.blocks[0].operations[8], {
     kind: 'fpuCompare', conditionCode: 4, format: 'S', predicate: 2,
-    leftRegister: 2, rightRegister: 3,
+    leftRegister: 2, rightRegister: 3, registerMode: 'status-fr',
   });
   assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
