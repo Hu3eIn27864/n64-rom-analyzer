@@ -723,7 +723,8 @@ test('reports unsupported CTC1 writes instead of emitting unlowerable FCR operat
 
 test('masks reserved FCSR bits on CTC1 writes before evaluating exception causes', () => {
   const write = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_write_fcsr\([\s\S]*?\n\}/)?.[0] ?? '';
-  assert.match(write, /fpu->fcsr = value & UINT32_C\(0x01ffffff\)/);
+  assert.match(write, /fpu->fcsr = value & UINT32_C\(0xff83ffff\)/);
+  assert.match(write, /0xff83ffff/); // preserves FCC[7:0] while clearing reserved bits 22:18
   assert.match(write, /const uint32_t cause = fpu->fcsr/);
   assert.match(write, /const uint32_t enabled_ieee_causes = \(fpu->fcsr/);
 });
