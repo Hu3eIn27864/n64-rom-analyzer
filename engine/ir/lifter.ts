@@ -178,7 +178,11 @@ export function liftBasicBlocks(functionAddress: number, blocks: readonly BasicB
         predecessors: [...block.predecessors],
         successors: [...block.successors],
       },
-      unsupportedInstructions: lifted.unsupportedInstructions ?? [],
+      unsupportedInstructions: (lifted.unsupportedInstructions ?? []).filter(item => {
+        // A direct J is represented by the recovered CFG edge, not by a Micro-C operation.
+        const terminator = block.instructions.at(-1);
+        return !(block.terminator === 'jump' && terminator?.mnemonic === 'J' && item.address === terminator.address);
+      }),
     };
   });
   const unsupportedInstructions = liftedBlocks.flatMap(item => item.unsupportedInstructions);
