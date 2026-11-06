@@ -170,6 +170,19 @@ test('decodes COP0 transfers with explicit GPR and CP0 register operands', () =>
   }
 });
 
+test('preserves nonzero COP0 register select fields', () => {
+  const encode = (rs: number, rt: number, rd: number, sel: number) =>
+    ((0x10 << 26) | (rs << 21) | (rt << 16) | (rd << 11) | sel) >>> 0;
+  for (const [rs, mnemonic] of [[0x00, 'MFC0'], [0x01, 'DMFC0'], [0x04, 'MTC0'], [0x05, 'DMTC0']] as const) {
+    const instruction = decodeInstruction(encode(rs, 8, 12, 3), 0x80004100);
+    assert.equal(instruction.mnemonic, mnemonic);
+    assert.deepEqual(instruction.operands, ['$t0', 'c0_reg12_sel3']);
+    assert.match(instruction.asm, /c0_reg12_sel3/);
+  }
+  const selectZero = decodeInstruction(encode(0x00, 8, 12, 0), 0x80004104);
+  assert.deepEqual(selectZero.operands, ['$t0', 'c0_reg12']);
+});
+
 test('decodes CACHE operands and privileged VR4300 encodings without losing raw instruction identity', () => {
   const cache = decodeInstruction(((0x2f << 26) | (8 << 21) | (0x1c << 16) | 0xfffc) >>> 0, 0x80005000);
   assert.equal(cache.mnemonic, 'CACHE');
