@@ -8,7 +8,7 @@ type Case = {
   address: number;
   mnemonic: string;
   operands: string[];
-  controlFlow: 'none' | 'branch' | 'jump' | 'call' | 'return' | 'indirect';
+  controlFlow: 'none' | 'branch' | 'likely' | 'jump' | 'call' | 'return' | 'indirect';
 };
 
 const cases: Case[] = [
@@ -16,6 +16,12 @@ const cases: Case[] = [
   { name: 'addu', raw: 0x00851021, address: 0x1004, mnemonic: 'ADDU', operands: ['$v0', '$a0', '$a1'], controlFlow: 'none' },
   { name: 'addiu', raw: 0x2404000a, address: 0x1008, mnemonic: 'ADDIU', operands: ['$a0', '$zero', '10'], controlFlow: 'none' },
   { name: 'beq', raw: 0x10850004, address: 0x100c, mnemonic: 'BEQ', operands: ['$a0', '$a1', '0x00001020'], controlFlow: 'branch' },
+  { name: 'blez', raw: 0x18800004, address: 0x1028, mnemonic: 'BLEZ', operands: ['$a0', '0x0000103c'], controlFlow: 'branch' },
+  { name: 'bgtz', raw: 0x1c800004, address: 0x102c, mnemonic: 'BGTZ', operands: ['$a0', '0x00001040'], controlFlow: 'branch' },
+  { name: 'bltz', raw: 0x04800004, address: 0x1030, mnemonic: 'BLTZ', operands: ['$a0', '0x00001044'], controlFlow: 'branch' },
+  { name: 'bgez', raw: 0x05010004, address: 0x1034, mnemonic: 'BGEZ', operands: ['$a0', '0x00001048'], controlFlow: 'branch' },
+  { name: 'beql', raw: 0x50850004, address: 0x1038, mnemonic: 'BEQL', operands: ['$a0', '$a1', '0x0000104c'], controlFlow: 'likely' },
+  { name: 'bltzl', raw: 0x04820004, address: 0x103c, mnemonic: 'BLTZL', operands: ['$a0', '0x00001050'], controlFlow: 'likely' },
   { name: 'j', raw: 0x08000410, address: 0x1010, mnemonic: 'J', operands: ['0x00001040'], controlFlow: 'jump' },
   { name: 'jal', raw: 0x0c000410, address: 0x1014, mnemonic: 'JAL', operands: ['0x00001040'], controlFlow: 'call' },
   { name: 'jr-ra', raw: 0x03e00008, address: 0x1018, mnemonic: 'JR', operands: ['$ra'], controlFlow: 'return' },
@@ -30,7 +36,8 @@ test('VR4300 decoder corpus', () => {
     assert.equal(instruction.mnemonic, fixture.mnemonic, fixture.name);
     assert.deepEqual(instruction.operands, fixture.operands, fixture.name);
     assert.equal(instruction.address, fixture.address, fixture.name);
-    assert.equal(instruction.isConditionalBranch, fixture.controlFlow === 'branch', fixture.name);
+    assert.equal(instruction.isConditionalBranch, ['branch', 'likely'].includes(fixture.controlFlow), fixture.name);
+    assert.equal(instruction.isBranchLikely, fixture.controlFlow === 'likely', fixture.name);
     assert.equal(instruction.isJump, ['jump', 'call', 'return', 'indirect'].includes(fixture.controlFlow), fixture.name);
     assert.equal(instruction.isCall, fixture.controlFlow === 'call' || fixture.controlFlow === 'indirect', fixture.name);
     assert.equal(instruction.isReturn, fixture.controlFlow === 'return', fixture.name);
