@@ -74,12 +74,14 @@ export function renderStmt(stmt: CStmt, indent = ''): string {
 
 export function renderFunction(fn: CFunction): string {
   const params = fn.parameters.length === 0 && fn.useVoidForEmptyParameters ? 'void' : fn.parameters.map(p => `${p.type} ${p.name}`).join(', ');
-  const body = fn.body.map(stmt => renderStmt(stmt, '    ')).join('\n');
-  const preamble = fn.preamble?.length ? `${fn.preamble.join('\\n\\n')}\\n\\n` : '';\n  return `${preamble}${fn.returnType} ${fn.name}(${params})\\n{\\n${body}\\n}`;
+  const body = fn.body.map(stmt => renderStmt(stmt, '    ')).join('\\n');
+  const preamble = fn.preamble?.length ? fn.preamble.join('\\n\\n') + '\\n\\n' : '';
+  return preamble + fn.returnType + ' ' + fn.name + '(' + params + ')\\n{\\n' + body + '\\n}';
 }
 
 export function renderProgram(program: CProgram): string {
   const preamble = [...new Set(program.functions.flatMap(fn => fn.preamble ?? []))];
   const functions = program.functions.map(fn => renderFunction({ ...fn, preamble: undefined }));
-  return [...(preamble.length ? [preamble.join('\\n\\n')] : []), ...functions].join('\\n\\n') + (program.functions.length ? '\\n' : '');
+  const prefix = preamble.length ? preamble.join('\\n\\n') + '\\n\\n' : '';
+  return prefix + functions.join('\\n\\n') + (functions.length ? '\\n' : '');
 }
