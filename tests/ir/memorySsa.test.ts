@@ -128,12 +128,44 @@ test('uses version zero for live-on-entry memory', () => {
   assert.equal(result.accesses[1].reachingVersion, 0);
 });
 
-test('rejects cyclic CFGs until loop fixed-point analysis is available', () => {
-  assert.throws(() => buildMemorySSAForCFG([], [
+test('solves loop-carried memory definitions with a header MemoryPhi', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x40($sp)', size: 4, blockId: 0 },
+    { kind: 'def', address: '0x40($sp)', size: 4, blockId: 2 },
+    { kind: 'use', address: '0x40($sp)', size: 4, blockId: 3 },
+  ], [
     { id: 0, predecessors: [] },
     { id: 1, predecessors: [0, 2] },
     { id: 2, predecessors: [1] },
-  ]), /cyclic memory CFG.*fixed-point/);
+    { id: 3, predecessors: [1] },
+  ]);
+
+  assert.deepEqual(result.phis, [{
+    id: 0,
+    blockId: 1,
+    inputs: { 0: 1, 2: 2 },
+    location: '0x40($sp)',
+    size: 4,
+    version: 3,
+  }]);
+  assert.equal(result.accesses[1].previousVersion, 3);
+  assert.equal(result.accesses[2].reachingVersion, 3);
+});
+
+test('collapses transient trivial Phis when predecessor versions converge', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x50($sp)', size: 4, blockId: 10 },
+    { kind: 'use', address: '0x50($sp)', size: 4, blockId: 5 },
+  ], [
+    { id: 5, predecessors: [20, 30] },
+    { id: 10, predecessors: [] },
+    { id: 20, predecessors: [10] },
+    { id: 30, predecessors: [40] },
+    { id: 40, predecessors: [10] },
+  ]);
+
+  assert.deepEqual(result.phis, []);
+  assert.equal(result.accesses[1].reachingVersion, 1);
 });
 
 test('does not propagate probable or unknown locations across CFG edges', () => {
