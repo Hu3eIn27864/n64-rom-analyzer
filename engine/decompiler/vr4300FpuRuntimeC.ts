@@ -651,7 +651,10 @@ static inline bool vr4300_fpu_read_long_source(
     const uint64_t upper = bits >> 55;
     if (upper != 0u && upper != UINT64_C(0x1ff))
         return vr4300_fpu_raise_unimplemented(fpu);
-    memcpy(value, &bits, sizeof(*value));
+    if ((bits & UINT64_C(0x8000000000000000)) != 0)
+        *value = -1 - (int64_t)(~bits);
+    else
+        *value = (int64_t)bits;
     return true;
 }
 
