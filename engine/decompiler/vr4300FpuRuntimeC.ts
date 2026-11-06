@@ -198,6 +198,27 @@ static inline uintptr_t vr4300_memory_adjust_address(vr4300_fpu_state *fpu, uint
     return address;
 }
 
+/* LWL/LWR and SWL/SWR merge one aligned 32-bit word. The result of
+ * loads is sign-extended to the VR4300's 64-bit GPR representation. */
+static inline bool vr4300_memory_merge_load32(vr4300_fpu_state *fpu, uintptr_t address, uint64_t current, bool left, uint64_t *result)
+{
+    unsigned lane = (unsigned)(address & 3u);
+    if (fpu->reverse_endian_enabled) lane ^= 3u;
+    const uintptr_t base = address & ~(uintptr_t)3u;
+    const uint8_t *bytes = (const uint8_t *)base;
+    uint32_t merged = (uint32_t)current;
+    const unsigned count = left ? 4u - lane : lane + 1u;
+    for (unsigned i = 0; i < count; ++i) {
+        const unsigned register_byte = left ? i : 4u - count + i;
+        const unsigned memory_byte = left ? lane + i : i;
+        const unsigned shift = 24u - 8u * register_byte;
+        const uint32_t mask = UINT32_C(0xff) << shift;
+        merged = (merged & ~mask) | ((uint32_t)bytes[memory_byte] << shift);
+    }
+    *result = vr4300_sign_extend_word(merged);
+    return true;
+}
+
 static inline bool vr4300_memory_merge_load64(vr4300_fpu_state *fpu, uintptr_t address, uint64_t current, bool left, uint64_t *result)
 {
     if (!fpu->mode64_or_kernel) {
@@ -242,6 +263,22 @@ static inline bool vr4300_memory_merge_store64(vr4300_fpu_state *fpu, uintptr_t 
         const unsigned register_byte = left ? i : 8u - count + i;
         const unsigned memory_byte = left ? lane + i : i;
         bytes[memory_byte] = (uint8_t)(value >> (56u - 8u * register_byte));
+    }
+    vr4300_memory_invalidate_llbit(fpu, base);
+    return true;
+}
+
+static inline bool vr4300_memory_merge_store32(vr4300_fpu_state *fpu, uintptr_t address, uint64_t value, bool left)
+{
+    unsigned lane = (unsigned)(address & 3u);
+    if (fpu->reverse_endian_enabled) lane ^= 3u;
+    const uintptr_t base = address & ~(uintptr_t)3u;
+    uint8_t *bytes = (uint8_t *)base;
+    const unsigned count = left ? 4u - lane : lane + 1u;
+    for (unsigned i = 0; i < count; ++i) {
+        const unsigned register_byte = left ? i : 4u - count + i;
+        const unsigned memory_byte = left ? lane + i : i;
+        bytes[memory_byte] = (uint8_t)(value >> (24u - 8u * register_byte));
     }
     vr4300_memory_invalidate_llbit(fpu, base);
     return true;
