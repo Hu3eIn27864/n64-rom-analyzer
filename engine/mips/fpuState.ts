@@ -4,8 +4,9 @@
  * FPRs are modeled as architectural bit containers, not JavaScript numbers.
  * In FR=0 mode a double occupies an even/odd register pair: the even FPR
  * contains the low word and the following odd FPR contains the high word.
- * In FR=1 mode each FPR holds 64 bits.
- * Single-precision values occupy the low 32 bits of the selected FPR.
+ * In FR=1 mode each FPR holds 64 bits. Single writes access the low 32 bits;
+ * the upper half is architecturally undefined, so this model preserves it as
+ * a deterministic implementation choice.
  */
 export type FpuRegisterMode = 'fr0' | 'fr1';
 export type FpuFormat = 'S' | 'D';
