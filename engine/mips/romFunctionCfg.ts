@@ -96,10 +96,11 @@ export function decodeRomFunctionCfg(
 
         if (instruction.isBranchLikely) {
           // The delay instruction is its own block, reachable only when taken.
-          if (!visited.has(after)) {
-            visited.add(after);
-            blocks.set(after, { startAddress: after, instructions: [delay], successors: [target] });
+          if (visited.has(after)) {
+            throw new Error(`branch-likely delay slot at 0x${after.toString(16)} overlaps an already recovered block`);
           }
+          visited.add(after);
+          blocks.set(after, { startAddress: after, instructions: [delay], successors: [target] });
           successors = [after, fallthrough];
           pending.push(fallthrough, target);
         } else {
