@@ -65,6 +65,97 @@ export function inferFunctionMemoryEffects(
   return { reads, writes, unknown };
 }
 
+/**
+ * Infer closed-program memory effects for a set of FunctionIR bodies.
+ *
+ * Direct calls are composed to a fixed point, so transitive and recursive
+ * call chains are handled without depending on input order. A call target
+ * outside the supplied function set, or a dynamic call target, keeps the
+ * caller summary unknown. This is a closed-world summary, not proof that
+ * omitted functions or external code have no effects.
+ */
+export function inferProgramMemoryEffects(
+  functions: readonly FunctionIR[],
+): ReadonlyMap<number, FunctionMemoryEffectSummary> {
+  const byAddress = new Map<number, FunctionIR>();
+  for (const ir of functions) {
+    const address = ir.functionAddress >>> 0;
+    if (byAddress.has(address)) {
+      throw new Error('duplicate function memory-effect address 0x' + address.toString(16));
+    }
+    byAddress.set(address, ir);
+  }
+
+  const local = new Map<number, FunctionMemoryEffectSummary>();
+  const callees = new Map<number, number[]>();
+  for (const [address, ir] of byAddress) {
+    const targets: number[] = [];
+    let unresolvedCall = false;
+    const withoutCalls: FunctionIR = {
+      ...ir,
+      blocks: ir.blocks.map(block => ({
+        ...block,
+        operations: block.operations.filter(operation => {
+          if (operation.kind !== 'call') return true;
+          if (operation.target.kind !== 'const') unresolvedCall = true;
+          else targets.push(operation.target.value >>> 0);
+          return false;
+        }),
+      })),
+    };
+    const base = inferFunctionMemoryEffects(withoutCalls);
+    local.set(address, {
+      ...base,
+      unknown: base.unknown || unresolvedCall,
+    });
+    callees.set(address, targets);
+  }
+
+  const summaries = new Map<number, FunctionMemoryEffectSummary>(
+    [...local].map(([address, summary]) => [address, {
+      reads: [...summary.reads],
+      writes: [...summary.writes],
+      unknown: summary.unknown,
+    }]),
+  );
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [address, targets] of callees) {
+      const summary = summaries.get(address)!;
+      for (const target of targets) {
+        const callee = summaries.get(target);
+        if (!callee) {
+          if (!summary.unknown) {
+            summary.unknown = true;
+            changed = true;
+          }
+          continue;
+        }
+        for (const range of callee.reads) {
+          const before = summary.reads.length;
+          addRange(summary.reads, range);
+          if (summary.reads.length !== before) changed = true;
+        }
+        for (const range of callee.writes) {
+          const before = summary.writes.length;
+          addRange(summary.writes, range);
+          if (summary.writes.length !== before) changed = true;
+        }
+        if (callee.unknown && !summary.unknown) {
+          summary.unknown = true;
+          changed = true;
+        }
+      }
+      summary.reads.sort((a, b) => a.address - b.address || a.size - b.size);
+      summary.writes.sort((a, b) => a.address - b.address || a.size - b.size);
+    }
+  }
+
+  return summaries;
+}
+
 /** Return whether a call summary proves that a memory range is preserved. */
 export function preservesMemoryRange(summary: FunctionMemoryEffectSummary, range: MemoryEffectRange): boolean {
   if (summary.unknown) return false;

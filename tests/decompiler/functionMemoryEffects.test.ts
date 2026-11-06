@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { inferFunctionMemoryEffects, preservesMemoryRange } from '../../engine/decompiler/functionMemoryEffects';
+import { inferFunctionMemoryEffects, inferProgramMemoryEffects, preservesMemoryRange } from '../../engine/decompiler/functionMemoryEffects';
 import type { FunctionIR, MicroCOperation } from '../../engine/ir/microC';
 
 const c = (value: number) => ({ kind: 'const', value } as const);
@@ -48,4 +48,50 @@ test('preserves disjoint ranges when the effect summary is known', () => {
 
 test('unknown summaries never claim preservation', () => {
   assert.equal(preservesMemoryRange({ reads: [], writes: [], unknown: true }, { address: 0x5000, size: 4 }), false);
+});
+
+test('composes transitive program memory effects independent of function order', () => {
+  const leaf: FunctionIR = {
+    functionAddress: 0x80001000,
+    blocks: [{ id: 0, predecessors: [], successors: [], operations: [store(0x6000)] }],
+  };
+  const middle: FunctionIR = {
+    functionAddress: 0x80002000,
+    blocks: [{ id: 0, predecessors: [], successors: [], operations: [call(0x80001000)] }],
+  };
+  const root: FunctionIR = {
+    functionAddress: 0x80003000,
+    blocks: [{ id: 0, predecessors: [], successors: [], operations: [call(0x80002000)] }],
+  };
+
+  const summaries = inferProgramMemoryEffects([root, leaf, middle]);
+  assert.deepEqual(summaries.get(0x80003000)?.writes, [{ address: 0x6000, size: 4 }]);
+  assert.equal(summaries.get(0x80003000)?.unknown, false);
+});
+
+test('keeps unresolved and dynamic program calls unknown', () => {
+  const unresolved = makeIR([call(0x8000ffff)]);
+  const dynamic: FunctionIR = {
+    functionAddress: 0x80004000,
+    blocks: [{ id: 0, predecessors: [], successors: [], operations: [
+      { kind: 'call', target: v('functionPointer'), args: [], result: undefined },
+    ] }],
+  };
+  const summaries = inferProgramMemoryEffects([unresolved, dynamic]);
+  assert.equal(summaries.get(0x9700)?.unknown, true);
+  assert.equal(summaries.get(0x80004000)?.unknown, true);
+});
+
+test('converges for recursive call cycles with known local effects', () => {
+  const left: FunctionIR = {
+    functionAddress: 0x80005000,
+    blocks: [{ id: 0, predecessors: [], successors: [], operations: [store(0x7000), call(0x80006000)] }],
+  };
+  const right: FunctionIR = {
+    functionAddress: 0x80006000,
+    blocks: [{ id: 0, predecessors: [], successors: [], operations: [call(0x80005000)] }],
+  };
+  const summaries = inferProgramMemoryEffects([left, right]);
+  assert.deepEqual(summaries.get(0x80006000)?.writes, [{ address: 0x7000, size: 4 }]);
+  assert.equal(summaries.get(0x80006000)?.unknown, false);
 });

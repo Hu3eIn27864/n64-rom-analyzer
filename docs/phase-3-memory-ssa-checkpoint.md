@@ -40,10 +40,10 @@ tests/analysis/romFunctionAnalysis.test.ts exercises the bounded ROM-to-Micro-C-
 
 ## Remaining work
 
-- Byte-range overlap between differently sized accesses.
+- Descriptive byte-range overlap metadata for exact stack/frame accesses is implemented; it reports symmetric intersections across blocks without changing reaching-definition results.
 - Multiple reaching byte versions for partially overlapping stores/loads.
 - Stronger pointer and alias analysis beyond stack/frame offsets.
-- Interprocedural memory effects and call clobbers.
+- Fixed-point summaries for direct calls across a supplied closed set of FunctionIR bodies, including transitive and recursive calls; unknown or out-of-set targets remain conservative. Integration with program analysis and call-site Memory SSA invalidation remains open.
 - Device/external writes and complete LL/SC observer semantics.
 - Formal integration with the canonical production analysis result and evidence report.
 
