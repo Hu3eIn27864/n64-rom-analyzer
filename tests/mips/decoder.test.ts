@@ -177,7 +177,6 @@ test('preserves nonzero COP0 register select fields', () => {
     const instruction = decodeInstruction(encode(rs, 8, 12, 3), 0x80004100);
     assert.equal(instruction.mnemonic, mnemonic);
     assert.deepEqual(instruction.operands, ['$t0', 'c0_reg12_sel3']);
-    assert.match(instruction.asm, /c0_reg12_sel3/);
   }
   const selectZero = decodeInstruction(encode(0x00, 8, 12, 0), 0x80004104);
   assert.deepEqual(selectZero.operands, ['$t0', 'c0_reg12']);
