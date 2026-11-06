@@ -1,10 +1,12 @@
 # Phase 3 — Memory SSA from Canonical Micro-C
 
-Status: **PARTIAL IMPLEMENTATION — FUNCTIONIR ADAPTER EXISTS; NOT PRODUCTION-INTEGRATED**
+Status: **PARTIAL IMPLEMENTATION — FUNCTIONIR ADAPTER AND BOUNDED ROM PATH; NOT PRODUCTION-INTEGRATED**
 
 ## Implemented path
 
 engine/ir/memorySsaBuilder.ts extracts memory accesses directly from canonical FunctionIR and feeds the block graph to the Memory SSA solver.
+
+engine/analysis/romFunctionAnalysis.ts composes bounded ROM-function CFG decoding, Micro-C lowering and Memory SSA in one explicit-entry analysis call.
 
 Supported Micro-C memory operations:
 
@@ -34,6 +36,8 @@ tests/ir/memorySsaBuilder.test.ts covers:
 
 tests/ir/memorySsa.test.ts additionally covers loop-carried MemoryPhi inputs, fixed-point convergence, trivial-Phi collapse and unknown/probable location handling.
 
+tests/analysis/romFunctionAnalysis.test.ts exercises the bounded ROM-to-Micro-C-to-Memory-SSA composition, including a stack store/load and branch-likely taken-only delay slot.
+
 ## Remaining work
 
 - Byte-range overlap between differently sized accesses.
@@ -41,7 +45,7 @@ tests/ir/memorySsa.test.ts additionally covers loop-carried MemoryPhi inputs, fi
 - Stronger pointer and alias analysis beyond stack/frame offsets.
 - Interprocedural memory effects and call clobbers.
 - Device/external writes and complete LL/SC observer semantics.
-- Formal integration with the canonical analysis result and evidence report.
+- Formal integration with the canonical production analysis result and evidence report.
 
 ## Safety boundary
 

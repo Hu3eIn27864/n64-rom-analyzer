@@ -16,7 +16,9 @@ engine/analysis/structuralPipeline.ts exports analyzeCanonicalStructure(). It co
 
 Entry points and the instruction-word reader/address map are explicit. The function does not guess a ROM-to-VRAM mapping and does not silently fall back to a linear sweep.
 
-## Verified parity slice
+A separate bounded function path is available through engine/analysis/romFunctionAnalysis.ts. It composes decodeRomFunctionCfg(), lowerRomCfgToFunctionIR() and buildMemorySSAFromFunctionIR() for an explicit ROM offset/address entry.
+
+## Verified parity and semantic slices
 
 Synthetic fixtures compare canonical function boundaries with the legacy extractSubroutines() implementation for:
 
@@ -25,7 +27,9 @@ Synthetic fixtures compare canonical function boundaries with the legacy extract
 - a conditional branch with fallthrough, target and return delay slot;
 - a branch-likely (BEQL) function with delay-slot coverage.
 
-The comparisons assert function entry addresses, end addresses and instruction counts. Separate tests verify canonical CFG composition, direct JAL edges and unknown JALR edges.
+The bounded ROM-function CFG additionally models branch-likely annulment as a taken-only delay-slot block. Its lowered Micro-C branch targets the delay-slot block on the taken path and the fallthrough block on the not-taken path.
+
+Separate tests verify canonical CFG composition, direct JAL edges, unknown JALR edges, stack store/load Memory SSA and branch-likely lowering.
 
 ## Explicit limitations
 
@@ -34,10 +38,10 @@ This is not full legacy parity and is not a production API cutover.
 Still open:
 
 - broad CFG edge parity;
-- precise branch-likely annulment and delay-slot path semantics;
 - indirect calls, tail calls and jump tables;
 - exception and privileged control flow;
-- ROM segment discovery and complete ROM-to-VRAM mapping;
+- ROM segment discovery and complete ROM-to-VRAM mapping from real program evidence;
+- robust function-entry discovery for arbitrary ROMs;
 - side-by-side analysis result exposure through the API;
 - evidence aggregation and user-facing verification levels.
 
@@ -47,11 +51,13 @@ Still open:
 - [x] Explicit entry points and ROM-word reader are required.
 - [x] Control-transfer delay slots are retained.
 - [x] Direct-call, multiple-call, conditional-branch and branch-likely function-boundary parity fixtures pass.
+- [x] Bounded ROM CFG models branch-likely annulled delay slots.
+- [x] ROM CFG lowers to Micro-C and Memory SSA for explicit entries.
 - [x] Unknown indirect-call edges remain explicit.
 - [ ] Broader canonical/legacy CFG and call-graph parity.
 - [ ] Side-by-side canonical results exposed by the analysis API.
-- [ ] Production cutover after parity and regression gates.
+- [ ] Production cutover after parity and ROM mapping gates.
 
 ## Next checkpoint
 
-Expand the synthetic parity corpus to cover nested control flow, indirect calls, jump tables and CFG edge identity. Keep the legacy production path authoritative until those comparisons are stable.
+Expand the synthetic parity corpus to cover nested control flow, indirect calls, jump tables and CFG edge identity. Define a safe way to discover/prove ROM segment mappings and function entries before production integration.

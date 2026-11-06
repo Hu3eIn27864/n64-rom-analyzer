@@ -11,6 +11,7 @@ This roadmap reflects the current implementation checklist and verification mode
 ## M1 — Canonical ROM and decoder layer (implemented; continue hardening)
 - [x] Canonical analysis data model.
 - [x] ROM segment/address map.
+- [x] Paired, equal-length, non-overlapping ROM/VRAM segment validation and integer-only address translation.
 - [x] Canonical VR4300 decoder API and expanded decode corpus.
 - [x] Synthetic coverage for z64/v64/n64 normalization, malformed byte-order signatures, incomplete headers and byte-offset views.
 - [ ] Formal instruction semantics integration. A partial descriptive metadata layer exists; complete instruction semantics and runtime integration remain open.
@@ -23,8 +24,10 @@ This roadmap reflects the current implementation checklist and verification mode
 - [x] Canonical CFG and call graph components.
 - [x] Canonical structural pipeline composing recovery, CFG and call graph.
 - [x] Narrow legacy-parity fixtures for direct calls, multiple calls, conditional branches and branch-likely function boundaries.
+- [x] Bounded ROM-function CFG decoding with explicit taken-only branch-likely delay-slot blocks.
+- [x] Bounded ROM-function pipeline to Micro-C IR and Memory SSA for explicit entries.
 - [ ] Broader CFG/edge parity for indirect control flow, jump tables and exceptional paths.
-- [ ] Production-pipeline integration.
+- [ ] Production-pipeline integration and ROM segment/function-entry discovery.
 **Estimate:** 1–3 months.
 
 ## M3 — Semantic analysis and memory model (in progress)
