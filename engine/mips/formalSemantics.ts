@@ -17,9 +17,9 @@ export interface MipsInstructionSemantics {
   description: string;
 }
 
-const register = (name: string): string => name.replace(/^\\$/, '');
+const register = (name: string): string => name.replace(/^\$/, '');
 const memoryBase = (operand: string): string | undefined => {
-  const match = operand.match(/\\((\\$[^)]+)\\)/);
+  const match = operand.match(/\((\$[^)]+)\)/);
   return match ? register(match[1]) : undefined;
 };
 
@@ -48,10 +48,10 @@ export function analyzeInstructionSemantics(
 
   if (/^(ADDU|ADD|SUBU|SUB|DADDU|DADD|DSUBU|DSUB|AND|OR|XOR|NOR|SLT|SLTU|DSLL|DSRL|DSRA)$/.test(op)) {
     addRead(b); addRead(c); addWrite(a);
-    description = `${op}: result is computed from source registers and written to the destination register.`;
+    description = op + ': result is computed from source registers and written to the destination register.';
   } else if (/^(ADDI|ADDIU|DADDI|DADDIU|ANDI|ORI|XORI|SLTI|SLTIU)$/.test(op)) {
     addRead(b); addWrite(a);
-    description = `${op}: immediate operation reads the source register and writes the destination register.`;
+    description = op + ': immediate operation reads the source register and writes the destination register.';
   } else if (op === 'LUI') {
     addWrite(a);
     description = 'LUI writes the immediate value into the upper half of the destination register.';
@@ -72,22 +72,22 @@ export function analyzeInstructionSemantics(
   } else if (/^(BEQ|BNE|BLEZ|BGTZ|BLTZ|BGEZ|BLTZAL|BGEZAL)$/.test(op)) {
     addRead(a); addRead(b);
     control = 'conditional-branch';
-    description = `${op} conditionally transfers control to its branch target.`;
+    description = op + ' conditionally transfers control to its branch target.';
   } else if (/^(BEQL|BNEL|BLEZL|BGTZL|BLTZL|BGEZL)$/.test(op)) {
     addRead(a); addRead(b);
     control = 'branch-likely';
-    description = `${op} is a branch-likely instruction with annulled delay-slot behavior when not taken.`;
+    description = op + ' is a branch-likely instruction with annulled delay-slot behavior when not taken.';
   } else if (/^(LWL|LWR|SWL|SWR)$/.test(op) && a && b) {
     const isStore = op === 'SWL' || op === 'SWR';
     const base = memoryBase(b);
     if (base) addRead(base);
     if (isStore) {
       addRead(a);
-      description = `${op} writes selected lanes of an aligned word to memory.`;
+      description = op + ' writes selected lanes of an aligned word to memory.';
     } else {
       addRead(a);
       addWrite(a);
-      description = `${op} reads selected lanes of an aligned word and preserves the other destination-register lanes.`;
+      description = op + ' reads selected lanes of an aligned word and preserves the other destination-register lanes.';
     }
     memory.push({
       kind: isStore ? 'write' : 'read',
@@ -114,13 +114,13 @@ export function analyzeInstructionSemantics(
         addRead(a);
         if (op === 'SC' || op === 'SCD') addWrite(a);
         description = atomic
-          ? `${op} conditionally writes register data to memory and writes the success result to the source register.`
-          : `${op} writes register data to memory at the effective address.`;
+          ? op + ' conditionally writes register data to memory and writes the success result to the source register.'
+          : op + ' writes register data to memory at the effective address.';
       } else {
         addWrite(a);
         description = atomic
-          ? `${op} reads memory into the destination register and establishes a linked reservation.`
-          : `${op} reads memory at the effective address into the destination register.`;
+          ? op + ' reads memory into the destination register and establishes a linked reservation.'
+          : op + ' reads memory at the effective address into the destination register.';
       }
     }
   }
