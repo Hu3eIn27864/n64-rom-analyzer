@@ -104,6 +104,15 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
+      case 'DMULT':
+      case 'DMULTU':
+        if (a && b) operations.push({
+          kind: 'hiloMultiply',
+          left: value(normalizeRegister(a), 64),
+          right: value(normalizeRegister(b), 64),
+          signed: instruction.mnemonic === 'DMULT',
+        });
+        break;
       case 'MFHI':
       case 'MFLO':
         if (a) operations.push({

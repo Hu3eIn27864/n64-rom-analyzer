@@ -55,6 +55,31 @@ static inline void vr4300_hilo_write_lo(vr4300_fpu_state *fpu, uint64_t value)
     fpu->lo = value;
 }
 
+/* 64x64 -> 128 multiply using 32-bit limbs; no compiler-specific int128. */
+static inline void vr4300_hilo_multiply64(vr4300_fpu_state *fpu, uint64_t left, uint64_t right, bool is_signed)
+{
+    const uint64_t left_low = (uint32_t)left;
+    const uint64_t left_high = left >> 32;
+    const uint64_t right_low = (uint32_t)right;
+    const uint64_t right_high = right >> 32;
+
+    const uint64_t p00 = left_low * right_low;
+    const uint64_t p01 = left_low * right_high;
+    const uint64_t p10 = left_high * right_low;
+    const uint64_t p11 = left_high * right_high;
+
+    const uint64_t middle = (p00 >> 32) + (uint32_t)p01 + (uint32_t)p10;
+    uint64_t low = (middle << 32) | (uint32_t)p00;
+    uint64_t high = p11 + (p01 >> 32) + (p10 >> 32) + (middle >> 32);
+
+    if (is_signed) {
+        if ((left >> 63) != 0u) high -= right;
+        if ((right >> 63) != 0u) high -= left;
+    }
+    fpu->lo = low;
+    fpu->hi = high;
+}
+
 static inline uint32_t vr4300_fpu_read_be32(uintptr_t address)
 {
     const uint8_t *bytes = (const uint8_t *)address;
