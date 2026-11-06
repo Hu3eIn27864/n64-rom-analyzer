@@ -58,6 +58,7 @@ export function buildMemorySSA(
   phiBlocks: readonly number[] = [],
 ): MemorySSA {
   const lastDefinition = new Map<string, number>();
+  let nextVersion = 1;
   const normalized: MemoryAccess[] = accesses.map((access, index) => {
     const current: MemoryAccess = {
       ...access,
@@ -68,12 +69,12 @@ export function buildMemorySSA(
     if (location === undefined) return current;
 
     const key = current.blockId + '|' + location;
-    const previousVersion = lastDefinition.get(key);
+    const previousVersion = lastDefinition.get(key) ?? 0;
     if (current.kind === 'def') {
-      current.version = current.id;
-      if (previousVersion !== undefined) current.previousVersion = previousVersion;
+      current.version = nextVersion++;
+      current.previousVersion = previousVersion;
       lastDefinition.set(key, current.version);
-    } else if (previousVersion !== undefined) {
+    } else {
       current.reachingVersion = previousVersion;
     }
     return current;
