@@ -10,8 +10,27 @@ function lowerExpr(expr: MicroCExpr): CExpr {
   switch (expr.kind) {
     case 'const':
       return { kind: 'literal', value: expr.value, type: 'uint32_t' };
-    case 'value':
+    case 'value': {
+      const fcc = expr.name.match(/^fcc([0-7])$/);
+      if (fcc) {
+        const conditionCode = Number(fcc[1]);
+        const bit = conditionCode === 0 ? 23 : 24 + conditionCode;
+        return {
+          kind: 'binary',
+          op: '&',
+          left: {
+            kind: 'binary',
+            op: '>>',
+            left: { kind: 'variable', value: 'fpu->fcsr', type: 'uint32_t' },
+            right: { kind: 'literal', value: bit, type: 'uint32_t' },
+            type: 'uint32_t',
+          },
+          right: { kind: 'literal', value: 1, type: 'uint32_t' },
+          type: 'uint32_t',
+        };
+      }
       return { kind: 'variable', value: expr.name, type: 'uint32_t' };
+    }
     case 'binary':
       return { kind: 'binary', op: expr.op, left: lowerExpr(expr.left), right: lowerExpr(expr.right), type: 'uint32_t' };
     case 'unary':
@@ -165,6 +184,20 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
     case 'branch':
     case 'jump':
       return undefined;
+  }
+}
+
+function expressionReadsFcc(expr: MicroCExpr): boolean {
+  switch (expr.kind) {
+    case 'value':
+      return /^fcc[0-7]$/.test(expr.name);
+    case 'binary':
+      return expressionReadsFcc(expr.left) || expressionReadsFcc(expr.right);
+    case 'unary':
+    case 'cast':
+      return expressionReadsFcc(expr.value);
+    case 'const':
+      return false;
   }
 }
 
@@ -463,12 +496,14 @@ function isLoopWithPhi(ir: FunctionIR): boolean {
  * guessed; all function identity still comes from FunctionIR.functionAddress.
  */
 export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
-  const fpuOperations = ir.blocks.flatMap(block => block.operations)
-    .filter(operation => operation.kind === 'fpuLoad'
-      || operation.kind === 'fpuStore'
-      || operation.kind === 'fpuTransfer'
-      || operation.kind === 'fpuCompare'
-      || operation.kind === 'fpuControlWrite');
+  const operations = ir.blocks.flatMap(block => block.operations);
+  const fpuOperations = operations.filter(operation => operation.kind === 'fpuLoad'
+    || operation.kind === 'fpuStore'
+    || operation.kind === 'fpuTransfer'
+    || operation.kind === 'fpuCompare'
+    || operation.kind === 'fpuControlWrite');
+  const usesFpuState = fpuOperations.length > 0 || operations.some(operation =>
+    operation.kind === 'branch' && expressionReadsFcc(operation.condition));
   let lowered: CFunction;
   if (ir.blocks.length === 1) {
     lowered = lowerSingleBlock(ir);
@@ -484,7 +519,7 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
   } else {
     throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
   }
-  if (fpuOperations.length === 0) return lowered;
+  if (!usesFpuState) return lowered;
   return {
     ...lowered,
     parameters: [{ name: 'fpu', type: 'vr4300_fpu_state *' }],
