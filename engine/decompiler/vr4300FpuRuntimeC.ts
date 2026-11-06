@@ -100,6 +100,38 @@ static inline bool vr4300_fpu_write_s(vr4300_fpu_state *fpu, unsigned reg, uint3
     return true;
 }
 
+/* The VR4300 reports QNaN and denormal operands as Unimplemented
+ * Operation (E), except in compare instructions. Signaling NaNs continue
+ * through the IEEE Invalid path. */
+static inline bool vr4300_fpu_raise_unimplemented(vr4300_fpu_state *fpu)
+{
+    fpu->fcsr &= ~(UINT32_C(0x3f) << 12);
+    fpu->fcsr |= UINT32_C(1) << 17;
+    fpu->exception_pending = true;
+    fpu->exception_code = 15u; /* Floating Point */
+    return false;
+}
+
+static inline bool vr4300_fpu_check_operand_s(vr4300_fpu_state *fpu, uint32_t bits)
+{
+    const uint32_t exponent = bits & UINT32_C(0x7f800000);
+    const uint32_t fraction = bits & UINT32_C(0x007fffff);
+    const bool denormal = exponent == 0 && fraction != 0;
+    const bool quiet_nan = exponent == UINT32_C(0x7f800000) &&
+        fraction != 0 && (fraction & UINT32_C(0x00400000)) != 0;
+    return denormal || quiet_nan ? vr4300_fpu_raise_unimplemented(fpu) : true;
+}
+
+static inline bool vr4300_fpu_check_operand_d(vr4300_fpu_state *fpu, uint64_t bits)
+{
+    const uint64_t exponent = bits & UINT64_C(0x7ff0000000000000);
+    const uint64_t fraction = bits & UINT64_C(0x000fffffffffffff);
+    const bool denormal = exponent == 0 && fraction != 0;
+    const bool quiet_nan = exponent == UINT64_C(0x7ff0000000000000) &&
+        fraction != 0 && (fraction & UINT64_C(0x0008000000000000)) != 0;
+    return denormal || quiet_nan ? vr4300_fpu_raise_unimplemented(fpu) : true;
+}
+
 static inline bool vr4300_fpu_check_d_register(vr4300_fpu_state *fpu, unsigned reg)
 {
     if (!vr4300_fpu_check_cop1(fpu)) return false;
