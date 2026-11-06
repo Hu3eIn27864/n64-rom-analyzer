@@ -17,8 +17,10 @@ test('function recovery does not retain state between calls', () => {
   const readWord = reader({
     0: NOP,
     4: JR_RA,
+    8: NOP,
     0x100: NOP,
     0x104: JR_RA,
+    0x108: NOP,
   });
 
   const first = recoverFunctions([0], { readWord });
@@ -30,7 +32,7 @@ test('function recovery does not retain state between calls', () => {
 });
 
 test('function recovery is deterministic for repeated analysis of the same input', () => {
-  const readWord = reader({ 0: NOP, 4: JR_RA });
+  const readWord = reader({ 0: NOP, 4: JR_RA, 8: NOP });
   const a = recoverFunctions([0], { readWord });
   const b = recoverFunctions([0], { readWord });
 
@@ -42,8 +44,10 @@ test('function recovery discovers a direct JAL target without shared state', () 
     0: JAL_100,
     4: NOP,
     8: JR_RA,
+    12: NOP,
     0x100: NOP,
     0x104: JR_RA,
+    0x108: NOP,
   });
 
   const functions = recoverFunctions([0], { readWord });
@@ -51,6 +55,7 @@ test('function recovery discovers a direct JAL target without shared state', () 
   const callee = functions.find((fn) => fn.address === 0x100);
 
   assert.deepEqual(root?.callees, [0x100]);
+  assert.deepEqual(root?.instructions.map(item => item.address), [0, 4, 8, 12]);
   assert.deepEqual(callee?.callers, [0]);
 });
 
@@ -59,7 +64,9 @@ test('function recovery deduplicates callers and callees deterministically', () 
     0: JAL_100,
     4: JAL_100,
     8: JR_RA,
+    12: NOP,
     0x100: JR_RA,
+    0x104: NOP,
   });
 
   const functions = recoverFunctions([0], { readWord });
@@ -68,11 +75,12 @@ test('function recovery deduplicates callers and callees deterministically', () 
 });
 
 test('function recovery keeps confidence separate from verification', () => {
-  const readWord = reader({ 0: NOP, 4: JR_RA });
+  const readWord = reader({ 0: NOP, 4: JR_RA, 8: NOP });
   const fn = recoverFunctions([0], { readWord })[0];
 
   assert.equal(fn.confidence, 0.9);
-  assert.equal(fn.instructions.at(-1)?.mnemonic, 'JR');
-  assert.equal(fn.endAddress, 8);
+  assert.equal(fn.instructions.at(-2)?.mnemonic, 'JR');
+  assert.equal(fn.instructions.at(-1)?.mnemonic, 'NOP');
+  assert.equal(fn.endAddress, 12);
   assert.equal('verification' in fn, false);
 });
