@@ -40,7 +40,7 @@ function baseOffset(expression: MicroCExpr): BaseOffset | undefined {
   return undefined;
 }
 
-function formatMemoryAddress(expression: MicroCExpr): string {
+function formatMemoryAddress(expression: MicroCExpr, alignment: 1 | 4 | 8 = 1): string {
   const parsed = baseOffset(expression);
   if (!parsed) return 'dynamic memory expression';
 
@@ -50,7 +50,8 @@ function formatMemoryAddress(expression: MicroCExpr): string {
     : register === 'rgp' ? '$gp'
     : register === 'rt9' ? '$t9'
     : '$' + parsed.base.replace(/^\$/, '');
-  return '0x' + (parsed.offset >>> 0).toString(16) + '(' + architecturalName + ')';
+  const alignedOffset = parsed.offset & ~(alignment - 1);
+  return '0x' + (alignedOffset >>> 0).toString(16) + '(' + architecturalName + ')';
 }
 
 function memoryInput(
@@ -58,10 +59,11 @@ function memoryInput(
   address: MicroCExpr,
   size: MemoryInput['size'],
   blockId: number,
+  alignment: 1 | 4 | 8 = 1,
 ): MemoryInput {
   return {
     kind,
-    address: formatMemoryAddress(address),
+    address: formatMemoryAddress(address, alignment),
     size,
     blockId,
   };
@@ -73,15 +75,15 @@ function collectOperationAccesses(operation: MicroCOperation, blockId: number): 
     case 'linkedLoad':
       return [memoryInput('use', operation.address, operation.size, blockId)];
     case 'mergeLoad':
-      return [memoryInput('use', operation.address, 8, blockId)];
+      return [memoryInput('use', operation.address, 8, blockId, 8)];
     case 'mergeLoadWord':
-      return [memoryInput('use', operation.address, 4, blockId)];
+      return [memoryInput('use', operation.address, 4, blockId, 4)];
     case 'store':
       return [memoryInput('def', operation.address, operation.size, blockId)];
     case 'mergeStore':
-      return [memoryInput('def', operation.address, 8, blockId)];
+      return [memoryInput('def', operation.address, 8, blockId, 8)];
     case 'mergeStoreWord':
-      return [memoryInput('def', operation.address, 4, blockId)];
+      return [memoryInput('def', operation.address, 4, blockId, 4)];
     case 'conditionalStore':
       return [memoryInput('def', operation.address, operation.size, blockId)];
     case 'fpuLoad':
