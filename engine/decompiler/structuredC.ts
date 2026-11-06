@@ -1,5 +1,6 @@
 import type { CExpr, CFunction, CStmt } from '../ir/cAst';
 import type { FunctionIR, MicroCExpr, MicroCOperation } from '../ir/microC';
+import { VR4300_FPU_C_RUNTIME } from './vr4300FpuRuntimeC';
 
 function hexAddress(address: number): string {
   return `func_${(address >>> 0).toString(16).padStart(8, '0')}`;
@@ -42,6 +43,48 @@ function declaration(name: string, value: MicroCExpr): CStmt {
   };
 }
 
+function typedAssignment(target: string, type: CExpr['type'], value: CExpr): CStmt {
+  return {
+    kind: 'expr',
+    expr: {
+      kind: 'binary',
+      op: '=',
+      left: { kind: 'variable', value: target, type },
+      right: value,
+      type,
+    },
+  };
+}
+
+function cVariable(name: string, type: CExpr['type'] = 'uint32_t'): CExpr {
+  return { kind: 'variable', value: name, type };
+}
+
+function cConstant(value: number): CExpr {
+  return { kind: 'literal', value, type: 'uint32_t' };
+}
+
+function cCall(callee: string, args: CExpr[], type: CExpr['type'] = 'void'): CExpr {
+  return { kind: 'call', callee, args, type };
+}
+
+function cCast(type: CExpr['type'], operand: CExpr): CExpr {
+  return { kind: 'cast', type, operand };
+}
+
+function returnIfFalse(condition: CExpr): CStmt {
+  return {
+    kind: 'if',
+    condition: { kind: 'unary', op: '!', operand: condition, type: 'uint32_t' },
+    thenBranch: { kind: 'block', body: [{ kind: 'return', expr: cConstant(0) }] },
+  };
+}
+
+function fpuAddress(address: MicroCExpr): CExpr {
+  return cCast('uintptr_t', lowerExpr(address));
+}
+
+
 function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   switch (operation.kind) {
     case 'assign':
@@ -61,12 +104,55 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       return { kind: 'return', expr: operation.value ? lowerExpr(operation.value) : undefined };
     case 'phi':
       return undefined;
-    case 'fpuLoad':
-    case 'fpuStore':
-    case 'fpuTransfer':
-    case 'fpuCompare':
+    case 'fpuLoad': {
+      const call = operation.size === 4
+        ? cCall('vr4300_fpu_load_s', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)])
+        : cCall('vr4300_fpu_load_d', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t');
+      return operation.size === 4 ? { kind: 'expr', expr: call } : returnIfFalse(call);
+    }
+    case 'fpuStore': {
+      const call = operation.size === 4
+        ? cCall('vr4300_fpu_store_s', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)])
+        : cCall('vr4300_fpu_store_d', [cVariable('fpu'), cConstant(operation.register), fpuAddress(operation.address)], 'uint32_t');
+      return operation.size === 4 ? { kind: 'expr', expr: call } : returnIfFalse(call);
+    }
+    case 'fpuTransfer': {
+      if (operation.direction === 'from-fpu' && operation.width === 32) {
+        const read = cCall('vr4300_fpu_read_s', [cVariable('fpu'), cConstant(operation.fpr)], 'uint32_t');
+        const signed = cCast('int32_t', read);
+        const extended = cCast('int64_t', signed);
+        return typedAssignment(operation.gpr, 'uint64_t', cCast('uint64_t', extended));
+      }
+      if (operation.direction === 'to-fpu' && operation.width === 32) {
+        const write = cCall('vr4300_fpu_write_s', [
+          cVariable('fpu'), cConstant(operation.fpr), cCast('uint32_t', cVariable(operation.gpr, 'uint64_t')),
+        ]);
+        return { kind: 'expr', expr: write };
+      }
+      if (operation.direction === 'from-fpu') {
+        const temporary = `__fpu_dword_f${operation.fpr}`;
+        const read = cCall('vr4300_fpu_read_d', [cVariable('fpu'), cConstant(operation.fpr), {
+          kind: 'unary', op: '&', operand: cVariable(temporary, 'uint64_t'), type: 'pointer',
+        }], 'uint32_t');
+        return {
+          kind: 'block',
+          body: [
+            { kind: 'decl', name: temporary, type: 'uint64_t' },
+            returnIfFalse(read),
+            typedAssignment(operation.gpr, 'uint64_t', cVariable(temporary, 'uint64_t')),
+          ],
+        };
+      }
+      const write = cCall('vr4300_fpu_write_d', [
+        cVariable('fpu'), cConstant(operation.fpr), cVariable(operation.gpr, 'uint64_t'),
+      ], 'uint32_t');
+      return returnIfFalse(write);
+    }
     case 'fpuControlWrite':
-      throw new Error('FPU operation reached structured lowering without a verified FR/FCSR lowering');
+      if (operation.controlRegister !== 31) throw new Error(`C lowering does not yet model CTC1 FCR${operation.controlRegister}`);
+      return { kind: 'expr', expr: cCall('vr4300_fpu_write_fcsr', [cVariable('fpu'), cCast('uint32_t', lowerExpr(operation.value))]) };
+    case 'fpuCompare':
+      throw new Error('COP1 compare C lowering is blocked until FCSR exception-enable and trap semantics are represented');
     case 'branch':
     case 'jump':
       return undefined;
@@ -374,10 +460,10 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
       || operation.kind === 'fpuTransfer'
       || operation.kind === 'fpuCompare'
       || operation.kind === 'fpuControlWrite');
-  if (fpuOperations.length > 0) {
-    throw new Error('structured C lowering does not yet model Status.FR-dependent FPR storage or FCSR compare side effects');
+  if (fpuOperations.some(operation => operation.kind === 'fpuCompare')) {
+    throw new Error('COP1 compare C lowering is blocked until FCSR exception-enable and trap semantics are represented');
   }
-  if (ir.blocks.length === 1) return lowerSingleBlock(ir);
+  let lowered: CFunction;\n  if (ir.blocks.length === 1) lowered = lowerSingleBlock(ir);
   if (ir.blocks.length === 3) {
     const { entry, branch } = branchFromEntry(ir);
     const targets = [branch.trueTarget, branch.falseTarget];
@@ -390,7 +476,7 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     if (isLoopWithPhi(ir)) return lowerLoopWithPhi(ir);
     return lowerDiamond(ir);
   }
-  throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
+  else throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);\n  if (fpuOperations.length === 0) return lowered;\n  return {\n    ...lowered,\n    parameters: [{ name: 'fpu', type: 'vr4300_fpu_state *' }],\n    useVoidForEmptyParameters: false,\n    preamble: [VR4300_FPU_C_RUNTIME],\n  };
 }
 
 export const decompileLinearFunctionIR = decompileStructuredFunctionIR;
