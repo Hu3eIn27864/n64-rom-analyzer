@@ -286,6 +286,14 @@ test('guards LWU, LD, and SD outside VR4300 64-bit or Kernel mode', () => {
   assert.match(store, /exception_code = 10u/);
 });
 
+test('uses VR4300 reverse-endian lane XORs for byte, halfword, and word accesses', () => {
+  const adjust = VR4300_FPU_C_RUNTIME.match(/static inline uintptr_t vr4300_memory_adjust_address\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(adjust, /size == 1u\) return address \^ 7u/);
+  assert.match(adjust, /size == 2u \|\| size == 4u\) return address \^ 4u/);
+  assert.doesNotMatch(adjust, /size == 2u\) return address \^ 2u/);
+  assert.match(adjust, /if \(size == 8u\)/, { message: 'eight-byte accesses retain their aligned address lane' });
+});
+
 test('sign-extends signed byte, halfword, and word loads without host signed casts', () => {
   const load = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_load\([\s\S]*?\n\}/)?.[0] ?? '';
   assert.match(load, /value & UINT64_C\(0x80\)/);
