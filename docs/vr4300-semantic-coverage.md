@@ -7,7 +7,7 @@ This ledger distinguishes decoding from semantic lifting. A mnemonic appearing i
 - Integer ALU: supported operations are represented in `engine/ir/lifter.ts`; signed overflow and 64-bit mode restrictions are explicit where modeled.
 - HI/LO: word and doubleword multiply/divide plus HI/LO transfers.
 - Integer memory: byte/halfword/word/doubleword loads and stores, LL/SC, and both word (`LWL/LWR/SWL/SWR`) and doubleword (`LDL/LDR/SDL/SDR`) merge operations. Word loads sign-extend to 64-bit GPR width; merge stores invalidate a matching LLbit reservation. Reverse-endian lanes and alignment/mode exceptions are modeled by the runtime helpers.
-- Decoder metadata: CP0 transfer and CACHE operands are preserved explicitly, even though the corresponding stateful semantics remain unsupported.
+- Decoder metadata: CP0 transfer operands preserve both the register number and the three-bit select field (`c0_regN_selM`; select zero retains `c0_regN`). CACHE operands and effective addresses are also preserved explicitly. These decoding guarantees do not imply that the corresponding stateful semantics are supported.
 - COP1: the currently supported transfers, arithmetic, comparisons, conversions, FCSR behavior, and runtime exceptions are represented in Micro-C.
 
 ## Explicitly incomplete families
