@@ -8,7 +8,7 @@ type Case = {
   address: number;
   mnemonic: string;
   operands: string[];
-  controlFlow: 'none' | 'branch' | 'likely' | 'jump' | 'call' | 'return' | 'indirect';
+  controlFlow: 'none' | 'branch' | 'likely' | 'link' | 'link-likely' | 'jump' | 'call' | 'return' | 'indirect';
 };
 
 const cases: Case[] = [
@@ -22,6 +22,10 @@ const cases: Case[] = [
   { name: 'bgez', raw: 0x04810004, address: 0x1034, mnemonic: 'BGEZ', operands: ['$a0', '0x00001048'], controlFlow: 'branch' },
   { name: 'beql', raw: 0x50850004, address: 0x1038, mnemonic: 'BEQL', operands: ['$a0', '$a1', '0x0000104C'], controlFlow: 'likely' },
   { name: 'bltzl', raw: 0x04820004, address: 0x103c, mnemonic: 'BLTZL', operands: ['$a0', '0x00001050'], controlFlow: 'likely' },
+  { name: 'bltzal', raw: 0x04900004, address: 0x1040, mnemonic: 'BLTZAL', operands: ['$a0', '0x00001054'], controlFlow: 'link' },
+  { name: 'bgezal', raw: 0x04910004, address: 0x1044, mnemonic: 'BGEZAL', operands: ['$a0', '0x00001058'], controlFlow: 'link' },
+  { name: 'bltzall', raw: 0x04920004, address: 0x1048, mnemonic: 'BLTZALL', operands: ['$a0', '0x0000105C'], controlFlow: 'link-likely' },
+  { name: 'bgezall', raw: 0x04930004, address: 0x104c, mnemonic: 'BGEZALL', operands: ['$a0', '0x00001060'], controlFlow: 'link-likely' },
   { name: 'j', raw: 0x08000410, address: 0x1010, mnemonic: 'J', operands: ['0x00001040'], controlFlow: 'jump' },
   { name: 'jal', raw: 0x0c000410, address: 0x1014, mnemonic: 'JAL', operands: ['0x00001040'], controlFlow: 'call' },
   { name: 'jr-ra', raw: 0x03e00008, address: 0x1018, mnemonic: 'JR', operands: ['$ra'], controlFlow: 'return' },
@@ -37,7 +41,8 @@ test('VR4300 decoder corpus', () => {
     assert.deepEqual(instruction.operands, fixture.operands, fixture.name);
     assert.equal(instruction.address, fixture.address, fixture.name);
     assert.equal(instruction.isConditionalBranch, ['branch', 'likely'].includes(fixture.controlFlow), fixture.name);
-    assert.equal(instruction.isBranchLikely, fixture.controlFlow === 'likely', fixture.name);
+    assert.equal(instruction.isBranchLikely, fixture.controlFlow === 'likely' || fixture.controlFlow === 'link-likely', fixture.name);
+    assert.equal(instruction.isLinkBranch, fixture.controlFlow === 'link' || fixture.controlFlow === 'link-likely', fixture.name);
     assert.equal(instruction.isJump, ['jump', 'call', 'return', 'indirect'].includes(fixture.controlFlow), fixture.name);
     assert.equal(instruction.isCall, fixture.controlFlow === 'call' || fixture.controlFlow === 'indirect', fixture.name);
     assert.equal(instruction.isReturn, fixture.controlFlow === 'return', fixture.name);
