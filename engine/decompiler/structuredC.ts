@@ -61,6 +61,12 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       return { kind: 'return', expr: operation.value ? lowerExpr(operation.value) : undefined };
     case 'phi':
       return undefined;
+    case 'fpuLoad':
+    case 'fpuStore':
+    case 'fpuTransfer':
+    case 'fpuCompare':
+    case 'fpuControlWrite':
+      throw new Error('FPU operation reached structured lowering without a verified FR/FCSR lowering');
     case 'branch':
     case 'jump':
       return undefined;
