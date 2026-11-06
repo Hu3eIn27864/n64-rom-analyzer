@@ -16,11 +16,11 @@ const cases: Case[] = [
   { name: 'addu', raw: 0x00851021, address: 0x1004, mnemonic: 'ADDU', operands: ['$v0', '$a0', '$a1'], controlFlow: 'none' },
   { name: 'addiu', raw: 0x2404000a, address: 0x1008, mnemonic: 'ADDIU', operands: ['$a0', '$zero', '10'], controlFlow: 'none' },
   { name: 'beq', raw: 0x10850004, address: 0x100c, mnemonic: 'BEQ', operands: ['$a0', '$a1', '0x00001020'], controlFlow: 'branch' },
-  { name: 'blez', raw: 0x18800004, address: 0x1028, mnemonic: 'BLEZ', operands: ['$a0', '0x0000103c'], controlFlow: 'branch' },
+  { name: 'blez', raw: 0x18800004, address: 0x1028, mnemonic: 'BLEZ', operands: ['$a0', '0x0000103C'], controlFlow: 'branch' },
   { name: 'bgtz', raw: 0x1c800004, address: 0x102c, mnemonic: 'BGTZ', operands: ['$a0', '0x00001040'], controlFlow: 'branch' },
   { name: 'bltz', raw: 0x04800004, address: 0x1030, mnemonic: 'BLTZ', operands: ['$a0', '0x00001044'], controlFlow: 'branch' },
   { name: 'bgez', raw: 0x05010004, address: 0x1034, mnemonic: 'BGEZ', operands: ['$a0', '0x00001048'], controlFlow: 'branch' },
-  { name: 'beql', raw: 0x50850004, address: 0x1038, mnemonic: 'BEQL', operands: ['$a0', '$a1', '0x0000104c'], controlFlow: 'likely' },
+  { name: 'beql', raw: 0x50850004, address: 0x1038, mnemonic: 'BEQL', operands: ['$a0', '$a1', '0x0000104C'], controlFlow: 'likely' },
   { name: 'bltzl', raw: 0x04820004, address: 0x103c, mnemonic: 'BLTZL', operands: ['$a0', '0x00001050'], controlFlow: 'likely' },
   { name: 'j', raw: 0x08000410, address: 0x1010, mnemonic: 'J', operands: ['0x00001040'], controlFlow: 'jump' },
   { name: 'jal', raw: 0x0c000410, address: 0x1014, mnemonic: 'JAL', operands: ['0x00001040'], controlFlow: 'call' },
@@ -82,6 +82,6 @@ test('lifts signed and zero-relative MIPS branch predicates explicitly', async (
       assert.equal(branch.condition.kind, 'binary', instruction.mnemonic);
       if (branch.condition.kind === 'binary') assert.equal(branch.condition.op, fixture.op, instruction.mnemonic);
     }
-    assert.deepEqual(ir.unsupportedInstructions, [], instruction.mnemonic);
+    assert.deepEqual(ir.unsupportedInstructions ?? [], [], instruction.mnemonic);
   }
 });
