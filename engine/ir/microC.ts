@@ -21,6 +21,7 @@ export type MicroCOperation =
   | { kind: 'fpuConvertFormat'; sourceFormat: 'S' | 'D'; destinationFormat: 'S' | 'D'; sourceRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuConvertFromWord'; destinationFormat: 'S' | 'D'; sourceRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuConvertWord'; operation: 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor'; format: 'S' | 'D'; sourceRegister: number; destinationRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
+  | { kind: 'fpuConvertLong'; operation: 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor'; format: 'S' | 'D'; sourceRegister: number; destinationRegister: number; modeConstraint: 'kernel-or-64bit'; sourceRegisterConstraint?: 'even-when-fr0'; destinationRegisterConstraint: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'call'; target: MicroCExpr; args: MicroCExpr[]; result?: string }
   | { kind: 'branch'; condition: MicroCExpr; trueTarget: number; falseTarget?: number; linkOnTaken?: { target: string; value: MicroCExpr } }
   | { kind: 'jump'; target: number }

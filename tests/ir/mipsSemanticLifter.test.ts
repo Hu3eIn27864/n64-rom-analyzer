@@ -503,7 +503,7 @@ test('restores the complete host floating-point environment after VR4300 operati
   assert.match(VR4300_FPU_C_RUNTIME, /vr4300_fpu_end_host_fenv\(fpu, &saved_env, &raised\)/);
   assert.doesNotMatch(VR4300_FPU_C_RUNTIME, /fesetround\(old_round\)/);
   assert.equal((VR4300_FPU_C_RUNTIME.match(/fegetround\(\)/g) ?? []).length, 2);
-  assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 7);
+  assert.equal((VR4300_FPU_C_RUNTIME.match(/vr4300_fpu_begin_host_fenv\(fpu, &saved_env/g) ?? []).length, 8);
 });
 
 
@@ -599,4 +599,58 @@ test('models VR4300 FS-dependent denormal and underflow result handling', () => 
   assert.match(arithmeticS, /vr4300_fpu_commit_result_s/);
   assert.match(arithmeticD, /vr4300_fpu_commit_result_d/);
   assert.match(convertDToS, /vr4300_fpu_commit_result_s/);
+});
+
+test('lifts VR4300 long fixed-point conversions with mode and even-register constraints', () => {
+  const make = (mnemonic: string, format: 0x10 | 0x11, fs: number, fd: number) => createMipsInstruction({
+    address: 0x8000a000 + fs * 4, raw: 0, mnemonic, operands: ['$f' + fd, '$f' + fs],
+    fpuFormat: format, fpuSourceRegister: fs, fpuTargetRegister: 0, fpuDestinationRegister: fd,
+  });
+  const instructions = [
+    make('CVT.L.S', 0x10, 3, 4),
+    make('ROUND.L.D', 0x11, 6, 8),
+    make('TRUNC.L.S', 0x10, 10, 12),
+    make('CEIL.L.D', 0x11, 14, 16),
+    make('FLOOR.L.S', 0x10, 18, 20),
+  ];
+  const ir = liftInstructionsToMicroC(0x8000a000, instructions);
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'fpuConvertLong', operation: 'cvt', format: 'S', sourceRegister: 3, destinationRegister: 4, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'round', format: 'D', sourceRegister: 6, destinationRegister: 8, modeConstraint: 'kernel-or-64bit', sourceRegisterConstraint: 'even-when-fr0', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'trunc', format: 'S', sourceRegister: 10, destinationRegister: 12, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'ceil', format: 'D', sourceRegister: 14, destinationRegister: 16, modeConstraint: 'kernel-or-64bit', sourceRegisterConstraint: 'even-when-fr0', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+    { kind: 'fpuConvertLong', operation: 'floor', format: 'S', sourceRegister: 18, destinationRegister: 20, modeConstraint: 'kernel-or-64bit', destinationRegisterConstraint: 'even-when-fr0', registerMode: 'status-fr' },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const lowered = decompileStructuredFunctionIR(ir);
+  assert.deepEqual(lowered.parameters, [{ name: 'fpu', type: 'vr4300_fpu_state *' }]);
+  const c = renderFunction(lowered);
+  assert.match(c, /vr4300_fpu_convert_long_s\(fpu, 0, 3, 4\)/);
+  assert.match(c, /vr4300_fpu_convert_long_d\(fpu, 1, 6, 8\)/);
+  assert.match(c, /vr4300_fpu_convert_long_s\(fpu, 2, 10, 12\)/);
+  assert.match(c, /vr4300_fpu_convert_long_d\(fpu, 3, 14, 16\)/);
+  assert.match(c, /vr4300_fpu_convert_long_s\(fpu, 4, 18, 20\)/);
+});
+
+test('guards VR4300 long conversions by mode and unimplemented range cases', () => {
+  const modeCheck = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_check_long_conversion\([\s\S]*?\n\}/)?.[0] ?? '';
+  const convert = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_long\([\s\S]*?\n\}/)?.[0] ?? '';
+  const single = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_long_s\([\s\S]*?\n\}/)?.[0] ?? '';
+  const double = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_fpu_convert_long_d\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(modeCheck, /mode64_or_kernel/);
+  assert.match(modeCheck, /exception_code = 10u/);
+  assert.match(convert, /FE_TONEAREST/);
+  assert.match(convert, /FE_TOWARDZERO/);
+  assert.match(convert, /FE_UPWARD/);
+  assert.match(convert, /FE_DOWNWARD/);
+  assert.match(convert, /rounded < -9223372036854775808\.0/);
+  assert.match(convert, /rounded >= 9223372036854775808\.0/);
+  assert.match(convert, /vr4300_fpu_raise_unimplemented/);
+  assert.match(convert, /0x7fe0000000000000/); // VR4300 Appendix D result[62:53] restriction
+  assert.match(convert, /vr4300_fpu_commit_arithmetic_exceptions/);
+  assert.match(convert, /vr4300_fpu_write_d_register/);
+  assert.match(single, /vr4300_fpu_check_operand_s/);
+  assert.match(double, /vr4300_fpu_check_operand_d/);
+  assert.match(single, /0x7f800000/);
+  assert.match(double, /0x7ff0000000000000/);
 });
