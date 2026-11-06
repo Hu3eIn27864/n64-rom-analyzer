@@ -286,6 +286,17 @@ test('guards LWU, LD, and SD outside VR4300 64-bit or Kernel mode', () => {
   assert.match(store, /exception_code = 10u/);
 });
 
+test('sign-extends signed byte, halfword, and word loads without host signed casts', () => {
+  const load = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_load\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(load, /value & UINT64_C\(0x80\)/);
+  assert.match(load, /UINT64_C\(0xffffffffffffff00\)/);
+  assert.match(load, /value & UINT64_C\(0x8000\)/);
+  assert.match(load, /UINT64_C\(0xffffffffffff0000\)/);
+  assert.match(load, /value & UINT64_C\(0x80000000\)/);
+  assert.match(load, /UINT64_C\(0xffffffff00000000\)/);
+  assert.doesNotMatch(load, /\(int64_t\)\(int(?:8|16|32)_t\)/);
+});
+
 test('sign-extends 16-bit memory offsets before 64-bit effective-address addition', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('LD', ['$t0', '0xffff($sp)']),
