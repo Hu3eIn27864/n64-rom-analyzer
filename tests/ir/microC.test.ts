@@ -28,4 +28,9 @@ test('keeps unknown operations conservative', () => {
     mipsInstruction(0x2000, 'UNKNOWN'),
   ]);
   assert.deepEqual(ir.blocks[0].operations, []);
+  assert.deepEqual(ir.unsupportedInstructions, [{
+    address: 0x2000,
+    mnemonic: 'UNKNOWN',
+    reason: 'No complete Micro-C semantics are available for this instruction',
+  }]);
 });
