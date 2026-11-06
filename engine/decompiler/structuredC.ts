@@ -120,6 +120,13 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
   switch (operation.kind) {
     case 'assign':
       return assignment(operation.target, operation.value);
+    case 'hiloDivideWord':
+      return returnIfFalse(cCall('vr4300_hilo_divide32', [
+        cVariable('fpu'),
+        cCast('uint32_t', lowerExpr(operation.left, 32)),
+        cCast('uint32_t', lowerExpr(operation.right, 32)),
+        cConstant(operation.signed ? 1 : 0),
+      ], 'uint32_t'));
     case 'hiloDivide':
       return returnIfFalse(cCall('vr4300_hilo_divide64', [
         cVariable('fpu'),
@@ -127,6 +134,16 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
         lowerExpr(operation.right, 64),
         cConstant(operation.signed ? 1 : 0),
       ], 'uint32_t'));
+    case 'hiloMultiplyWord':
+      return {
+        kind: 'expr',
+        expr: cCall('vr4300_hilo_multiply32', [
+          cVariable('fpu'),
+          cCast('uint32_t', lowerExpr(operation.left, 32)),
+          cCast('uint32_t', lowerExpr(operation.right, 32)),
+          cConstant(operation.signed ? 1 : 0),
+        ], 'void'),
+      };
     case 'hiloMultiply':
       return {
         kind: 'expr',
@@ -773,7 +790,7 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
   const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store' || operation.kind === 'mergeLoad' || operation.kind === 'mergeStore' || operation.kind === 'linkedLoad' || operation.kind === 'conditionalStore');
   const hasSignedArithmetic = operations.some(operation => operation.kind === 'signedArithmetic');
-  const hasHiloTransfer = operations.some(operation => operation.kind === 'hiloTransfer' || operation.kind === 'hiloMultiply' || operation.kind === 'hiloDivide');
+  const hasHiloTransfer = operations.some(operation => operation.kind === 'hiloTransfer' || operation.kind === 'hiloMultiply' || operation.kind === 'hiloDivide' || operation.kind === 'hiloMultiplyWord' || operation.kind === 'hiloDivideWord');
   const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory || hasSignedArithmetic || hasHiloTransfer;
   const usesSra = operations.some(operation => operation.kind === 'assign' && expressionUsesSra(operation.value));
   const usesSignExtend32 = operations.some(operation => operation.kind === 'assign' && expressionUsesSignExtend32(operation.value));
