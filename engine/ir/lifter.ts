@@ -58,6 +58,24 @@ function memoryAddress(operand: string): MicroCExpr | undefined {
     : binary('+', value(normalizeRegister(match[2]), 64), constant(offset), 64);
 }
 
+function unsupportedReason(mnemonic: string): string {
+  if (['MFC0', 'DMFC0', 'MTC0', 'DMTC0'].includes(mnemonic))
+    return 'CP0 register access is not modeled: privilege checks, register-specific masks, and side effects are required';
+  if (['TLBP', 'TLBR', 'TLBWI', 'TLBWR'].includes(mnemonic))
+    return 'TLB operation is not modeled: indexed/random TLB state and translation side effects are unavailable';
+  if (mnemonic === 'ERET')
+    return 'ERET is not modeled: Status.EXL/ERL, EPC/ErrorEPC selection, and exception return control flow are required';
+  if (['SYSCALL', 'BREAK', 'TEQ', 'TNE', 'TGE', 'TGEU', 'TLT', 'TLTU'].includes(mnemonic))
+    return 'Trap/exception behavior is not modeled: exception code, EPC, delay-slot BD state, and vectoring are required';
+  if (mnemonic === 'SYNC')
+    return 'SYNC is not modeled: guest memory ordering and concurrent observer semantics are not defined';
+  if (mnemonic === 'CACHE')
+    return 'CACHE is not modeled: cacheability and cache-operation effects are unavailable';
+  if (['LWL', 'LWR', 'SWL', 'SWR'].includes(mnemonic))
+    return 'No complete Micro-C semantics are available for this instruction';
+  return 'No complete Micro-C semantics are available for this instruction';
+}
+
 function parseBranchTarget(instruction: MipsInstruction): number | undefined {
   return instruction.targetAddress === undefined ? undefined : instruction.targetAddress >>> 0;
 }
@@ -646,7 +664,7 @@ export function liftInstructionsToMicroC(
       unsupportedInstructions.push({
         address: instruction.address >>> 0,
         mnemonic: instruction.mnemonic,
-        reason: 'No complete Micro-C semantics are available for this instruction',
+        reason: unsupportedReason(instruction.mnemonic),
       });
     }
   }
