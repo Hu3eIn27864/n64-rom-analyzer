@@ -88,11 +88,21 @@ function transfer(
         default:
           continue;
       }
+      if (size === undefined) continue;
+      // Unknown calls can clobber any address, including stack/frame and
+      // dynamic pointers. Check this before requiring a constant load address.
+      if (state.unknownCall) return { invalidLoad: true, unknownLoad: true };
       const rawAddress = constantAddress(addressExpression);
-      if (rawAddress === undefined || size === undefined) continue;
+      if (rawAddress === undefined) {
+        // A dynamic load may alias any known call write range. Do not claim
+        // preservation when the address cannot be compared precisely.
+        if (state.invalidatedRanges.length > 0) {
+          return { invalidLoad: true, unknownLoad: false };
+        }
+        continue;
+      }
       const address = (rawAddress & ~(alignment - 1)) >>> 0;
       const range: MemoryEffectRange = { address, size };
-      if (state.unknownCall) return { invalidLoad: true, unknownLoad: true };
       if (state.invalidatedRanges.some(write => overlaps(write, range))) {
         return { invalidLoad: true, unknownLoad: false };
       }

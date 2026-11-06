@@ -5,6 +5,8 @@ import type { FunctionMemoryEffectSummary } from '../../engine/decompiler/functi
 import type { FunctionIR, MicroCOperation } from '../../engine/ir/microC';
 
 const c = (value: number) => ({ kind: 'const', value } as const);
+const v = (name: string) => ({ kind: 'value', name } as const);
+const stackAddress = { kind: 'binary', op: '+', left: v('$sp'), right: c(0) } as const;
 const load = (address: number): MicroCOperation => ({ kind: 'load', target: 'x', address: c(address), size: 4 });
 const call = (target: number): MicroCOperation => ({ kind: 'call', target: c(target), args: [], result: undefined });
 const makeIR = (operations: MicroCOperation[]): FunctionIR => ({ functionAddress: 0x9800, blocks: [{ id: 0, predecessors: [], successors: [], operations }] });
@@ -151,4 +153,26 @@ test('checks aligned merge-load ranges against call clobbers', () => {
     { reads: [], writes: [{ address: 0x1000, size: 8 }], unknown: false },
   ]]));
   assert.equal(doublewordResult.valid, false);
+});
+
+
+test('unknown calls invalidate stack-relative loads instead of skipping non-constant addresses', () => {
+  const stackLoad: MicroCOperation = {
+    kind: 'load', target: 'saved', address: stackAddress, size: 4,
+  };
+  const result = validateCallMemoryEffects(makeIR([call(0x80002000), stackLoad]), new Map());
+  assert.equal(result.valid, false);
+  assert.equal(result.unknownCall, true);
+});
+
+test('known call writes conservatively invalidate dynamic loads that may alias', () => {
+  const dynamicLoad: MicroCOperation = {
+    kind: 'load', target: 'value', address: v('pointer'), size: 4,
+  };
+  const result = validateCallMemoryEffects(
+    makeIR([call(0x80001000), dynamicLoad]),
+    new Map([[0x80001000, writesLoadedRange]]),
+  );
+  assert.equal(result.valid, false);
+  assert.equal(result.unknownCall, false);
 });
