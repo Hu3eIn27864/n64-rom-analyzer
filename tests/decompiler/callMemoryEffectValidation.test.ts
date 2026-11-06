@@ -176,3 +176,28 @@ test('known call writes conservatively invalidate dynamic loads that may alias',
   assert.equal(result.valid, false);
   assert.equal(result.unknownCall, false);
 });
+
+
+test('a definite local store restores a range clobbered by a known call', () => {
+  const localStore: MicroCOperation = {
+    kind: 'store', address: c(0x1000), value: c(7), size: 4,
+  };
+  const result = validateCallMemoryEffects(
+    makeIR([call(0x80001000), localStore, load(0x1000)]),
+    new Map([[0x80001000, writesLoadedRange]]),
+  );
+  assert.equal(result.valid, true);
+  assert.equal(result.unknownCall, false);
+});
+
+test('a partial local store does not restore an entire call-clobbered range', () => {
+  const partialStore: MicroCOperation = {
+    kind: 'store', address: c(0x1000), value: c(7), size: 2,
+  };
+  const result = validateCallMemoryEffects(
+    makeIR([call(0x80001000), partialStore, load(0x1000)]),
+    new Map([[0x80001000, writesLoadedRange]]),
+  );
+  assert.equal(result.valid, false);
+  assert.equal(result.unknownCall, false);
+});
