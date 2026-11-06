@@ -301,6 +301,7 @@ test('lowers VR4300 FPU memory and transfer operations with defined FR-aware C h
   assert.match(c, /vr4300_fpu_store_s\(fpu, 2,/);
   assert.match(c, /vr4300_fpu_store_d\(fpu, 4,/);
   assert.match(c, /vr4300_fpu_read_s\(fpu, 2\)/);
+  assert.match(c, /gpr64_mode/);
   assert.match(c, /vr4300_fpu_read_d\(fpu, 4,/);
   assert.match(c, /vr4300_fpu_write_s\(fpu, 6,/);
   assert.match(c, /vr4300_fpu_write_d\(fpu, 8,/);
