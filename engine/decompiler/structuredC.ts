@@ -213,6 +213,14 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
         cConstant(operation.destinationRegister),
       ], 'uint32_t'));
     }
+    case 'fpuConvertWord': {
+      const helper = operation.format === 'S' ? 'vr4300_fpu_convert_word_s' : 'vr4300_fpu_convert_word_d';
+      const operationCode = ({ cvt: 0, round: 1, trunc: 2, ceil: 3, floor: 4 } as const)[operation.operation];
+      return returnIfFalse(cCall(helper, [
+        cVariable('fpu'), cConstant(operationCode),
+        cConstant(operation.sourceRegister), cConstant(operation.destinationRegister),
+      ], 'uint32_t'));
+    }
     case 'fpuControlWrite':
       if (operation.controlRegister !== 31) throw new Error(`C lowering does not yet model CTC1 FCR${operation.controlRegister}`);
       return returnIfFalse(cCall('vr4300_fpu_write_fcsr', [cVariable('fpu'), cCast('uint32_t', lowerExpr(operation.value))], 'uint32_t'));
@@ -549,7 +557,8 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     || operation.kind === 'fpuCompare'
     || operation.kind === 'fpuControlWrite'
     || operation.kind === 'fpuControlRead'
-    || operation.kind === 'fpuArithmetic');
+    || operation.kind === 'fpuArithmetic'
+    || operation.kind === 'fpuConvertWord');
   const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
   const usesFpuState = fpuOperations.length > 0 || hasFccBranch;
