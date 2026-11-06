@@ -13,7 +13,7 @@ export type MicroCOperation =
   | { kind: 'store'; address: MicroCExpr; value: MicroCExpr; size: 1 | 2 | 4 | 8 }
   | { kind: 'fpuLoad'; register: number; address: MicroCExpr; size: 4 | 8; modeConstraint?: 'kernel-or-64bit'; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuStore'; register: number; address: MicroCExpr; size: 4 | 8; modeConstraint?: 'kernel-or-64bit'; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
-  | { kind: 'fpuTransfer'; direction: 'from-fpu' | 'to-fpu'; gpr: string; fpr: number; width: 32 | 64; gprSemantics: 'sign-extend' | 'truncate' | 'full-width'; modeConstraint?: 'kernel-or-64bit'; registerMode: 'status-fr' }
+  | { kind: 'fpuTransfer'; direction: 'from-fpu' | 'to-fpu'; gpr: string; fpr: number; width: 32 | 64; gprSemantics: 'sign-extend' | 'truncate' | 'full-width'; modeConstraint?: 'kernel-or-64bit'; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuCompare'; conditionCode: number; format: 'S' | 'D'; predicate: number; leftRegister: number; rightRegister: number; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
   | { kind: 'fpuControlWrite'; controlRegister: number; value: MicroCExpr }
   | { kind: 'call'; target: MicroCExpr; args: MicroCExpr[]; result?: string }
