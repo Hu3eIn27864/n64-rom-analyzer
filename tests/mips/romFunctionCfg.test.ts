@@ -121,3 +121,20 @@ test('models BC1TL annulled delay slot and retains the selected FCC index', () =
     assert.equal(branchOperation.falseTarget, 2);
   }
 });
+
+
+test('keeps the ordinary BC1F delay-slot instruction on both branch paths', () => {
+  const rom = words([
+    0x45000004, // bc1f +4 -> 0x1014
+    0x24020001, // ordinary delay slot executes regardless of branch outcome
+    0x24030002,
+    0x03e00008,
+    0x00000000,
+    0x03e00008,
+    0x00000000,
+  ]);
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  const branch = cfg.blocks.find(block => block.startAddress === 0x80001000)!;
+  assert.deepEqual(branch.instructions.map(instruction => instruction.mnemonic), ['BC1F', 'ADDIU']);
+  assert.deepEqual(branch.successors, [0x80001014, 0x80001008]);
+});
