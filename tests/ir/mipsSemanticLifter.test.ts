@@ -1154,7 +1154,7 @@ test('lifts LWL/LWR and SWL/SWR as 32-bit merge operations', () => {
   assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind === 'mergeLoadWord'
     ? ['load', operation.target, operation.direction]
     : operation.kind === 'mergeStoreWord' ? ['store', operation.direction] : [operation.kind]), [
-    ['load', 'rt8', 'left'], ['load', 'rt10', 'right'],
+    ['load', 'rt0', 'left'], ['load', 'rt2', 'right'],
     ['store', 'left'], ['store', 'right'],
   ]);
   assert.equal(ir.unsupportedInstructions, undefined);
