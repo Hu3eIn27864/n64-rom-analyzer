@@ -174,6 +174,24 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       };
     }
 
+    case 'linkedLoad': {
+      const temporary = `__linked_load_${operation.target}`;
+      const read = cCall('vr4300_memory_load_linked', [
+        cVariable('fpu'),
+        fpuAddress(operation.address),
+        cConstant(operation.size),
+        cConstant(operation.signed ? 1 : 0),
+        { kind: 'unary', op: '&', operand: cVariable(temporary, 'uint64_t'), type: 'pointer' },
+      ], 'uint32_t');
+      return {
+        kind: 'block',
+        body: [
+          { kind: 'decl', name: temporary, type: 'uint64_t' },
+          returnIfFalse(read),
+          typedAssignment(operation.target, 'uint64_t', cVariable(temporary, 'uint64_t')),
+        ],
+      };
+    }
     case 'mergeLoad': {
       const temporary = `__merge_load_${operation.target}`;
       const read = cCall('vr4300_memory_merge_load64', [
@@ -207,6 +225,24 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
           { kind: 'decl', name: temporary, type: 'uint64_t' },
           returnIfFalse(read),
           typedAssignment(operation.target, 'uint64_t', cVariable(temporary, 'uint64_t')),
+        ],
+      };
+    }
+    case 'conditionalStore': {
+      const temporary = `__sc_success_${operation.target}`;
+      const write = cCall('vr4300_memory_store_conditional', [
+        cVariable('fpu'),
+        fpuAddress(operation.address),
+        cConstant(operation.size),
+        lowerExpr(operation.value, 64),
+        { kind: 'unary', op: '&', operand: cVariable(temporary, 'uint32_t'), type: 'pointer' },
+      ], 'uint32_t');
+      return {
+        kind: 'block',
+        body: [
+          { kind: 'decl', name: temporary, type: 'uint32_t' },
+          returnIfFalse(write),
+          typedAssignment(operation.target, 'uint64_t', cVariable(temporary, 'uint32_t')),
         ],
       };
     }
@@ -735,7 +771,7 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     || operation.kind === 'fpuConvertLong');
   const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
-  const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store' || operation.kind === 'mergeLoad' || operation.kind === 'mergeStore');
+  const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store' || operation.kind === 'mergeLoad' || operation.kind === 'mergeStore' || operation.kind === 'linkedLoad' || operation.kind === 'conditionalStore');
   const hasSignedArithmetic = operations.some(operation => operation.kind === 'signedArithmetic');
   const hasHiloTransfer = operations.some(operation => operation.kind === 'hiloTransfer' || operation.kind === 'hiloMultiply' || operation.kind === 'hiloDivide');
   const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory || hasSignedArithmetic || hasHiloTransfer;
