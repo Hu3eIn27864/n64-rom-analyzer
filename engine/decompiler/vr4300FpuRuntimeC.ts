@@ -2,9 +2,11 @@
  * Self-contained C helpers used by structured VR4300 FPU lowering.
  *
  * The caller supplies Status.FR, the user-mode reverse-endian state, COP1
- * usability, and whether the executing context is kernel or 64-bit mode. Doubleword operations report a pending
- * Reserved Instruction condition and return false when the mode/register
- * constraints are not met; generated code returns immediately on that path.
+ * usability, and whether the executing context is kernel or 64-bit mode.
+ * Memory pointers must already be mapped to target big-endian bytes. Reverse
+ * endian lane selection is enabled only when Status.RE applies in user mode.
+ * Helpers record architectural exception codes in the state and return false;
+ * generated code returns immediately so later operations do not execute.
  */
 export const VR4300_FPU_C_RUNTIME = `#include <stdbool.h>
 #include <math.h>
