@@ -18,21 +18,23 @@ This roadmap reflects the current implementation checklist and verification mode
 **Estimate for hardening:** 3–6 weeks.
 
 ## M2 — Structural analysis (implemented; validation expansion)
-- [x] Reachable-code discovery component with explicit ROM-word reader (implemented, isolated).
-- [x] Deterministic function recovery component (implemented, isolated).
+- [x] ROM-backed reachable-code discovery with explicit word reader and MIPS delay-slot decoding (isolated).
+- [x] Deterministic function recovery with caller/callee relationships and return delay-slot inclusion (isolated).
 - [x] Canonical CFG and call graph components.
-- [ ] Production-pipeline integration and legacy parity.
-- [ ] Validate indirect control flow, jump tables and delay-slot edge cases.
-- [ ] Expand golden tests across multiple synthetic programs.
+- [x] Canonical structural pipeline composing recovery, CFG and call graph.
+- [x] Narrow legacy-parity fixtures for direct-call and conditional-branch function boundaries.
+- [ ] Broader CFG/edge parity for branch-likely, indirect control flow, jump tables and exceptional paths.
+- [ ] Production-pipeline integration.
 **Estimate:** 1–3 months.
 
 ## M3 — Semantic analysis and memory model (in progress)
 - [x] Canonical Micro-C IR.
 - [x] Evidence-driven type inference.
-- [x] Initial memory-state merge, memory-Phi validation and address-confidence prototypes.
+- [x] Conservative block-local memory definition/use versions.
+- [x] Acyclic CFG Memory SSA with reaching definitions and MemoryPhi nodes at conflicting joins.
+- [ ] Loop-carried memory definitions and fixed-point Memory SSA.
+- [ ] Byte-range overlap, pointer aliasing and interprocedural memory reasoning.
 - [ ] Formal MIPS semantics integration.
-- [ ] CFG-driven Memory SSA with reaching definitions and loop/join fixed points.
-- [ ] Stronger pointer, alias and interprocedural memory reasoning.
 **Estimate:** 3–6 months.
 
 ## M4 — Structured source generation (not complete)
@@ -55,8 +57,8 @@ This roadmap reflects the current implementation checklist and verification mode
 | Period | Focus | Deliverable |
 |---|---|---|
 | Weeks 1–4 | M1 hardening | Expanded decoder/ROM fixtures |
-| Months 2–3 | M2 integration and validation | Side-by-side canonical/legacy parity on synthetic programs |
-| Months 3–6 | M3 | CFG-driven memory data-flow prototype |
+| Months 2–3 | M2 integration and validation | Broader side-by-side canonical/legacy parity on synthetic programs |
+| Months 3–6 | M3 | Loop-capable CFG memory data-flow prototype |
 | Months 6–12 | M4 | First structured C output for constrained cases |
 | Months 12–18+ | M5 | Independent verification prototype and test corpus |
 
