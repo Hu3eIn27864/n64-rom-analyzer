@@ -132,7 +132,17 @@ export function liftInstructionsToMicroC(
       case 'ADDIU':
       case 'ANDI':
       case 'ORI':
-      case 'XORI':
+      case 'XORI': {
+        const immediate = c ? parseImmediate(c) : undefined;
+        if (target && b && immediate !== undefined) {
+          const op = instruction.mnemonic === 'ANDI' ? 'and'
+            : instruction.mnemonic === 'ORI' ? 'or'
+            : instruction.mnemonic === 'XORI' ? 'xor'
+            : '+';
+          operations.push({ kind: 'assign', target, value: binary(op, value(normalizeRegister(b)), constant(immediate)) });
+        }
+        break;
+      }
       case 'SLTI':
       case 'SLTIU': {
         const immediate = c ? parseSignedImmediate16(c) : undefined;
@@ -158,6 +168,8 @@ export function liftInstructionsToMicroC(
       case 'OR':
       case 'XOR':
       case 'NOR':
+        if (target && b && c) operations.push({ kind: 'assign', target, value: binary(instruction.mnemonic.toLowerCase(), value(normalizeRegister(b)), value(normalizeRegister(c))) });
+        break;
       case 'SLT':
       case 'SLTU':
         if (target && b && c) {
