@@ -1,0 +1,144 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import type { FunctionIR, MicroCExpr } from '../../engine/ir/microC';
+import {
+  buildMemorySSAFromFunctionIR,
+  collectMemoryAccesses,
+} from '../../engine/ir/memorySsaBuilder';
+
+const stackAddress = (offset: number): MicroCExpr => ({
+  kind: 'binary',
+  op: '+',
+  left: { kind: 'value', name: 'rsp', width: 64 },
+  right: { kind: 'const', value: offset, width: 64 },
+  width: 64,
+});
+
+const emptyBlock = (id: number, predecessors: number[], successors: number[]) => ({
+  id,
+  predecessors,
+  successors,
+  operations: [],
+});
+
+test('derives exact stack def-use versions from Micro-C store and load operations', () => {
+  const address = stackAddress(16);
+  const ir: FunctionIR = {
+    functionAddress: 0x80001000,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [
+        { kind: 'store', address, value: { kind: 'value', name: 'r2' }, size: 4 },
+        { kind: 'load', target: 'r3', address, size: 4, signed: false },
+      ],
+    }],
+  };
+
+  const accesses = collectMemoryAccesses(ir);
+  assert.deepEqual(accesses, [
+    { kind: 'def', address: '0x10($sp)', size: 4, blockId: 0 },
+    { kind: 'use', address: '0x10($sp)', size: 4, blockId: 0 },
+  ]);
+
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.equal(result.accesses[0].version, 1);
+  assert.equal(result.accesses[1].reachingVersion, 1);
+});
+
+test('derives a MemoryPhi from conflicting Micro-C stores on CFG branches', () => {
+  const address = stackAddress(32);
+  const ir: FunctionIR = {
+    functionAddress: 0x80002000,
+    blocks: [
+      emptyBlock(0, [], [1, 2]),
+      {
+        id: 1,
+        predecessors: [0],
+        successors: [3],
+        operations: [{ kind: 'store', address, value: { kind: 'const', value: 1 }, size: 4 }],
+      },
+      {
+        id: 2,
+        predecessors: [0],
+        successors: [3],
+        operations: [{ kind: 'store', address, value: { kind: 'const', value: 2 }, size: 4 }],
+      },
+      {
+        id: 3,
+        predecessors: [1, 2],
+        successors: [],
+        operations: [{ kind: 'load', target: 'r4', address, size: 4, signed: false }],
+      },
+    ],
+  };
+
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.equal(result.phis.length, 1);
+  assert.equal(result.phis[0].blockId, 3);
+  assert.deepEqual(result.phis[0].inputs, { 1: 2, 2: 3 });
+  assert.equal(result.accesses[2].reachingVersion, result.phis[0].version);
+});
+
+test('keeps dynamic and global-register addresses conservative', () => {
+  const dynamic: MicroCExpr = {
+    kind: 'binary',
+    op: '+',
+    left: { kind: 'value', name: 'r4' },
+    right: { kind: 'value', name: 'r5' },
+  };
+  const ir: FunctionIR = {
+    functionAddress: 0x80003000,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [
+        { kind: 'store', address: dynamic, value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'load', target: 'r6', address: dynamic, size: 4, signed: false },
+        { kind: 'load', target: 'r7', address: { kind: 'value', name: 'rgp' }, size: 4, signed: false },
+      ],
+    }],
+  };
+
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.equal(result.accesses[0].confidence, 'unknown');
+  assert.equal(result.accesses[1].confidence, 'unknown');
+  assert.equal(result.accesses[1].reachingVersion, undefined);
+  assert.equal(result.accesses[2].confidence, 'probable');
+  assert.equal(result.accesses[2].reachingVersion, undefined);
+});
+
+test('maps merge, linked, conditional and FPU memory operations to access widths', () => {
+  const address = stackAddress(-4);
+  const ir: FunctionIR = {
+    functionAddress: 0x80004000,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [
+        { kind: 'mergeLoadWord', target: 'r2', address, direction: 'left' },
+        { kind: 'mergeStoreWord', address, value: { kind: 'value', name: 'r2' }, direction: 'right' },
+        { kind: 'mergeLoad', target: 'r3', address, direction: 'left' },
+        { kind: 'mergeStore', address, value: { kind: 'value', name: 'r3' }, direction: 'right' },
+        { kind: 'linkedLoad', target: 'r4', address, size: 8, signed: true },
+        { kind: 'conditionalStore', target: 'r5', address, value: { kind: 'value', name: 'r6' }, size: 8 },
+        { kind: 'fpuLoad', register: 2, address, size: 4, registerMode: 'status-fr' },
+        { kind: 'fpuStore', register: 2, address, size: 8, registerMode: 'status-fr' },
+      ],
+    }],
+  };
+
+  assert.deepEqual(collectMemoryAccesses(ir).map(access => [access.kind, access.address, access.size]), [
+    ['use', '0xfffffffc($sp)', 4],
+    ['def', '0xfffffffc($sp)', 4],
+    ['use', '0xfffffffc($sp)', 8],
+    ['def', '0xfffffffc($sp)', 8],
+    ['use', '0xfffffffc($sp)', 8],
+    ['def', '0xfffffffc($sp)', 8],
+    ['use', '0xfffffffc($sp)', 4],
+    ['def', '0xfffffffc($sp)', 8],
+  ]);
+});
