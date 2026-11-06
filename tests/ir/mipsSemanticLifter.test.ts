@@ -54,8 +54,8 @@ test('lifts memory operations with explicit widths and effective addresses', () 
   ]);
 
   assert.deepEqual(ir.blocks[0].operations, [
-    { kind: 'load', target: 'rt0', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp' }, right: { kind: 'const', value: 8 } }, size: 4, signed: true },
-    { kind: 'store', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp' }, right: { kind: 'const', value: 12 } }, value: { kind: 'value', name: 'rt0' }, size: 2 },
+    { kind: 'load', target: 'rt0', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp', width: 64 }, right: { kind: 'const', value: 8 } , width: 64 }, size: 4, signed: true },
+    { kind: 'store', address: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rsp', width: 64 }, right: { kind: 'const', value: 12 }, width: 64 }, value: { kind: 'value', name: 'rt0', width: 64 }, size: 2 },
   ]);
 });
 
