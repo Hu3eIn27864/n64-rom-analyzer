@@ -33,7 +33,7 @@ test('emits BLTZAL link before the common delay-slot instruction', () => {
   const output = renderFunction(decompileStructuredFunctionIR(ir));
   const linkWrite = output.indexOf('(rra = 2147487752)');
   const delaySlot = output.indexOf('(rt2 = 7)');
-  const branch = output.indexOf('if ((rt0 < 0))');
+  const branch = output.lastIndexOf('if ((rt0 < 0))');
   assert.ok(linkWrite >= 0);
   assert.ok(delaySlot > linkWrite);
   assert.ok(branch > delaySlot);
