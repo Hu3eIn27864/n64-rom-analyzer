@@ -1143,3 +1143,35 @@ test('masks reserved FCSR bits on CTC1 writes before evaluating exception causes
   assert.match(write, /const uint32_t cause = fpu->fcsr/);
   assert.match(write, /const uint32_t enabled_ieee_causes = \(fpu->fcsr/);
 });
+
+test('lifts LWL/LWR and SWL/SWR as 32-bit merge operations', () => {
+  const ir = liftInstructionsToMicroC(0x80001000, [
+    instruction('LWL', ['$t0', '1($t1)']),
+    instruction('LWR', ['$t2', '2($t3)']),
+    instruction('SWL', ['$t4', '3($t5)']),
+    instruction('SWR', ['$t6', '0($t7)']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations.map(operation => operation.kind === 'mergeLoadWord'
+    ? ['load', operation.target, operation.direction]
+    : operation.kind === 'mergeStoreWord' ? ['store', operation.direction] : [operation.kind]), [
+    ['load', 'rt0', 'left'], ['load', 'rt2', 'right'],
+    ['store', 'left'], ['store', 'right'],
+  ]);
+  assert.equal(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_memory_merge_load32/);
+  assert.match(c, /vr4300_memory_merge_store32/);
+});
+
+test('implements word merge byte lanes, reverse-endian lane reversal and LLbit invalidation', () => {
+  const loadStart = VR4300_FPU_C_RUNTIME.indexOf('static inline bool vr4300_memory_merge_load32(');
+  const storeStart = VR4300_FPU_C_RUNTIME.indexOf('static inline bool vr4300_memory_merge_store32(');
+  const load = VR4300_FPU_C_RUNTIME.slice(loadStart, VR4300_FPU_C_RUNTIME.indexOf('\\n}', loadStart));
+  const store = VR4300_FPU_C_RUNTIME.slice(storeStart, VR4300_FPU_C_RUNTIME.indexOf('\\n}', storeStart));
+  assert.ok(load.includes('address & 3u'));
+  assert.ok(load.includes('lane ^= 3u'));
+  assert.ok(load.includes('vr4300_sign_extend_word(merged)'));
+  assert.ok(store.includes('address & 3u'));
+  assert.ok(store.includes('lane ^= 3u'));
+  assert.ok(store.includes('vr4300_memory_invalidate_llbit(fpu, base)'));
+});

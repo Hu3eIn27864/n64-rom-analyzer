@@ -211,6 +211,20 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
         ],
       };
     }
+    case 'mergeLoadWord': {
+      const temporary = `__merge_load_word_${operation.target}`;
+      const read = cCall('vr4300_memory_merge_load32', [
+        cVariable('fpu'), fpuAddress(operation.address),
+        cVariable(operation.target, 'uint64_t'),
+        cConstant(operation.direction === 'left' ? 1 : 0),
+        { kind: 'unary', op: '&', operand: cVariable(temporary, 'uint64_t'), type: 'pointer' },
+      ], 'uint32_t');
+      return { kind: 'block', body: [
+        { kind: 'decl', name: temporary, type: 'uint64_t' },
+        returnIfFalse(read),
+        typedAssignment(operation.target, 'uint64_t', cVariable(temporary, 'uint64_t')),
+      ] };
+    }
     case 'mergeLoad': {
       const temporary = `__merge_load_${operation.target}`;
       const read = cCall('vr4300_memory_merge_load64', [
@@ -265,6 +279,11 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
         ],
       };
     }
+    case 'mergeStoreWord':
+      return returnIfFalse(cCall('vr4300_memory_merge_store32', [
+        cVariable('fpu'), fpuAddress(operation.address), lowerExpr(operation.value, 64),
+        cConstant(operation.direction === 'left' ? 1 : 0),
+      ], 'uint32_t'));
     case 'mergeStore':
       return returnIfFalse(cCall('vr4300_memory_merge_store64', [
         cVariable('fpu'),
