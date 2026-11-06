@@ -19,8 +19,8 @@ Inventory the competing analysis implementations and determine which one is actu
 | Structural pipeline | Legacy parser/disassembler/extractor path | engine/analysis/structuralPipeline.ts | Composes canonical function recovery, CFG and call graph using explicit entry points and word reader | Expand side-by-side parity; do not cut over yet. |
 | IR / Micro-C | Existing decompiler/lifting infrastructure | engine/ir/* | Canonical IR and a growing VR4300 semantic subset exist; unsupported operations remain explicit | Continue semantic coverage and fail-closed diagnostics. |
 | Formal semantics | Legacy semantic utilities | engine/mips/formalSemantics.ts | Partial descriptive metadata; not a complete ISA semantics engine and not wired as runtime authority | Expand by instruction family with architecture-specific tests. |
-| Memory/data flow | Legacy alias-analysis utilities | engine/ir/memoryState.ts, memoryPhi.ts, memorySsa.ts | Block-local def-use and acyclic CFG MemoryPhi construction now exist; loops and general alias analysis remain open | Continue M3 without overstating completion. |
-| Structured C | Existing experimental C/decompiler paths | engine/ir/cAst.ts, engine/decompiler/structuredC.ts and proof modules | AST/rendering and narrow proof-gated lowering exist; general control-flow structuring is incomplete | Keep unsupported CFG shapes rejected. |
+| Memory/data flow | Legacy alias-analysis utilities | engine/ir/memoryState.ts, memoryPhi.ts, memorySsa.ts | Block-local def-use and loop-capable CFG Memory SSA now exist for exact stack/frame locations; general alias analysis remains open | Continue M3 without overstating completion. |
+| Structured C | Existing experimental C/decompiler paths | engine/ir/cAst.ts, engine/decompiler/structuredC.ts and proof modules | AST/rendering and narrow proof-gated lowering exist; unsupported semantic diagnostics now fail closed | Keep unsupported CFG shapes rejected. |
 | Evidence | N/A in legacy path | engine/analysis/evidence.ts | Evidence types/helper exist but are not constructed and exposed by the production API | Wire only after the canonical pipeline boundary is authoritative. |
 
 ## Runtime authority
@@ -35,7 +35,7 @@ Therefore the canonical engine components are **not production-integrated** mere
 2. Compose canonical ROM-backed reachability, function recovery, CFG and call graph behind a non-default analysis path.
 3. Compare canonical and legacy function boundaries, CFG edges and call-graph relationships on synthetic fixtures.
 4. Integrate Micro-C and formal semantics only for explicitly supported instruction families.
-5. Extend memory data-flow from acyclic CFG joins to loops and explicit alias uncertainty.
+5. Extend memory data-flow to pointer aliases, byte-range overlap and interprocedural effects.
 6. Wire evidence aggregation into the analysis result and API.
 7. Promote the canonical path only after parity and regression gates pass.
 
@@ -52,13 +52,13 @@ Therefore the canonical engine components are **not production-integrated** mere
 - [x] Legacy and canonical implementations identified.
 - [x] Runtime consumers identified.
 - [x] Migration order and cutover rules documented.
-- [x] Reachability repaired and tested (Phase 2.3), including delay slots, but isolated.
-- [x] Function recovery stabilized and tested (Phase 2.4), including return delay slots, but isolated.
-- [x] Canonical structural composition and initial function-boundary parity established (Phase 2.5).
+- [x] Reachability repaired and tested, including delay slots, but isolated.
+- [x] Function recovery stabilized and tested, including return delay slots, but isolated.
+- [x] Canonical structural composition and initial function-boundary parity established.
 - [ ] Broad CFG/call-graph parity completed.
 - [ ] Canonical pipeline cutover performed.
 - [ ] Evidence exposed through the production API/UI.
 
 ## Next
 
-Proceed with **Phase 2.5 parity expansion**. Do not switch the production API wholesale; compare CFG edges, indirect control flow and branch-likely behavior on a broader deterministic synthetic corpus first.
+Continue Phase 2.5 parity expansion. Do not switch the production API wholesale; compare CFG edges, indirect control flow and broader instruction-family behavior on a deterministic synthetic corpus first.
