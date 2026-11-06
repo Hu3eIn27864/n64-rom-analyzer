@@ -139,12 +139,18 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       if (operation.direction === 'from-fpu' && operation.width === 32) {
         const read = cCall('vr4300_fpu_read_s', [cVariable('fpu'), cConstant(operation.fpr)], 'uint32_t');
         const signed = cCast('int32_t', read);
-        const extended = cCast('int64_t', signed);
+        const extended = cCast('uint64_t', cCast('int64_t', signed));
+        const wordValue = cCast('uint64_t', cCast('uint32_t', read));
         return {
           kind: 'block',
           body: [
             returnIfFalse(cCall('vr4300_fpu_check_cop1', [cVariable('fpu')], 'uint32_t')),
-            typedAssignment(operation.gpr, 'uint64_t', cCast('uint64_t', extended)),
+            {
+              kind: 'if',
+              condition: cVariable('fpu->gpr64_mode'),
+              thenBranch: { kind: 'block', body: [typedAssignment(operation.gpr, 'uint64_t', extended)] },
+              elseBranch: { kind: 'block', body: [typedAssignment(operation.gpr, 'uint64_t', wordValue)] },
+            },
           ],
         };
       }
