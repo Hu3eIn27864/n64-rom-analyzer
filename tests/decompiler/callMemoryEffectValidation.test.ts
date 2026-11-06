@@ -85,3 +85,32 @@ test('does not let an unreachable call invalidate a reachable load', () => {
   assert.equal(result.valid, true);
   assert.equal(result.unknownCall, false);
 });
+
+
+test('propagates a call clobber around a CFG loop to a later exit load', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x9930,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [] },
+      { id: 1, predecessors: [0, 2], successors: [2, 3], operations: [] },
+      { id: 2, predecessors: [1], successors: [1], operations: [call(0x80001000)] },
+      { id: 3, predecessors: [1], successors: [], operations: [load(0x1000)] },
+    ],
+  };
+  const result = validateCallMemoryEffects(ir, new Map([[0x80001000, writesLoadedRange]]));
+  assert.equal(result.valid, false);
+  assert.equal(result.unknownCall, false);
+});
+
+test('rejects inconsistent predecessor and successor edge declarations', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x9940,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [] },
+      { id: 1, predecessors: [], successors: [], operations: [load(0x1000)] },
+    ],
+  };
+  const result = validateCallMemoryEffects(ir, new Map());
+  assert.equal(result.valid, false);
+  assert.equal(result.unknownCall, true);
+});
