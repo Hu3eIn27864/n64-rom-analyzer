@@ -14,7 +14,7 @@ function words(values: number[]): Uint8Array {
 
 test('lowers recovered ROM CFG blocks into FunctionIR with preserved edges', () => {
   const rom = words([
-    0x10850004, 0x00000000,
+    0x10850004, 0x24020001,
     0x24020001, 0x03e00008, 0x00000000,
     0x24020002, 0x03e00008, 0x00000000,
   ]);
@@ -26,8 +26,9 @@ test('lowers recovered ROM CFG blocks into FunctionIR with preserved edges', () 
   assert.equal(result.functionIR.functionAddress, entry.address);
   assert.deepEqual(result.functionIR.blocks.map(block => block.successors), [[2, 1], [], []]);
   assert.deepEqual(result.functionIR.blocks.map(block => block.predecessors), [[], [0], [0]]);
-  assert.equal(result.functionIR.blocks[0].operations.length, 1);
-  const branch = result.functionIR.blocks[0].operations[0];
+  assert.equal(result.functionIR.blocks[0].operations.length, 2);
+  assert.equal(result.functionIR.blocks[0].operations[0]?.kind, 'assign');
+  const branch = result.functionIR.blocks[0].operations[1];
   assert.equal(branch?.kind, 'branch');
   if (branch?.kind === 'branch') {
     assert.equal(branch.trueTarget, 2);
