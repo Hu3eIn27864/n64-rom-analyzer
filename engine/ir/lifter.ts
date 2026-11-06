@@ -194,7 +194,7 @@ export function liftInstructionsToMicroC(
       }
       case 'CFC1': {
         const controlRegister = parseControlRegister(b);
-        if (a && controlRegister === 31) {
+        if (a && (controlRegister === 0 || controlRegister === 31)) {
           operations.push({ kind: 'fpuControlRead', controlRegister, gpr: normalizeRegister(a), gprSemantics: 'mode-dependent' });
         }
         break;
@@ -265,7 +265,27 @@ export function liftInstructionsToMicroC(
           && instruction.fpuSourceRegister !== undefined
           && instruction.fpuTargetRegister !== undefined
           && instruction.fpuDestinationRegister !== undefined;
-        const conversionMnemonic = instruction.mnemonic.toUpperCase().split('.');
+        const formatConversion = instruction.mnemonic.toUpperCase().split('.');
+        const sourceFormat = formatConversion[2];
+        const destinationFormat = formatConversion[1];
+        const isFormatConversion = formatConversion[0] === 'CVT'
+          && (sourceFormat === 'S' || sourceFormat === 'D')
+          && (destinationFormat === 'S' || destinationFormat === 'D')
+          && sourceFormat !== destinationFormat
+          && instruction.fpuFormat === (sourceFormat === 'S' ? 0x10 : 0x11)
+          && instruction.fpuSourceRegister !== undefined
+          && instruction.fpuDestinationRegister !== undefined;
+        if (isFormatConversion) {
+          operations.push({
+            kind: 'fpuConvertFormat',
+            sourceFormat: sourceFormat as 'S' | 'D',
+            destinationFormat: destinationFormat as 'S' | 'D',
+            sourceRegister: instruction.fpuSourceRegister!,
+            destinationRegister: instruction.fpuDestinationRegister!,
+            ...(sourceFormat === 'D' || destinationFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
+            registerMode: 'status-fr',
+          });
+        } else         const conversionMnemonic = instruction.mnemonic.toUpperCase().split('.');
         const conversionOperation = conversionMnemonic[0];
         const conversionFormat = conversionMnemonic[2];
         const isWordConversion = ['CVT', 'ROUND', 'TRUNC', 'CEIL', 'FLOOR'].includes(conversionOperation ?? '')
