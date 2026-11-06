@@ -7,7 +7,9 @@
  * constraints are not met; generated code returns immediately on that path.
  */
 export const VR4300_FPU_C_RUNTIME = `#include <stdbool.h>
+#include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 typedef struct vr4300_fpu_state {
     uint32_t words[32];
@@ -91,6 +93,58 @@ static inline bool vr4300_fpu_store_d(vr4300_fpu_state *fpu, unsigned reg, uintp
     if (!vr4300_fpu_read_d(fpu, reg, &bits)) return false;
     *(volatile uint64_t *)address = bits;
     return true;
+}
+
+static inline bool vr4300_fpu_commit_compare(
+    vr4300_fpu_state *fpu, unsigned cc, unsigned predicate,
+    bool unordered, bool equal, bool less)
+{
+    const uint32_t cause_mask = UINT32_C(0x3f) << 12;
+    const uint32_t cc_mask = UINT32_C(1) << (cc == 0 ? 23 : 24 + cc);
+    const bool invalid = unordered && ((predicate & 8u) != 0);
+    unsigned relation = unordered ? 1u : equal ? 2u : less ? 4u : 0u;
+    bool condition = (predicate & relation) != 0;
+
+    fpu->fcsr &= ~cause_mask;
+    if (invalid) {
+        fpu->fcsr |= UINT32_C(1) << 16;
+        fpu->fcsr |= UINT32_C(1) << 6;
+        if (fpu->fcsr & (UINT32_C(1) << 11)) {
+            fpu->exception_pending = true;
+            fpu->exception_code = 15u; /* Floating Point */
+            return false;
+        }
+    }
+    if (condition) fpu->fcsr |= cc_mask;
+    else fpu->fcsr &= ~cc_mask;
+    return true;
+}
+
+static inline bool vr4300_fpu_compare_s(
+    vr4300_fpu_state *fpu, unsigned cc, unsigned predicate, unsigned left_reg, unsigned right_reg)
+{
+    uint32_t left_bits = vr4300_fpu_read_s(fpu, left_reg);
+    uint32_t right_bits = vr4300_fpu_read_s(fpu, right_reg);
+    float left, right;
+    memcpy(&left, &left_bits, sizeof(left));
+    memcpy(&right, &right_bits, sizeof(right));
+    bool unordered = isnan(left) || isnan(right);
+    return vr4300_fpu_commit_compare(
+        fpu, cc, predicate, unordered, !unordered && left == right, !unordered && left < right);
+}
+
+static inline bool vr4300_fpu_compare_d(
+    vr4300_fpu_state *fpu, unsigned cc, unsigned predicate, unsigned left_reg, unsigned right_reg)
+{
+    uint64_t left_bits, right_bits;
+    if (!vr4300_fpu_read_d(fpu, left_reg, &left_bits) ||
+        !vr4300_fpu_read_d(fpu, right_reg, &right_bits)) return false;
+    double left, right;
+    memcpy(&left, &left_bits, sizeof(left));
+    memcpy(&right, &right_bits, sizeof(right));
+    bool unordered = isnan(left) || isnan(right);
+    return vr4300_fpu_commit_compare(
+        fpu, cc, predicate, unordered, !unordered && left == right, !unordered && left < right);
 }
 
 static inline void vr4300_fpu_write_fcsr(vr4300_fpu_state *fpu, uint32_t value)
