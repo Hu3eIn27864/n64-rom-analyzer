@@ -56,6 +56,14 @@ export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunct
     };
   });
 
-  const functionIR = liftBasicBlocks(cfg.entry.address >>> 0, blocks);
+  const lifted = liftBasicBlocks(cfg.entry.address >>> 0, blocks);
+  // CFG edges carry control transfers; do not duplicate them as ordinary IR operations.
+  const functionIR: FunctionIR = {
+    ...lifted,
+    blocks: lifted.blocks.map((block) => ({
+      ...block,
+      operations: block.operations.filter(operation => !['branch', 'jump', 'return'].includes(operation.kind)),
+    })),
+  };
   return { functionIR, blockCount: blocks.length, instructionCount: cfg.instructionCount };
 }
