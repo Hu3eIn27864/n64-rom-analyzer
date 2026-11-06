@@ -1164,12 +1164,14 @@ test('lifts LWL/LWR and SWL/SWR as 32-bit merge operations', () => {
 });
 
 test('implements word merge byte lanes, reverse-endian lane reversal and LLbit invalidation', () => {
-  const load = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_merge_load32\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
-  const store = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_memory_merge_store32\\([\\s\\S]*?\\n\\}/)?.[0] ?? '';
-  assert.match(load, /address & 3u/);
-  assert.match(load, /lane \\^= 3u/);
-  assert.match(load, /vr4300_sign_extend_word\\(merged\\)/);
-  assert.match(store, /address & 3u/);
-  assert.match(store, /lane \\^= 3u/);
-  assert.match(store, /vr4300_memory_invalidate_llbit\\(fpu, base\\)/);
+  const loadStart = VR4300_FPU_C_RUNTIME.indexOf('static inline bool vr4300_memory_merge_load32(');
+  const storeStart = VR4300_FPU_C_RUNTIME.indexOf('static inline bool vr4300_memory_merge_store32(');
+  const load = VR4300_FPU_C_RUNTIME.slice(loadStart, VR4300_FPU_C_RUNTIME.indexOf('\\n}', loadStart));
+  const store = VR4300_FPU_C_RUNTIME.slice(storeStart, VR4300_FPU_C_RUNTIME.indexOf('\\n}', storeStart));
+  assert.ok(load.includes('address & 3u'));
+  assert.ok(load.includes('lane ^= 3u'));
+  assert.ok(load.includes('vr4300_sign_extend_word(merged)'));
+  assert.ok(store.includes('address & 3u'));
+  assert.ok(store.includes('lane ^= 3u'));
+  assert.ok(store.includes('vr4300_memory_invalidate_llbit(fpu, base)'));
 });
