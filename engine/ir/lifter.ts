@@ -520,7 +520,7 @@ export function liftInstructionsToMicroC(
           if (fpuBranch && !knownFcc.has(instruction.branchConditionCode ?? 0)) unsupportedInstructions.push({
             address: instruction.address >>> 0,
             mnemonic: instruction.mnemonic,
-            operands: [...instruction.operands],
+            ...(instruction.operands.length > 0 ? { operands: [...instruction.operands] } : {}),
             reason: 'COP1 condition-code provenance is not yet modeled',
           });
         }
@@ -665,7 +665,7 @@ export function liftInstructionsToMicroC(
       unsupportedInstructions.push({
         address: instruction.address >>> 0,
         mnemonic: instruction.mnemonic,
-        operands: [...instruction.operands],
+        ...(instruction.operands.length > 0 ? { operands: [...instruction.operands] } : {}),
         reason: unsupportedReason(instruction.mnemonic),
       });
     }
