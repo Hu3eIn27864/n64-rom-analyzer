@@ -185,6 +185,8 @@ static inline bool vr4300_memory_merge_load64(vr4300_fpu_state *fpu, uintptr_t a
     return true;
 }
 
+static inline void vr4300_memory_invalidate_llbit(vr4300_fpu_state *fpu, uintptr_t address);
+
 static inline bool vr4300_memory_merge_store64(vr4300_fpu_state *fpu, uintptr_t address, uint64_t value, bool left)
 {
     if (!fpu->mode64_or_kernel) {
@@ -203,6 +205,7 @@ static inline bool vr4300_memory_merge_store64(vr4300_fpu_state *fpu, uintptr_t 
         const unsigned memory_byte = left ? lane + i : i;
         bytes[memory_byte] = (uint8_t)(value >> (56u - 8u * register_byte));
     }
+    vr4300_memory_invalidate_llbit(fpu, base);
     return true;
 }
 
@@ -503,6 +506,7 @@ static inline bool vr4300_fpu_store_s(vr4300_fpu_state *fpu, unsigned reg, uintp
     if (fpu->reverse_endian_enabled) address ^= 4u;
     if (!vr4300_fpu_memory_alignment(fpu, address, 4, true)) return false;
     vr4300_fpu_write_be32(address, vr4300_fpu_read_s(fpu, reg));
+    vr4300_memory_invalidate_llbit(fpu, address);
     return true;
 }
 
@@ -512,6 +516,7 @@ static inline bool vr4300_fpu_store_d(vr4300_fpu_state *fpu, unsigned reg, uintp
     if (!vr4300_fpu_read_d_register(fpu, reg, &bits)) return false;
     if (!vr4300_fpu_memory_alignment(fpu, address, 8, true)) return false;
     vr4300_fpu_write_be64(address, bits);
+    vr4300_memory_invalidate_llbit(fpu, address);
     return true;
 }
 
