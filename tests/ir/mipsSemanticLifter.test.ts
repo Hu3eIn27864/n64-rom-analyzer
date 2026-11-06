@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMipsInstruction } from '../../engine/model/instruction';
-import { liftInstructionsToMicroC } from '../../engine/ir/lifter';
+import { liftBasicBlocks, liftInstructionsToMicroC } from '../../engine/ir/lifter';
 
 const instruction = (mnemonic: string, operands: string[], targetAddress?: number) =>
   createMipsInstruction({ address: 0x80000000, raw: 0, mnemonic, operands, targetAddress });
@@ -62,4 +62,18 @@ test('records unsupported control flow instead of inventing semantics', () => {
 test('does not report supported no-op instructions as missing semantics', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [instruction('NOP', [])]);
   assert.deepEqual(ir.unsupportedInstructions, undefined);
+});
+
+
+test('preserves unsupported-instruction diagnostics when lifting CFG blocks', () => {
+  const lifted = liftBasicBlocks(0x80000000, [{
+    id: 0,
+    start: 0x80000000,
+    end: 0x80000004,
+    instructions: [instruction('JALR', ['$t9'])],
+    predecessors: [],
+    successors: [],
+    terminator: 'indirect-call',
+  }]);
+  assert.deepEqual(lifted.unsupportedInstructions?.map(item => item.mnemonic), ['JALR']);
 });
