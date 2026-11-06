@@ -99,3 +99,16 @@ test('lifts signed and zero-relative MIPS branch predicates explicitly', async (
     assert.deepEqual(ir.unsupportedInstructions ?? [], [], instruction.mnemonic);
   }
 });
+
+
+test('decodes COP1 compare operands and FCC destinations', () => {
+  const encode = (fmt: number, ft: number, fs: number, cc: number, funct: number) =>
+    ((0x11 << 26) | (fmt << 21) | (ft << 16) | (fs << 11) | (cc << 8) | funct) >>> 0;
+  for (const [fmt, suffix] of [[0x10, '.S'], [0x11, '.D']] as const) {
+    const instruction = decodeInstruction(encode(fmt, 3, 2, 5, 0x32), 0x80001000);
+    assert.equal(instruction.mnemonic, `C.EQ${suffix}`);
+    assert.deepEqual(instruction.operands, ['$f2', '$f3']);
+    assert.equal(instruction.fpuCompareConditionCode, 5);
+    assert.equal(instruction.isFpuBranch, false);
+  }
+});
