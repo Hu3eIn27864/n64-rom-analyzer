@@ -9,6 +9,7 @@ export type MicroCExpr =
 
 export type MicroCOperation =
   | { kind: 'assign'; target: string; value: MicroCExpr }
+  | { kind: 'signedArithmetic'; operation: 'add' | 'sub'; target: string; left: MicroCExpr; right: MicroCExpr; width: 32 | 64 }
   | { kind: 'load'; target: string; address: MicroCExpr; size: 1 | 2 | 4 | 8; signed: boolean }
   | { kind: 'store'; address: MicroCExpr; value: MicroCExpr; size: 1 | 2 | 4 | 8 }
   | { kind: 'fpuLoad'; register: number; address: MicroCExpr; size: 4 | 8; registerConstraint?: 'even-when-fr0'; registerMode: 'status-fr' }
