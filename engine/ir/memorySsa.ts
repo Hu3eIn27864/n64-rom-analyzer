@@ -13,6 +13,8 @@ export interface MemoryAccess {
   previousVersion?: number;
   /** Reaching definition or MemoryPhi version used by this access. */
   reachingVersion?: number;
+  /** Other exact stack/frame accesses whose byte ranges intersect this access. */
+  overlappingAccesses?: number[];
 }
 
 export interface MemoryPhi {
@@ -43,6 +45,37 @@ function classifyAddress(address: string): MemoryConfidence {
 function exactLocationKey(access: MemoryAccess): string | undefined {
   if (access.confidence !== 'exact') return undefined;
   return access.address.toLowerCase() + '|' + access.size;
+}
+
+/**
+ * Annotate byte-range intersections for exact stack/frame locations.
+ * This is descriptive alias evidence only: partial overlaps do not become
+ * reaching definitions, and SP/FP bases are never equated.
+ */
+function annotateOverlappingAccesses(accesses: MemoryAccess[]): void {
+  const ranges = accesses.map(access => {
+    if (access.confidence !== 'exact') return undefined;
+    const match = /^(0x[0-9a-f]+)\((\$?(?:sp|fp))\)$/i.exec(access.address);
+    if (!match) return undefined;
+    let start = Number.parseInt(match[1].slice(2), 16);
+    if (start >= 0x80000000) start -= 0x100000000;
+    return { base: match[2].replace(/^\$/, '').toLowerCase(), start, end: start + access.size };
+  });
+
+  for (let i = 0; i < accesses.length; i++) {
+    const range = ranges[i];
+    if (!range) continue;
+    const overlaps: number[] = [];
+    for (let j = 0; j < accesses.length; j++) {
+      if (i === j) continue;
+      const other = ranges[j];
+      if (other && other.base === range.base
+        && range.start < other.end && other.start < range.end) {
+        overlaps.push(j);
+      }
+    }
+    if (overlaps.length > 0) accesses[i].overlappingAccesses = overlaps;
+  }
 }
 
 /**
@@ -79,6 +112,8 @@ export function buildMemorySSA(
     }
     return current;
   });
+
+  annotateOverlappingAccesses(normalized);
 
   const phis: MemoryPhi[] = phiBlocks.map((blockId, index) => ({
     id: index,
@@ -124,6 +159,7 @@ export function buildMemorySSAForCFG(
     if (!byId.has(access.blockId)) throw new Error('unknown memory CFG block ' + access.blockId);
     return { ...access, id: index, confidence: classifyAddress(access.address) };
   });
+  annotateOverlappingAccesses(normalized);
   const accessesByBlock = new Map<number, MemoryAccess[]>(blocks.map(block => [block.id, []]));
   const locations = new Map<string, { address: string; size: 1 | 2 | 4 | 8 }>();
   let nextVersion = 1;
