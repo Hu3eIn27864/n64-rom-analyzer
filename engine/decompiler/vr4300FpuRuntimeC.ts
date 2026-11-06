@@ -474,6 +474,39 @@ static inline bool vr4300_fpu_convert_word_d(
 }
 
 
+/* CVT.S.W and CVT.D.W interpret the source FPR as a signed 32-bit word.
+ * CVT.S.W obeys FCSR rounding and can raise Inexact; every int32 is exact
+ * when widened to binary64 for CVT.D.W. */
+static inline bool vr4300_fpu_convert_word_to_s(
+    vr4300_fpu_state *fpu, unsigned fs, unsigned fd)
+{
+    uint32_t source_bits = vr4300_fpu_read_s(fpu, fs);
+    int32_t input;
+    memcpy(&input, &source_bits, sizeof(input));
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, vr4300_fpu_host_rounding(fpu->fcsr))) return false;
+    volatile float converted = (float)input;
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
+    if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
+    uint32_t result;
+    float value = converted;
+    memcpy(&result, &value, sizeof(result));
+    return vr4300_fpu_write_s(fpu, fd, result);
+}
+
+static inline bool vr4300_fpu_convert_word_to_d(
+    vr4300_fpu_state *fpu, unsigned fs, unsigned fd)
+{
+    uint32_t source_bits = vr4300_fpu_read_s(fpu, fs);
+    int32_t input;
+    memcpy(&input, &source_bits, sizeof(input));
+    double converted = (double)input;
+    uint64_t result;
+    memcpy(&result, &converted, sizeof(result));
+    return vr4300_fpu_write_d_register(fpu, fd, result);
+}
+
 /* CVT.S.D and CVT.D.S. Conversion is performed under the FCSR RM mode;
  * the host floating environment is restored before returning. */
 static inline bool vr4300_fpu_convert_d_to_s(vr4300_fpu_state *fpu, unsigned fs, unsigned fd)

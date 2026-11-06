@@ -219,6 +219,14 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
         cVariable('fpu'), cConstant(operation.sourceRegister), cConstant(operation.destinationRegister),
       ], 'uint32_t'));
     }
+    case 'fpuConvertFromWord': {
+      const helper = operation.destinationFormat === 'S'
+        ? 'vr4300_fpu_convert_word_to_s'
+        : 'vr4300_fpu_convert_word_to_d';
+      return returnIfFalse(cCall(helper, [
+        cVariable('fpu'), cConstant(operation.sourceRegister), cConstant(operation.destinationRegister),
+      ], 'uint32_t'));
+    }
     case 'fpuConvertWord': {
       const helper = operation.format === 'S' ? 'vr4300_fpu_convert_word_s' : 'vr4300_fpu_convert_word_d';
       const operationCode = ({ cvt: 0, round: 1, trunc: 2, ceil: 3, floor: 4 } as const)[operation.operation];
@@ -565,6 +573,7 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     || operation.kind === 'fpuControlRead'
     || operation.kind === 'fpuArithmetic'
     || operation.kind === 'fpuConvertFormat'
+    || operation.kind === 'fpuConvertFromWord'
     || operation.kind === 'fpuConvertWord');
   const hasFccBranch = operations.some(operation =>
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
