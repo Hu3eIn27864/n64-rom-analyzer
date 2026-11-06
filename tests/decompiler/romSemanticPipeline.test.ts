@@ -50,5 +50,5 @@ test('rejects ROM functions whose branch condition has no Micro-C semantics', ()
 
   assert.equal(result.validation.cfg, 'pass');
   assert.equal(result.validation.confidence, 'rejected');
-  assert.match(result.validation.reasons.join(' '), /BLEZ at 0x80001000 has no complete Micro-C semantics/);
+  assert.match(result.validation.reasons.join(' '), /BLTZAL at 0x80001000 has no complete Micro-C semantics/);
 });
