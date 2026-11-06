@@ -278,6 +278,27 @@ static inline int vr4300_fpu_host_rounding(uint32_t fcsr)
     }
 }
 
+static inline bool vr4300_fpu_begin_host_fenv(vr4300_fpu_state *fpu, fenv_t *saved, int rounding)
+{
+    if (fegetenv(saved) != 0) {
+        fpu->exception_pending = true; fpu->exception_code = 10u; return false;
+    }
+    if (fesetround(rounding) != 0 || feclearexcept(FE_ALL_EXCEPT) != 0) {
+        (void)fesetenv(saved);
+        fpu->exception_pending = true; fpu->exception_code = 10u; return false;
+    }
+    return true;
+}
+
+static inline bool vr4300_fpu_end_host_fenv(vr4300_fpu_state *fpu, fenv_t *saved, int *raised)
+{
+    *raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
+    if (fesetenv(saved) != 0) {
+        fpu->exception_pending = true; fpu->exception_code = 10u; return false;
+    }
+    return true;
+}
+
 static inline bool vr4300_fpu_arithmetic_s(
     vr4300_fpu_state *fpu, unsigned operation, unsigned fs, unsigned ft, unsigned fd)
 {
@@ -292,13 +313,8 @@ static inline bool vr4300_fpu_arithmetic_s(
     float left, right;
     memcpy(&left, &left_bits, sizeof(left));
     memcpy(&right, &right_bits, sizeof(right));
-    int old_round = fegetround();
-    if (old_round == -1 || fesetround(vr4300_fpu_host_rounding(fpu->fcsr)) != 0) {
-        fpu->exception_pending = true;
-        fpu->exception_code = 10u;
-        return false;
-    }
-    feclearexcept(FE_ALL_EXCEPT);
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, vr4300_fpu_host_rounding(fpu->fcsr))) return false;
     volatile float result;
     switch (operation) {
         case 0: result = left + right; break;
@@ -306,14 +322,16 @@ static inline bool vr4300_fpu_arithmetic_s(
         case 2: result = left * right; break;
         case 3: result = left / right; break;
         case 4: result = sqrtf(left); break;
-        default:
-            fesetround(old_round);
+        default: {
+            int ignored;
+            (void)vr4300_fpu_end_host_fenv(fpu, &saved_env, &ignored);
             fpu->exception_pending = true;
             fpu->exception_code = 10u;
             return false;
+        }
     }
-    int raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
-    fesetround(old_round);
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
     if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     uint32_t result_bits;
     float rounded = result;
@@ -336,13 +354,8 @@ static inline bool vr4300_fpu_arithmetic_d(
     double left, right;
     memcpy(&left, &left_bits, sizeof(left));
     memcpy(&right, &right_bits, sizeof(right));
-    int old_round = fegetround();
-    if (old_round == -1 || fesetround(vr4300_fpu_host_rounding(fpu->fcsr)) != 0) {
-        fpu->exception_pending = true;
-        fpu->exception_code = 10u;
-        return false;
-    }
-    feclearexcept(FE_ALL_EXCEPT);
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, vr4300_fpu_host_rounding(fpu->fcsr))) return false;
     volatile double result;
     switch (operation) {
         case 0: result = left + right; break;
@@ -350,14 +363,16 @@ static inline bool vr4300_fpu_arithmetic_d(
         case 2: result = left * right; break;
         case 3: result = left / right; break;
         case 4: result = sqrt(left); break;
-        default:
-            fesetround(old_round);
+        default: {
+            int ignored;
+            (void)vr4300_fpu_end_host_fenv(fpu, &saved_env, &ignored);
             fpu->exception_pending = true;
             fpu->exception_code = 10u;
             return false;
+        }
     }
-    int raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
-    fesetround(old_round);
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
     if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     uint64_t result_bits;
     double rounded = result;
@@ -373,32 +388,32 @@ static inline bool vr4300_fpu_arithmetic_d(
 static inline bool vr4300_fpu_convert_word(
     vr4300_fpu_state *fpu, unsigned operation, double input, unsigned fd)
 {
-    int old_round = fegetround();
     int requested = operation == 0u ? vr4300_fpu_host_rounding(fpu->fcsr)
         : operation == 1u ? FE_TONEAREST
         : operation == 2u ? FE_TOWARDZERO
         : operation == 3u ? FE_UPWARD
         : operation == 4u ? FE_DOWNWARD : -1;
-    if (old_round == -1 || requested == -1 || fesetround(requested) != 0) {
-        fpu->exception_pending = true;
-        fpu->exception_code = 10u;
-        return false;
+    if (requested == -1) {
+        fpu->exception_pending = true; fpu->exception_code = 10u; return false;
     }
-    feclearexcept(FE_ALL_EXCEPT);
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, requested)) return false;
     volatile double rounded;
     switch (operation) {
         case 0: case 1: rounded = rint(input); break;
         case 2: rounded = trunc(input); break;
         case 3: rounded = ceil(input); break;
         case 4: rounded = floor(input); break;
-        default:
-            fesetround(old_round);
+        default: {
+            int ignored;
+            (void)vr4300_fpu_end_host_fenv(fpu, &saved_env, &ignored);
             fpu->exception_pending = true;
             fpu->exception_code = 10u;
             return false;
+        }
     }
-    int raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
-    fesetround(old_round);
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
     if (!isfinite(input) || rounded < -2147483648.0 || rounded >= 2147483648.0)
         raised |= FE_INVALID;
     if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
@@ -435,14 +450,11 @@ static inline bool vr4300_fpu_convert_d_to_s(vr4300_fpu_state *fpu, unsigned fs,
     if (!vr4300_fpu_read_compare_d(fpu, fs, &bits)) return false;
     double input;
     memcpy(&input, &bits, sizeof(input));
-    int old_round = fegetround();
-    if (old_round == -1 || fesetround(vr4300_fpu_host_rounding(fpu->fcsr)) != 0) {
-        fpu->exception_pending = true; fpu->exception_code = 10u; return false;
-    }
-    feclearexcept(FE_ALL_EXCEPT);
+    fenv_t saved_env;
+    if (!vr4300_fpu_begin_host_fenv(fpu, &saved_env, vr4300_fpu_host_rounding(fpu->fcsr))) return false;
     volatile float converted = (float)input;
-    int raised = fetestexcept(FE_INEXACT | FE_UNDERFLOW | FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
-    fesetround(old_round);
+    int raised;
+    if (!vr4300_fpu_end_host_fenv(fpu, &saved_env, &raised)) return false;
     if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     uint32_t result;
     float value = converted;
