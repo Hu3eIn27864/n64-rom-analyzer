@@ -25,6 +25,27 @@ test('lifts arithmetic, immediate, and LUI semantics', () => {
   assert.match(c, /vr4300_sext32/);
 });
 
+test('models signed and unsigned 64-bit division into HI/LO', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('DDIV', ['$t0', '$t1']),
+    instruction('DDIVU', ['$t2', '$t3']),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'hiloDivide', left: { kind: 'value', name: 'rt0', width: 64 }, right: { kind: 'value', name: 'rt1', width: 64 }, signed: true },
+    { kind: 'hiloDivide', left: { kind: 'value', name: 'rt2', width: 64 }, right: { kind: 'value', name: 'rt3', width: 64 }, signed: false },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_hilo_divide64\(fpu, rt0, rt1, 1\)/);
+  assert.match(c, /vr4300_hilo_divide64\(fpu, rt2, rt3, 0\)/);
+  const helper = VR4300_FPU_C_RUNTIME.match(/static inline bool vr4300_hilo_divide64\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(helper, /exception_code = 10u/);
+  assert.match(helper, /if \(divisor == 0u\) return true/);
+  assert.match(helper, /dividend_magnitude \/ divisor_magnitude/);
+  assert.match(helper, /remainder = dividend_magnitude % divisor_magnitude/);
+  assert.doesNotMatch(helper, /\/\s*\(int64_t\)/);
+});
+
 test('models signed and unsigned 64-bit multiply into HI/LO', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
     instruction('DMULT', ['$t0', '$t1']),
