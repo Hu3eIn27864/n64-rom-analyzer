@@ -96,10 +96,16 @@ export function validateCallMemoryEffects(
   }
   for (const block of ir.blocks) {
     for (const predecessor of block.predecessors) {
-      if (!byId.has(predecessor)) return { valid: false, unknownCall: true, invalidatedRanges: [] };
+      const previous = byId.get(predecessor);
+      if (!previous || !previous.successors.includes(block.id)) {
+        return { valid: false, unknownCall: true, invalidatedRanges: [] };
+      }
     }
     for (const successor of block.successors) {
-      if (!byId.has(successor)) return { valid: false, unknownCall: true, invalidatedRanges: [] };
+      const next = byId.get(successor);
+      if (!next || !next.predecessors.includes(block.id)) {
+        return { valid: false, unknownCall: true, invalidatedRanges: [] };
+      }
     }
   }
 
@@ -161,9 +167,7 @@ export function validateCallMemoryEffects(
 
   if (changed) return { valid: false, unknownCall: true, invalidatedRanges: [] };
   const invalidatedRanges: MemoryEffectRange[] = [];
-  let anyUnknownCall = false;
   for (const state of outgoing.values()) {
-    anyUnknownCall ||= state.unknownCall;
     for (const range of state.invalidatedRanges) addRange(invalidatedRanges, range);
   }
   if (invalidLoad) {
