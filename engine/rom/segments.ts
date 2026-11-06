@@ -73,6 +73,6 @@ export function containsRomOffset(segment: RomSegment, offset: number): boolean 
 
 export function romToVram(segment: RomSegment, offset: number): number | undefined {
   if (segment.vramStart === undefined || segment.vramEnd === undefined || !containsRomOffset(segment, offset)) return undefined;
-  const mapped = segment.vramStart + (offset - segment.romStart);
-  return mapped < segment.vramEnd ? mapped : undefined;
+  if (segment.vramEnd - segment.vramStart !== segment.romEnd - segment.romStart) return undefined;
+  return segment.vramStart + (offset - segment.romStart);
 }
