@@ -24,6 +24,8 @@ typedef struct vr4300_fpu_state {
     uint64_t wide[32];
     uint64_t hi;
     uint64_t lo;
+    bool llbit_valid;
+    uintptr_t lladdr;
     uint32_t fcsr;
     uint32_t fir; /* FCR0: implementation-defined FPU identification value */
     uint32_t status;
@@ -183,6 +185,8 @@ static inline bool vr4300_memory_merge_load64(vr4300_fpu_state *fpu, uintptr_t a
     return true;
 }
 
+static inline void vr4300_memory_invalidate_llbit(vr4300_fpu_state *fpu, uintptr_t address);
+
 static inline bool vr4300_memory_merge_store64(vr4300_fpu_state *fpu, uintptr_t address, uint64_t value, bool left)
 {
     if (!fpu->mode64_or_kernel) {
@@ -201,7 +205,14 @@ static inline bool vr4300_memory_merge_store64(vr4300_fpu_state *fpu, uintptr_t 
         const unsigned memory_byte = left ? lane + i : i;
         bytes[memory_byte] = (uint8_t)(value >> (56u - 8u * register_byte));
     }
+    vr4300_memory_invalidate_llbit(fpu, base);
     return true;
+}
+
+static inline void vr4300_memory_invalidate_llbit(vr4300_fpu_state *fpu, uintptr_t address)
+{
+    if (fpu->llbit_valid && (address & ~(uintptr_t)15u) == fpu->lladdr)
+        fpu->llbit_valid = false;
 }
 
 static inline bool vr4300_memory_load(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, bool is_signed, uint64_t *result)
@@ -239,6 +250,15 @@ static inline bool vr4300_memory_load(vr4300_fpu_state *fpu, uintptr_t address, 
     return true;
 }
 
+static inline bool vr4300_memory_load_linked(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, bool is_signed, uint64_t *result)
+{
+    if (!vr4300_memory_load(fpu, address, size, is_signed, result)) return false;
+    const uintptr_t physical_lane = vr4300_memory_adjust_address(fpu, address, size);
+    fpu->lladdr = physical_lane & ~(uintptr_t)15u;
+    fpu->llbit_valid = true;
+    return true;
+}
+
 static inline bool vr4300_memory_store(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, uint64_t value)
 {
     if (size == 8u && !fpu->mode64_or_kernel) {
@@ -251,22 +271,33 @@ static inline bool vr4300_memory_store(vr4300_fpu_state *fpu, uintptr_t address,
 
     uint8_t *bytes = (uint8_t *)address;
     switch (size) {
-    case 1u:
-        bytes[0] = (uint8_t)value;
-        return true;
-    case 2u:
-        bytes[0] = (uint8_t)(value >> 8);
-        bytes[1] = (uint8_t)value;
-        return true;
-    case 4u:
-        vr4300_fpu_write_be32(address, (uint32_t)value);
-        return true;
-    case 8u:
-        vr4300_fpu_write_be64(address, value);
-        return true;
-    default:
+    case 1u: bytes[0] = (uint8_t)value; break;
+    case 2u: bytes[0] = (uint8_t)(value >> 8); bytes[1] = (uint8_t)value; break;
+    case 4u: vr4300_fpu_write_be32(address, (uint32_t)value); break;
+    case 8u: vr4300_fpu_write_be64(address, value); break;
+    default: return false;
+    }
+    vr4300_memory_invalidate_llbit(fpu, address);
+    return true;
+}
+
+static inline bool vr4300_memory_store_conditional(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, uint64_t value, uint32_t *success)
+{
+    if (size == 8u && !fpu->mode64_or_kernel) {
+        fpu->exception_pending = true;
+        fpu->exception_code = 10u; /* Reserved Instruction: SCD */
         return false;
     }
+
+    const uintptr_t adjusted = vr4300_memory_adjust_address(fpu, address, size);
+    if (size > 1u && !vr4300_fpu_memory_alignment(fpu, adjusted, size, true)) return false;
+
+    const uintptr_t reservation = adjusted & ~(uintptr_t)15u;
+    const bool succeeded = fpu->llbit_valid && fpu->lladdr == reservation;
+    fpu->llbit_valid = false;
+    if (succeeded && !vr4300_memory_store(fpu, address, size, value)) return false;
+    *success = succeeded ? 1u : 0u;
+    return true;
 }
 
 static inline bool vr4300_signed_overflow(vr4300_fpu_state *fpu)
@@ -475,6 +506,7 @@ static inline bool vr4300_fpu_store_s(vr4300_fpu_state *fpu, unsigned reg, uintp
     if (fpu->reverse_endian_enabled) address ^= 4u;
     if (!vr4300_fpu_memory_alignment(fpu, address, 4, true)) return false;
     vr4300_fpu_write_be32(address, vr4300_fpu_read_s(fpu, reg));
+    vr4300_memory_invalidate_llbit(fpu, address);
     return true;
 }
 
@@ -484,6 +516,7 @@ static inline bool vr4300_fpu_store_d(vr4300_fpu_state *fpu, unsigned reg, uintp
     if (!vr4300_fpu_read_d_register(fpu, reg, &bits)) return false;
     if (!vr4300_fpu_memory_alignment(fpu, address, 8, true)) return false;
     vr4300_fpu_write_be64(address, bits);
+    vr4300_memory_invalidate_llbit(fpu, address);
     return true;
 }
 

@@ -281,6 +281,19 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
+      case 'LL':
+      case 'LLD': {
+        const address = b ? memoryAddress(b) : undefined;
+        const size = instruction.mnemonic === 'LL' ? 4 : 8;
+        if (a && address) operations.push({
+          kind: 'linkedLoad',
+          target: normalizeRegister(a),
+          address,
+          size,
+          signed: size === 4,
+        });
+        break;
+      }
       case 'LDL':
       case 'LDR': {
         const address = b ? memoryAddress(b) : undefined;
@@ -304,6 +317,19 @@ export function liftInstructionsToMicroC(
           : instruction.mnemonic === 'LH' || instruction.mnemonic === 'LHU' ? 2
           : instruction.mnemonic === 'LD' ? 8 : 4;
         if (target && address) operations.push({ kind: 'load', target, address, size: size as 1 | 2 | 4 | 8, signed: !['LBU', 'LHU', 'LWU', 'LD'].includes(instruction.mnemonic) });
+        break;
+      }
+      case 'SC':
+      case 'SCD': {
+        const address = b ? memoryAddress(b) : undefined;
+        const size = instruction.mnemonic === 'SC' ? 4 : 8;
+        if (a && address) operations.push({
+          kind: 'conditionalStore',
+          target: normalizeRegister(a),
+          address,
+          value: value(normalizeRegister(a), 64),
+          size,
+        });
         break;
       }
       case 'SDL':
