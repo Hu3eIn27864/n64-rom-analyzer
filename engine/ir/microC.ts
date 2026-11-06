@@ -12,7 +12,7 @@ export type MicroCOperation =
   | { kind: 'load'; target: string; address: MicroCExpr; size: 1 | 2 | 4 | 8 }
   | { kind: 'store'; address: MicroCExpr; value: MicroCExpr; size: 1 | 2 | 4 | 8 }
   | { kind: 'call'; target: MicroCExpr; args: MicroCExpr[]; result?: string }
-  | { kind: 'branch'; condition: MicroCExpr; trueTarget: number; falseTarget?: number }
+  | { kind: 'branch'; condition: MicroCExpr; trueTarget: number; falseTarget?: number; linkOnTaken?: { target: string; value: MicroCExpr } }
   | { kind: 'jump'; target: number }
   | { kind: 'return'; value?: MicroCExpr }
   | { kind: 'phi'; target: string; inputs: Record<number, MicroCExpr> };

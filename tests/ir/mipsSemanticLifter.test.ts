@@ -47,15 +47,14 @@ test('lifts calls and returns without inventing unknown targets', () => {
 
 test('records unsupported control flow instead of inventing semantics', () => {
   const ir = liftInstructionsToMicroC(0x80000000, [
-    instruction('BLTZAL', ['$t0'], 0x80000010),
     instruction('JR', ['$t9']),
     instruction('JALR', ['$t0', '$t9']),
   ]);
 
   assert.deepEqual(ir.blocks[0].operations, []);
-  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BLTZAL', 'JR', 'JALR']);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['JR', 'JALR']);
   assert.deepEqual(ir.unsupportedInstructions?.map(item => item.address), [
-    0x80000000, 0x80000000, 0x80000000,
+    0x80000000, 0x80000000,
   ]);
 });
 
@@ -90,4 +89,32 @@ test('does not flag a direct jump already represented by the CFG terminator', ()
     terminator: 'jump',
   }]);
   assert.deepEqual(lifted.unsupportedInstructions, undefined);
+});
+
+
+test('lifts conditional branch-and-link with a taken-only return-address write', () => {
+  for (const [mnemonic, op] of [['BLTZAL', '<'], ['BGEZAL', '>='], ['BLTZALL', '<'], ['BGEZALL', '>=']] as const) {
+    const ir = liftInstructionsToMicroC(0x80001000, [
+      createMipsInstruction({ address: 0x80001000, raw: 0, mnemonic, operands: ['$t0'], targetAddress: 0x80001020 }),
+    ]);
+    const branch = ir.blocks[0].operations[0];
+    assert.equal(branch?.kind, 'branch', mnemonic);
+    if (branch?.kind === 'branch') {
+      assert.equal(branch.condition.kind, 'binary');
+      if (branch.condition.kind === 'binary') assert.equal(branch.condition.op, op);
+      assert.deepEqual(branch.linkOnTaken, {
+        target: 'rra',
+        value: { kind: 'const', value: 0x80001008 },
+      });
+    }
+    assert.equal(ir.unsupportedInstructions, undefined);
+  }
+});
+
+test('rejects architecturally unpredictable branch-and-link use of the link register as source', () => {
+  const ir = liftInstructionsToMicroC(0x80001000, [
+    createMipsInstruction({ address: 0x80001000, raw: 0, mnemonic: 'BLTZAL', operands: ['$ra'], targetAddress: 0x80001020 }),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations, []);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BLTZAL']);
 });

@@ -116,6 +116,15 @@ function branchFromEntry(ir: FunctionIR) {
   return { entry, branch };
 }
 
+function branchLinkPrelude(branch: Extract<MicroCOperation, { kind: 'branch' }>): CStmt[] {
+  if (!branch.linkOnTaken) return [];
+  return [{
+    kind: 'if',
+    condition: lowerExpr(branch.condition),
+    thenBranch: { kind: 'block', body: [assignment(branch.linkOnTaken.target, branch.linkOnTaken.value)] },
+  }];
+}
+
 function lowerTwoWayBranch(ir: FunctionIR): CFunction {
   if (ir.blocks.length !== 3) {
     throw new Error(`structured branch lowering requires three IR blocks; received ${ir.blocks.length}`);
@@ -124,10 +133,11 @@ function lowerTwoWayBranch(ir: FunctionIR): CFunction {
   const { entry, branch } = branchFromEntry(ir);
   const thenBranch = lowerTerminalBlock(ir, branch.trueTarget);
   const elseBranch = lowerTerminalBlock(ir, branch.falseTarget);
-  const body = entry.operations
-    .slice(0, -1)
-    .map(lowerOperation)
-    .filter((statement): statement is CStmt => statement !== undefined);
+  const body = [
+    ...branchLinkPrelude(branch),
+    ...entry.operations.slice(0, -1).map(lowerOperation)
+    .filter((statement): statement is CStmt => statement !== undefined),
+  ];
 
   body.push({ kind: 'if', condition: lowerExpr(branch.condition), thenBranch, elseBranch });
 
@@ -182,7 +192,10 @@ function lowerDiamond(ir: FunctionIR): CFunction {
     ] };
   };
 
-  const body = entry.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
+  const body = [
+    ...branchLinkPrelude(branch),
+    ...entry.operations.slice(0, -1).map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined),
+  ];
   body.push({ kind: 'if', condition: lowerExpr(branch.condition), thenBranch: lowerArm(thenBlock), elseBranch: lowerArm(elseBlock) });
   body.push(...join.operations.filter(operation => operation.kind !== 'phi').map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined));
 
@@ -223,9 +236,12 @@ function lowerWhile(ir: FunctionIR): CFunction {
   if (loopBlock.predecessors.length !== 1 || loopBlock.predecessors[0] !== entry.id) throw new Error('structured while lowering requires the loop body to have only the entry predecessor');
   if (!exitBlock.predecessors.includes(entry.id) || (hasLoopControl && !exitBlock.predecessors.includes(loopBlock.id))) throw new Error('structured while lowering requires the exit to be reachable from the header and loop-control arm');
 
+  if (branch.linkOnTaken) throw new Error('structured loop-phi lowering does not yet support branch-and-link headers');
+
   const hasPhi = [entry, loopBlock, exitBlock].some(block => block.operations.some(operation => operation.kind === 'phi'));
   if (hasPhi) throw new Error('structured while lowering does not yet support loop-carried phi values');
 
+  if (branch.linkOnTaken) throw new Error('structured loop lowering does not yet support branch-and-link headers');
   const loopTerminator = loopBlock.operations.at(-1);
   const condition = lowerExpr(branch.condition);
   const whileCondition = trueLoops || trueHasLoopControl ? condition : { kind: 'unary' as const, op: '!', operand: condition, type: 'uint32_t' as const };

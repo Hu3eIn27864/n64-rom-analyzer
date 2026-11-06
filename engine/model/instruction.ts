@@ -8,6 +8,8 @@ export interface MipsInstruction {
   isConditionalBranch: boolean;
   /** True for MIPS branch-likely instructions, whose delay slot is annulled when not taken. */
   isBranchLikely: boolean;
+  /** Branch-and-link instructions write the return address only when taken. */
+  isLinkBranch: boolean;
   isJump: boolean;
   isCall: boolean;
   isReturn: boolean;
@@ -43,6 +45,7 @@ export function createMipsInstruction(input: {
     isBranch: isConditionalBranch,
     isConditionalBranch,
     isBranchLikely: BRANCH_LIKELY.has(mnemonic),
+    isLinkBranch: ['BLTZAL', 'BGEZAL', 'BLTZALL', 'BGEZALL'].includes(mnemonic),
     isJump,
     isCall: mnemonic === 'JAL' || mnemonic === 'JALR',
     isReturn: mnemonic === 'JR' && operands[0] === '$ra',

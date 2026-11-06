@@ -150,11 +150,15 @@ export function liftInstructionsToMicroC(
       case 'BLTZ':
       case 'BLTZL':
       case 'BGEZ':
-      case 'BGEZL': {
+      case 'BGEZL':
+      case 'BLTZAL':
+      case 'BGEZAL':
+      case 'BLTZALL':
+      case 'BGEZALL': {
         const targetAddress = parseBranchTarget(instruction);
         const zeroCompare = instruction.mnemonic.startsWith('BLEZ') || instruction.mnemonic.startsWith('BGTZ')
           || instruction.mnemonic.startsWith('BLTZ') || instruction.mnemonic.startsWith('BGEZ');
-        if (targetAddress !== undefined && a && (zeroCompare || b)) {
+        if (targetAddress !== undefined && a && (zeroCompare || b) && !(instruction.isLinkBranch && a === '$ra')) {
           const left = value(normalizeRegister(a));
           const right = zeroCompare ? constant(0) : value(normalizeRegister(b));
           const conditionOp = instruction.mnemonic.startsWith('BEQ') ? '=='
@@ -163,7 +167,12 @@ export function liftInstructionsToMicroC(
             : instruction.mnemonic.startsWith('BGTZ') ? '>'
             : instruction.mnemonic.startsWith('BLTZ') ? '<'
             : '>=';
-          operations.push({ kind: 'branch', condition: binary(conditionOp, left, right), trueTarget: targetAddress });
+          operations.push({
+            kind: 'branch',
+            condition: binary(conditionOp, left, right),
+            trueTarget: targetAddress,
+            ...(instruction.isLinkBranch ? { linkOnTaken: { target: 'rra', value: constant((instruction.address + 8) >>> 0) } } : {}),
+          });
         }
         break;
       }

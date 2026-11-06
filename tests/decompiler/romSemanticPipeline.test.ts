@@ -36,7 +36,7 @@ test('does not hide an unresolved CFG failure behind the pipeline', () => {
 });
 
 
-test('rejects ROM functions whose branch condition has no Micro-C semantics', () => {
+test('accepts ROM functions with supported conditional branch-and-link semantics', () => {
   const rom = new Uint8Array([
     ...bigEndianWord(0x05100003), // BLTZAL $t0, 0x80001010
     ...bigEndianWord(0x00000000),
@@ -49,6 +49,6 @@ test('rejects ROM functions whose branch condition has no Micro-C semantics', ()
   const result = validateDecodedRomFunction(cfg);
 
   assert.equal(result.validation.cfg, 'pass');
-  assert.equal(result.validation.confidence, 'rejected');
-  assert.match(result.validation.reasons.join(' '), /BLTZAL at 0x80001000 has no complete Micro-C semantics/);
+  assert.equal(result.validation.confidence, 'proven');
+  assert.deepEqual(result.validation.reasons, []);
 });
