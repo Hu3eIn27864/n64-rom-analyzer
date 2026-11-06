@@ -180,9 +180,9 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
       return returnIfFalse(write);
     }
     case 'fpuControlRead': {
-      if (operation.controlRegister !== 31) throw new Error(`C lowering does not yet model CFC1 FCR${operation.controlRegister}`);
+      if (operation.controlRegister !== 31 && operation.controlRegister !== 0) throw new Error(`C lowering does not yet model CFC1 FCR${operation.controlRegister}`);
       const temporary = `__fpu_fcsr_read_${operation.gpr}`;
-      const read = cCall('vr4300_fpu_read_fcsr', [
+      const read = cCall(operation.controlRegister === 31 ? 'vr4300_fpu_read_fcsr' : 'vr4300_fpu_read_fir', [
         cVariable('fpu'),
         { kind: 'unary', op: '&', operand: cVariable(temporary, 'uint32_t'), type: 'pointer' },
       ], 'uint32_t');
@@ -211,6 +211,12 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
         cConstant(operation.sourceRegister),
         cConstant(operation.targetRegister),
         cConstant(operation.destinationRegister),
+      ], 'uint32_t'));
+    }
+    case 'fpuConvertFormat': {
+      const helper = operation.sourceFormat === 'S' ? 'vr4300_fpu_convert_s_to_d' : 'vr4300_fpu_convert_d_to_s';
+      return returnIfFalse(cCall(helper, [
+        cVariable('fpu'), cConstant(operation.sourceRegister), cConstant(operation.destinationRegister),
       ], 'uint32_t'));
     }
     case 'fpuConvertWord': {

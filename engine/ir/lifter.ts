@@ -194,7 +194,7 @@ export function liftInstructionsToMicroC(
       }
       case 'CFC1': {
         const controlRegister = parseControlRegister(b);
-        if (a && controlRegister === 31) {
+        if (a && (controlRegister === 0 || controlRegister === 31)) {
           operations.push({ kind: 'fpuControlRead', controlRegister, gpr: normalizeRegister(a), gprSemantics: 'mode-dependent' });
         }
         break;
@@ -265,6 +265,27 @@ export function liftInstructionsToMicroC(
           && instruction.fpuSourceRegister !== undefined
           && instruction.fpuTargetRegister !== undefined
           && instruction.fpuDestinationRegister !== undefined;
+        const formatConversion = instruction.mnemonic.toUpperCase().split('.');
+        const sourceFormat = formatConversion[2];
+        const destinationFormat = formatConversion[1];
+        const isFormatConversion = formatConversion[0] === 'CVT'
+          && (sourceFormat === 'S' || sourceFormat === 'D')
+          && (destinationFormat === 'S' || destinationFormat === 'D')
+          && sourceFormat !== destinationFormat
+          && instruction.fpuFormat === (sourceFormat === 'S' ? 0x10 : 0x11)
+          && instruction.fpuSourceRegister !== undefined
+          && instruction.fpuDestinationRegister !== undefined;
+        if (isFormatConversion) {
+          operations.push({
+            kind: 'fpuConvertFormat',
+            sourceFormat: sourceFormat as 'S' | 'D',
+            destinationFormat: destinationFormat as 'S' | 'D',
+            sourceRegister: instruction.fpuSourceRegister!,
+            destinationRegister: instruction.fpuDestinationRegister!,
+            ...(sourceFormat === 'D' || destinationFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
+            registerMode: 'status-fr',
+          });
+        }
         const conversionMnemonic = instruction.mnemonic.toUpperCase().split('.');
         const conversionOperation = conversionMnemonic[0];
         const conversionFormat = conversionMnemonic[2];
@@ -274,7 +295,7 @@ export function liftInstructionsToMicroC(
           && instruction.fpuFormat === (conversionFormat === 'S' ? 0x10 : 0x11)
           && instruction.fpuSourceRegister !== undefined
           && instruction.fpuDestinationRegister !== undefined;
-        if (isWordConversion) {
+        if (!isFormatConversion && isWordConversion) {
           operations.push({
             kind: 'fpuConvertWord',
             operation: conversionOperation!.toLowerCase() as 'cvt' | 'round' | 'trunc' | 'ceil' | 'floor',
@@ -284,7 +305,7 @@ export function liftInstructionsToMicroC(
             ...(conversionFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
             registerMode: 'status-fr',
           });
-        } else if (isArithmetic) {
+        } else if (!isFormatConversion && isArithmetic) {
           const operation = arithmeticMnemonic.toLowerCase() as 'add' | 'sub' | 'mul' | 'div' | 'sqrt' | 'abs' | 'mov' | 'neg';
           operations.push({
             kind: 'fpuArithmetic',
@@ -296,7 +317,7 @@ export function liftInstructionsToMicroC(
             ...(arithmeticFormat === 'D' ? { registerConstraint: 'even-when-fr0' as const } : {}),
             registerMode: 'status-fr',
           });
-        } else if (instruction.fpuCompareConditionCode !== undefined
+        } else if (!isFormatConversion && instruction.fpuCompareConditionCode !== undefined
           && instruction.fpuComparePredicate !== undefined
           && (instruction.fpuFormat === 0x10 || instruction.fpuFormat === 0x11)
           && instruction.fpuSourceRegister !== undefined
