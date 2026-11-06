@@ -692,7 +692,7 @@ static inline bool vr4300_fpu_convert_long(
     if (!vr4300_fpu_commit_arithmetic_exceptions(fpu, raised)) return false;
     const int64_t integer = (int64_t)rounded;
     uint64_t result_bits;
-    memcpy(&result_bits, &integer, sizeof(result_bits));
+    result_bits = (uint64_t)integer;
     return vr4300_fpu_write_d_register(fpu, fd, result_bits);
 }
 
