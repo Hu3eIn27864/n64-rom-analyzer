@@ -25,6 +25,30 @@ test('lifts arithmetic, immediate, and LUI semantics', () => {
   assert.match(c, /vr4300_sext32/);
 });
 
+test('models full-width HI/LO register transfers', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('MTHI', ['$t0']),
+    instruction('MTLO', ['$t1']),
+    instruction('MFHI', ['$t2']),
+    instruction('MFLO', ['$t3']),
+  ]);
+
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'hiloTransfer', direction: 'to-hi', register: 'rt0' },
+    { kind: 'hiloTransfer', direction: 'to-lo', register: 'rt1' },
+    { kind: 'hiloTransfer', direction: 'from-hi', register: 'rt2' },
+    { kind: 'hiloTransfer', direction: 'from-lo', register: 'rt3' },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /uint64_t hi;/);
+  assert.match(c, /uint64_t lo;/);
+  assert.match(c, /vr4300_hilo_write_hi\(fpu, rt0\)/);
+  assert.match(c, /vr4300_hilo_write_lo\(fpu, rt1\)/);
+  assert.match(c, /rt2 = vr4300_hilo_read_hi\(fpu\)/);
+  assert.match(c, /rt3 = vr4300_hilo_read_lo\(fpu\)/);
+});
+
 test('models signed 32-bit and 64-bit arithmetic with overflow-aware operations', () => {
   const mnemonics = ['ADD', 'ADDI', 'SUB', 'DADD', 'DADDI', 'DSUB'];
   const ir = liftInstructionsToMicroC(0x80000000, mnemonics.map(mnemonic =>
