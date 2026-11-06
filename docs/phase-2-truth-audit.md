@@ -19,12 +19,13 @@ Classify each analysis layer as implemented, integrated, isolated, partial, expe
 
 | Area | Current state | Evidence / remaining boundary |
 |---|---|---|
-| ROM parsing and byte order | IMPLEMENTED / LEGACY-INTEGRATED | Legacy parser is active. Canonical ROM helpers have synthetic tests for z64/v64/n64 normalization, malformed signatures, header bounds and subarray offsets; the full canonical ROM model is not yet the API authority. |
+| ROM parsing and byte order | IMPLEMENTED / LEGACY-INTEGRATED | Legacy parser is active. Canonical ROM helpers have synthetic tests for z64/v64/n64 normalization, malformed signatures, header bounds and subarray offsets. ROM/VRAM segment mappings now require paired equal-length non-overlapping ranges and integer addresses. |
 | Canonical decoder | IMPLEMENTED / ISOLATED | engine/mips/decoder.ts is a tested adapter over the legacy decoder; full decoder corpus parity remains a gate. |
 | Reachability | IMPLEMENTED / ISOLATED | Requires an injected ROM-word reader, rejects invalid/unaligned/out-of-range reads, preserves actual instruction words and decodes MIPS delay slots. |
 | Function recovery | IMPLEMENTED / ISOLATED | Uses call-local state; deterministic repeated calls, invocation isolation, direct JAL, caller/callee deduplication and return-delay-slot inclusion are tested. Confidence remains inference metadata. |
-| Canonical structural pipeline | IMPLEMENTED / ISOLATED | Composes function recovery, CFG and call-graph generation with explicit entry points and word reader. Synthetic parity checks compare function boundaries against the legacy extractor for direct calls, multiple calls, conditional branches and branch-likely programs. |
-| Canonical CFG | IMPLEMENTED / ISOLATED | engine/mips/cfgBuilder.ts builds canonical blocks and edges; broad parity and production integration remain open. |
+| Canonical structural pipeline | IMPLEMENTED / ISOLATED | engine/analysis/structuralPipeline.ts composes function recovery, CFG and call-graph generation. Synthetic parity checks compare function boundaries for direct calls, multiple calls, conditional branches and branch-likely programs. |
+| Bounded ROM-function pipeline | IMPLEMENTED / ISOLATED | engine/analysis/romFunctionAnalysis.ts composes bounded ROM CFG decoding, Micro-C lowering and Memory SSA for explicit entry address/ROM offset pairs. Branch-likely annulment is represented by a taken-only delay-slot block. It does not discover ROM segments or production function entries. |
+| Canonical CFG | IMPLEMENTED / ISOLATED | Generic CFG builder and bounded ROM CFG decoder exist; broad parity and production integration remain open. |
 | Canonical call graph | IMPLEMENTED / ISOLATED | Deterministic direct/heuristic edge construction exists; not yet the API's authoritative graph. |
 | Micro-C / VR4300 semantics | PARTIAL / ISOLATED | Supported integer, memory, HI/LO and COP1 subsets lower to Micro-C. Unsupported CP0, TLB, ERET, exception, SYNC and CACHE operations remain explicit diagnostics. |
 | Formal MIPS semantics metadata | PARTIAL / ISOLATED | Descriptive register/memory/control metadata exists, including merge and linked memory operations; it is not a complete formal ISA model or the canonical execution engine. |
@@ -43,8 +44,9 @@ Classify each analysis layer as implemented, integrated, isolated, partial, expe
 3. Reachability input boundary and delay-slot handling: implemented and tested; not production-integrated.
 4. Function recovery stabilization and delay-slot inclusion: implemented and tested; not production-integrated.
 5. Canonical structural composition and narrow legacy function-boundary parity: implemented and tested; broader parity remains open.
-6. Evidence API/UI wiring: blocked on a stable canonical result contract.
-7. CI: present and passing on the recent mainline changes.
+6. Bounded ROM-function CFG to Micro-C and Memory SSA composition: implemented and tested for explicit entries; not production-integrated.
+7. Evidence API/UI wiring: blocked on a stable canonical result contract.
+8. CI: present and passing on the recent mainline changes.
 
 ## Rules
 
@@ -56,4 +58,4 @@ Classify each analysis layer as implemented, integrated, isolated, partial, expe
 
 ## Next checkpoint
 
-Broaden Phase 2.5 parity to compare canonical and legacy CFG edges, indirect calls and jump-table behavior across a larger synthetic corpus. Only then consider a staged production API integration.
+Broaden canonical/legacy CFG parity and add a safe ROM segment/function-entry discovery strategy. Only then consider a staged production API integration.
