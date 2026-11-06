@@ -118,3 +118,28 @@ test('rejects architecturally unpredictable branch-and-link use of the link regi
   assert.deepEqual(ir.blocks[0].operations, []);
   assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['BLTZAL']);
 });
+
+
+test('lifts COP1 condition-code branches but retains an unknown-FCC provenance diagnostic', () => {
+  for (const [mnemonic, op] of [['BC1F', '=='], ['BC1T', '!='], ['BC1FL', '=='], ['BC1TL', '!=']] as const) {
+    const instruction = createMipsInstruction({
+      address: 0x80001000,
+      raw: 0,
+      mnemonic,
+      operands: ['$fcc3', '0x80001020'],
+      targetAddress: 0x80001020,
+      branchConditionCode: 3,
+    });
+    const ir = liftInstructionsToMicroC(0x80001000, [instruction]);
+    const branch = ir.blocks[0].operations[0];
+    assert.equal(branch?.kind, 'branch', mnemonic);
+    if (branch?.kind === 'branch') {
+      assert.equal(branch.condition.kind, 'binary');
+      if (branch.condition.kind === 'binary') {
+        assert.equal(branch.condition.op, op);
+        assert.deepEqual(branch.condition.left, { kind: 'value', name: 'fcc3' });
+      }
+    }
+    assert.deepEqual(ir.unsupportedInstructions?.map(item => item.reason), ['COP1 condition-code provenance is not yet modeled']);
+  }
+});
