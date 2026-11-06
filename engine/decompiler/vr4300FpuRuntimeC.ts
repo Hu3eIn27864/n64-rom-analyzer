@@ -2,7 +2,8 @@
  * Self-contained C helpers used by structured VR4300 FPU lowering.
  *
  * The caller supplies Status.FR, the user-mode reverse-endian state, COP1
- * usability, and whether the executing context is kernel or 64-bit mode.
+ * usability, whether the executing context is kernel or 64-bit mode, and
+ * whether the current GPR addressing mode is 64-bit (for MFC1 sign extension).
  * Memory pointers must already be mapped to target big-endian bytes. Reverse
  * endian lane selection is enabled only when Status.RE applies in user mode.
  * Helpers record architectural exception codes in the state and return false;
@@ -19,6 +20,7 @@ typedef struct vr4300_fpu_state {
     uint32_t fcsr;
     uint32_t status;
     bool mode64_or_kernel;
+    bool gpr64_mode;
     bool cop1_usable;
     bool reverse_endian_enabled;
     bool exception_pending;
