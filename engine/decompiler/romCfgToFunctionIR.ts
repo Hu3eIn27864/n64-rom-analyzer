@@ -21,19 +21,13 @@ function terminator(block: RomFunctionBasicBlock): TerminatorKind {
   const instruction = controlTransfer(block);
   if (!instruction) return 'unknown';
   if (instruction.isReturn) return 'return';
-  if (instruction.isConditionalBranch) return 'conditional-branch';
+  if (instruction.isConditionalBranch) return instruction.isBranchLikely ? 'branch-likely' : 'conditional-branch';
   if (instruction.isJump && instruction.isCall) return 'call';
   if (instruction.isJump) return instruction.targetAddress === undefined ? 'indirect-jump' : 'jump';
   return 'fallthrough';
 }
 
-/**
- * Convert the evidence-backed ROM CFG into the repository's existing
- * BasicBlock/FunctionIR representation. This is deliberately a thin bridge:
- * instruction semantics remain owned by the existing MIPS lifter, while CFG
- * identity and predecessor/successor relationships come only from proven ROM
- * control-flow edges.
- */
+/** Convert the evidence-backed ROM CFG into the repository's existing IR. */
 export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunctionIRResult {
   if (cfg.blocks.length === 0) throw new Error('cannot lower an empty ROM CFG');
   if (cfg.instructionCount <= 0) throw new Error('ROM CFG contains no decoded instructions');
@@ -65,21 +59,22 @@ export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunct
   });
 
   const lifted = liftBasicBlocks(cfg.entry.address >>> 0, blocks);
-  // CFG edges carry target identity; preserve conditional predicates and delay-slot effects in IR.
   const functionIR: FunctionIR = {
     ...lifted,
     blocks: lifted.blocks.map((block, id) => {
       const operations = block.operations.filter(operation => operation.kind !== 'branch' && operation.kind !== 'jump' && operation.kind !== 'return');
       const branch = block.operations.find((operation): operation is Extract<typeof operation, { kind: 'branch' }> => operation.kind === 'branch');
       if (!branch) return { ...block, operations };
-      const trueTarget = idByAddress.get(branch.trueTarget >>> 0);
-      if (trueTarget === undefined) throw new Error(`conditional branch in block ${id} targets unrecovered block 0x${(branch.trueTarget >>> 0).toString(16)}`);
+      const branchInstruction = cfg.blocks[id].instructions.find(instruction => instruction.isConditionalBranch);
+      const trueAddress = branchInstruction?.isBranchLikely
+        ? (branchInstruction.address + 4) >>> 0
+        : branch.trueTarget >>> 0;
+      const trueTarget = idByAddress.get(trueAddress);
+      if (trueTarget === undefined) throw new Error(`conditional branch in block ${id} targets unrecovered block 0x${trueAddress.toString(16)}`);
       const falseTarget = block.successors.find(successor => successor !== trueTarget);
       if (block.successors.length !== 2 || falseTarget === undefined) {
         throw new Error(`conditional branch in block ${id} requires exactly two distinct recovered successors`);
       }
-      // Keep the predicate as the final IR operation. Instructions after it in
-      // the lifted stream are delay-slot effects and must execute before branching.
       return { ...block, operations: [...operations, { ...branch, trueTarget, falseTarget }] };
     }),
   };
