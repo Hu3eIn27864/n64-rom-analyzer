@@ -340,7 +340,7 @@ test('lowers BC1 predicates by reading the selected FCSR condition-code bit', ()
     ],
   };
   const c = renderFunction(decompileStructuredFunctionIR(ir));
-  assert.match(c, /vr4300_fpu_state \\* fpu/);
+  assert.match(c, /vr4300_fpu_state \* fpu/);
   assert.match(c, /fpu->fcsr/);
   assert.match(c, />> 27/);
 });
