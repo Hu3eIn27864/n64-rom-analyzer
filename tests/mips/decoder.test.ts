@@ -19,7 +19,7 @@ const cases: Case[] = [
   { name: 'blez', raw: 0x18800004, address: 0x1028, mnemonic: 'BLEZ', operands: ['$a0', '0x0000103C'], controlFlow: 'branch' },
   { name: 'bgtz', raw: 0x1c800004, address: 0x102c, mnemonic: 'BGTZ', operands: ['$a0', '0x00001040'], controlFlow: 'branch' },
   { name: 'bltz', raw: 0x04800004, address: 0x1030, mnemonic: 'BLTZ', operands: ['$a0', '0x00001044'], controlFlow: 'branch' },
-  { name: 'bgez', raw: 0x05010004, address: 0x1034, mnemonic: 'BGEZ', operands: ['$a0', '0x00001048'], controlFlow: 'branch' },
+  { name: 'bgez', raw: 0x04810004, address: 0x1034, mnemonic: 'BGEZ', operands: ['$a0', '0x00001048'], controlFlow: 'branch' },
   { name: 'beql', raw: 0x50850004, address: 0x1038, mnemonic: 'BEQL', operands: ['$a0', '$a1', '0x0000104C'], controlFlow: 'likely' },
   { name: 'bltzl', raw: 0x04820004, address: 0x103c, mnemonic: 'BLTZL', operands: ['$a0', '0x00001050'], controlFlow: 'likely' },
   { name: 'j', raw: 0x08000410, address: 0x1010, mnemonic: 'J', operands: ['0x00001040'], controlFlow: 'jump' },
