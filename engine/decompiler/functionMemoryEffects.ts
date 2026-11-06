@@ -103,9 +103,10 @@ export function inferProgramMemoryEffects(
         }),
       })),
     };
+    const base = inferFunctionMemoryEffects(withoutCalls);
     local.set(address, {
-      ...inferFunctionMemoryEffects(withoutCalls),
-      unknown: inferFunctionMemoryEffects(withoutCalls).unknown || unresolvedCall,
+      ...base,
+      unknown: base.unknown || unresolvedCall,
     });
     callees.set(address, targets);
   }
