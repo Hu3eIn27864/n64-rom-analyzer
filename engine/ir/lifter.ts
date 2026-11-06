@@ -98,6 +98,37 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
+      case 'DSLL':
+      case 'DSRL':
+      case 'DSRA':
+      case 'DSLL32':
+      case 'DSRL32':
+      case 'DSRA32': {
+        const encodedShift = c ? parseImmediate(c) : undefined;
+        const shift = encodedShift === undefined ? undefined
+          : encodedShift + (instruction.mnemonic.endsWith('32') ? 32 : 0);
+        if (target && b && shift !== undefined && shift >= 0 && shift < 64) {
+          const source = value(normalizeRegister(b), 64);
+          const shifted = instruction.mnemonic.startsWith('DSRA')
+            ? binary('sra', source, constant(shift), 64)
+            : binary(instruction.mnemonic.startsWith('DSLL') ? '<<' : '>>', source, constant(shift), 64);
+          operations.push({ kind: 'assign', target, value: shifted });
+        }
+        break;
+      }
+      case 'DSLLV':
+      case 'DSRLV':
+      case 'DSRAV': {
+        if (target && b && c) {
+          const source = value(normalizeRegister(b), 64);
+          const shift = binary('&', value(normalizeRegister(c), 64), constant(0x3f), 64);
+          const shifted = instruction.mnemonic === 'DSRAV'
+            ? binary('sra', source, shift, 64)
+            : binary(instruction.mnemonic === 'DSLLV' ? '<<' : '>>', source, shift, 64);
+          operations.push({ kind: 'assign', target, value: shifted });
+        }
+        break;
+      }
       case 'ADDIU':
       case 'ANDI':
       case 'ORI':

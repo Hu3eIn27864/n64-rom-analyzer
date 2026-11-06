@@ -137,6 +137,15 @@ static inline bool vr4300_memory_store(vr4300_fpu_state *fpu, uintptr_t address,
     }
 }
 
+static inline uint64_t vr4300_sra64(uint64_t value, unsigned shift)
+{
+    shift &= 63u;
+    if (shift == 0u) return value;
+    const uint64_t sign_fill = (value & (UINT64_C(1) << 63)) != 0
+        ? (UINT64_MAX << (64u - shift)) : 0u;
+    return (value >> shift) | sign_fill;
+}
+
 static inline bool vr4300_fpu_check_cop1(vr4300_fpu_state *fpu)
 {
     if (!fpu->cop1_usable) {
