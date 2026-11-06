@@ -14,8 +14,8 @@ test('FR=0 stores doubles in even/odd register pairs without losing exact bits',
   const bits = 0x3ff0_0000_0000_0001n;
   fpu.writeDoubleBits(4, bits);
   assert.equal(fpu.readDoubleBits(4), bits);
-  assert.equal(fpu.readSingleBits(4), 0x3ff00000);
-  assert.equal(fpu.readSingleBits(5), 1);
+  assert.equal(fpu.readSingleBits(4), 1);
+  assert.equal(fpu.readSingleBits(5), 0x3ff00000);
   assert.throws(() => fpu.readDoubleBits(5), /even FPU register/);
 });
 
