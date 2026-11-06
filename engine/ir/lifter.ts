@@ -1,6 +1,6 @@
 import type { MipsInstruction } from '../model/instruction';
 import type { BasicBlock } from '../model/basicBlock';
-import type { FunctionIR, MicroCExpr, MicroCOperation } from './microC';
+import type { FunctionIR, MicroCExpr, MicroCOperation, UnsupportedInstruction } from './microC';
 
 function value(name: string): MicroCExpr {
   return { kind: 'value', name };
@@ -47,8 +47,10 @@ export function liftInstructionsToMicroC(
   instructions: readonly MipsInstruction[],
 ): FunctionIR {
   const operations: MicroCOperation[] = [];
+  const unsupportedInstructions: UnsupportedInstruction[] = [];
 
   for (const instruction of instructions) {
+    const operationCount = operations.length;
     const [a, b, c] = instruction.operands;
     const target = a ? normalizeRegister(a) : undefined;
 
@@ -137,16 +139,9 @@ export function liftInstructionsToMicroC(
       }
       case 'JR':
         if (a === '$ra') operations.push({ kind: 'return' });
-        else if (a) operations.push({ kind: 'jump', target: 0 });
         break;
       case 'BEQ':
-      case 'BNE':
-      case 'BLEZ':
-      case 'BGTZ':
-      case 'BEQL':
-      case 'BNEL':
-      case 'BLEZL':
-      case 'BGTZL': {
+      case 'BNE': {
         const targetAddress = parseBranchTarget(instruction);
         if (targetAddress !== undefined && a && b) {
           const condition = binary(instruction.mnemonic.startsWith('BEQ') ? '==' : '!=', value(normalizeRegister(a)), value(normalizeRegister(b)));
@@ -157,19 +152,43 @@ export function liftInstructionsToMicroC(
       default:
         break;
     }
+    if (instruction.mnemonic !== 'NOP' && operations.length === operationCount) {
+      unsupportedInstructions.push({
+        address: instruction.address >>> 0,
+        mnemonic: instruction.mnemonic,
+        reason: 'No complete Micro-C semantics are available for this instruction',
+      });
+    }
   }
 
-  return { functionAddress, blocks: [{ id: 0, operations, predecessors: [], successors: [] }] };
+  return {
+    functionAddress,
+    blocks: [{ id: 0, operations, predecessors: [], successors: [] }],
+    ...(unsupportedInstructions.length > 0 ? { unsupportedInstructions } : {}),
+  };
 }
 
 export function liftBasicBlocks(functionAddress: number, blocks: readonly BasicBlock[]): FunctionIR {
+  const liftedBlocks = blocks.map((block) => {
+    const lifted = liftInstructionsToMicroC(functionAddress, block.instructions);
+    return {
+      block: {
+        id: block.id,
+        operations: lifted.blocks[0].operations,
+        predecessors: [...block.predecessors],
+        successors: [...block.successors],
+      },
+      unsupportedInstructions: (lifted.unsupportedInstructions ?? []).filter(item => {
+        // A direct J is represented by the recovered CFG edge, not by a Micro-C operation.
+        const terminator = block.instructions.at(-1);
+        return !(block.terminator === 'jump' && terminator?.mnemonic === 'J' && item.address === terminator.address);
+      }),
+    };
+  });
+  const unsupportedInstructions = liftedBlocks.flatMap(item => item.unsupportedInstructions);
   return {
     functionAddress,
-    blocks: blocks.map((block) => ({
-      id: block.id,
-      operations: liftInstructionsToMicroC(functionAddress, block.instructions).blocks[0].operations,
-      predecessors: [...block.predecessors],
-      successors: [...block.successors],
-    })),
+    blocks: liftedBlocks.map(item => item.block),
+    ...(unsupportedInstructions.length > 0 ? { unsupportedInstructions } : {}),
   };
 }

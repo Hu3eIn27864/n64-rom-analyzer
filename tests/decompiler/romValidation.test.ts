@@ -59,3 +59,19 @@ test('rejects malformed CFG references', () => {
   assert.equal(report.confidence, 'rejected');
   assert.match(report.reasons.join(' '), /missing successor/);
 });
+
+
+test('rejects a function whose lift omitted unsupported instruction semantics', () => {
+  const incomplete: FunctionIR = {
+    ...ir([]),
+    unsupportedInstructions: [{
+      address: 0x80001004,
+      mnemonic: 'BLEZ',
+      reason: 'No complete Micro-C semantics are available for this instruction',
+    }],
+  };
+  const report = validateRomFunction(incomplete);
+  assert.equal(report.cfg, 'pass');
+  assert.equal(report.confidence, 'rejected');
+  assert.match(report.reasons.join(' '), /BLEZ at 0x80001004 has no complete Micro-C semantics/);
+});

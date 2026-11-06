@@ -15,5 +15,5 @@ export function structureFunctionBody(base: CFunction, regions: readonly Control
 }
 
 export function canStructureFunction(ir: FunctionIR): boolean {
-  return ir.blocks.length > 0 && ir.blocks.every(block => block.predecessors.every(id => ir.blocks.some(candidate => candidate.id === id)) && block.successors.every(id => ir.blocks.some(candidate => candidate.id === id)));
+  return (ir.unsupportedInstructions?.length ?? 0) === 0 && ir.blocks.length > 0 && ir.blocks.every(block => block.predecessors.every(id => ir.blocks.some(candidate => candidate.id === id)) && block.successors.every(id => ir.blocks.some(candidate => candidate.id === id)));
 }

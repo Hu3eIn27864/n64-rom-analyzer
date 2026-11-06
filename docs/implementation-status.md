@@ -23,6 +23,7 @@ This document records the intended implementation order. It is deliberately cons
 
 - [x] Canonical Micro-C IR
 - [ ] Formal MIPS semantics integration
+- [x] Explicit unsupported-instruction coverage carried through FunctionIR and rejected by semantic validation/structuring
 - [ ] Memory SSA/data-flow analysis
 - [x] Evidence-driven type inference
 - [ ] Structured C AST generation

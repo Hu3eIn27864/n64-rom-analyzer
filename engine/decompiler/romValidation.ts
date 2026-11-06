@@ -38,6 +38,9 @@ export function validateRomFunction(
   callees: ReadonlyMap<number, FunctionMemoryEffectSummary> = new Map(),
 ): RomFunctionValidationReport {
   const reasons = validateCfg(ir);
+  for (const unsupported of ir.unsupportedInstructions ?? []) {
+    reasons.push(`instruction ${unsupported.mnemonic} at 0x${unsupported.address.toString(16)} has no complete Micro-C semantics: ${unsupported.reason}`);
+  }
   const memorySummary = inferFunctionMemoryEffects(ir, callees);
   if (memorySummary.unknown) reasons.push('memory effects contain an unresolved dynamic access or call');
 
