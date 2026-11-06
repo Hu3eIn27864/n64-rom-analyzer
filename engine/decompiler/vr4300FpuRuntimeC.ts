@@ -22,6 +22,8 @@ export const VR4300_FPU_C_RUNTIME = `#include <stdbool.h>
 typedef struct vr4300_fpu_state {
     uint32_t words[32];
     uint64_t wide[32];
+    uint64_t hi;
+    uint64_t lo;
     uint32_t fcsr;
     uint32_t fir; /* FCR0: implementation-defined FPU identification value */
     uint32_t status;
@@ -32,6 +34,26 @@ typedef struct vr4300_fpu_state {
     bool exception_pending;
     uint32_t exception_code;
 } vr4300_fpu_state;
+
+static inline uint64_t vr4300_hilo_read_hi(const vr4300_fpu_state *fpu)
+{
+    return fpu->hi;
+}
+
+static inline uint64_t vr4300_hilo_read_lo(const vr4300_fpu_state *fpu)
+{
+    return fpu->lo;
+}
+
+static inline void vr4300_hilo_write_hi(vr4300_fpu_state *fpu, uint64_t value)
+{
+    fpu->hi = value;
+}
+
+static inline void vr4300_hilo_write_lo(vr4300_fpu_state *fpu, uint64_t value)
+{
+    fpu->lo = value;
+}
 
 static inline uint32_t vr4300_fpu_read_be32(uintptr_t address)
 {
