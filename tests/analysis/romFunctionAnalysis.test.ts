@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeRomFunction } from '../../engine/analysis/romFunctionAnalysis';
+import { analyzeMappedRomFunction, analyzeRomFunction } from '../../engine/analysis/romFunctionAnalysis';
 import type { RomFunctionEntry } from '../../engine/decompiler/romFunctionEntry';
 
 const entry: RomFunctionEntry = { address: 0x80001000, romOffset: 0 };
@@ -61,4 +61,46 @@ test('composes branch-likely taken-only delay slots into FunctionIR', () => {
     ['def', '0x0($sp)'],
   ]);
   assert.deepEqual(result.memorySSA.phis, []);
+});
+
+
+test('resolves a virtual entry through a validated non-zero ROM segment offset', () => {
+  const rom = new Uint8Array(0x114);
+  const view = new DataView(rom.buffer);
+  [
+    0x27bdfff0,
+    0xafa80000,
+    0x8fa20000,
+    0x03e00008,
+    0x00000000,
+  ].forEach((word, index) => view.setUint32(0x100 + index * 4, word, false));
+
+  const result = analyzeMappedRomFunction(rom, [{
+    romStart: 0x100,
+    romEnd: 0x114,
+    vramStart: 0x80001000,
+    vramEnd: 0x80001014,
+    type: 'code',
+  }], 0x80001000);
+
+  assert.equal(result.cfg.entry.romOffset, 0x100);
+  assert.equal(result.instructionCount, 5);
+  assert.equal(result.memorySSA.accesses[1].reachingVersion, result.memorySSA.accesses[0].version);
+});
+
+test('refuses invalid segment maps and virtual entries without a ROM mapping', () => {
+  assert.throws(() => analyzeMappedRomFunction(new Uint8Array(16), [{
+    romStart: 0,
+    romEnd: 16,
+    vramStart: 0x80001000,
+    type: 'code',
+  }], 0x80001000), /invalid ROM segment map.*incomplete VRAM range/);
+
+  assert.throws(() => analyzeMappedRomFunction(new Uint8Array(16), [{
+    romStart: 0,
+    romEnd: 16,
+    vramStart: 0x80001000,
+    vramEnd: 0x80001010,
+    type: 'code',
+  }], 0x80002000), /no validated ROM segment maps virtual entry/);
 });
