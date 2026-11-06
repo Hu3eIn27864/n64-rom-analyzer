@@ -71,6 +71,72 @@ static inline bool vr4300_fpu_memory_alignment(vr4300_fpu_state *fpu, uintptr_t 
     return false;
 }
 
+/* Integer memory accesses use target big-endian byte order. RE reverses
+ * byte/halfword/word lanes within their containing 64-bit doubleword; an
+ * eight-byte access keeps its address lane. */
+static inline uintptr_t vr4300_memory_adjust_address(vr4300_fpu_state *fpu, uintptr_t address, unsigned size)
+{
+    if (!fpu->reverse_endian_enabled) return address;
+    if (size == 2u) return address ^ 2u;
+    if (size == 4u) return address ^ 4u;
+    return address;
+}
+
+static inline bool vr4300_memory_load(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, bool is_signed, uint64_t *result)
+{
+    address = vr4300_memory_adjust_address(fpu, address, size);
+    if (size > 1u && !vr4300_fpu_memory_alignment(fpu, address, size, false)) return false;
+
+    const uint8_t *bytes = (const uint8_t *)address;
+    uint64_t value;
+    switch (size) {
+    case 1u:
+        value = bytes[0];
+        if (is_signed) value = (uint64_t)(int64_t)(int8_t)value;
+        break;
+    case 2u:
+        value = ((uint16_t)bytes[0] << 8) | bytes[1];
+        if (is_signed) value = (uint64_t)(int64_t)(int16_t)value;
+        break;
+    case 4u:
+        value = vr4300_fpu_read_be32(address);
+        if (is_signed) value = (uint64_t)(int64_t)(int32_t)value;
+        break;
+    case 8u:
+        value = vr4300_fpu_read_be64(address);
+        break;
+    default:
+        return false;
+    }
+    *result = value;
+    return true;
+}
+
+static inline bool vr4300_memory_store(vr4300_fpu_state *fpu, uintptr_t address, unsigned size, uint64_t value)
+{
+    address = vr4300_memory_adjust_address(fpu, address, size);
+    if (size > 1u && !vr4300_fpu_memory_alignment(fpu, address, size, true)) return false;
+
+    uint8_t *bytes = (uint8_t *)address;
+    switch (size) {
+    case 1u:
+        bytes[0] = (uint8_t)value;
+        return true;
+    case 2u:
+        bytes[0] = (uint8_t)(value >> 8);
+        bytes[1] = (uint8_t)value;
+        return true;
+    case 4u:
+        vr4300_fpu_write_be32(address, (uint32_t)value);
+        return true;
+    case 8u:
+        vr4300_fpu_write_be64(address, value);
+        return true;
+    default:
+        return false;
+    }
+}
+
 static inline bool vr4300_fpu_check_cop1(vr4300_fpu_state *fpu)
 {
     if (!fpu->cop1_usable) {
