@@ -34,6 +34,9 @@ function lowerExpr(expr: MicroCExpr, inheritedWidth: 32 | 64 = 32): CExpr {
       return { kind: 'variable', value: expr.name, type: integerType };
     }
     case 'binary':
+      if (expr.op === 'sra') {
+        return cCall('vr4300_sra64', [lowerExpr(expr.left, width), lowerExpr(expr.right, width)], 'uint64_t');
+      }
       return { kind: 'binary', op: expr.op, left: lowerExpr(expr.left, width), right: lowerExpr(expr.right, width), type: integerType };
     case 'unary':
       return { kind: 'unary', op: expr.op, operand: lowerExpr(expr.value, width), type: integerType };
@@ -295,6 +298,19 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
     case 'branch':
     case 'jump':
       return undefined;
+  }
+}
+
+function expressionUsesSra(expr: MicroCExpr): boolean {
+  switch (expr.kind) {
+    case 'binary':
+      return expr.op === 'sra' || expressionUsesSra(expr.left) || expressionUsesSra(expr.right);
+    case 'unary':
+    case 'cast':
+      return expressionUsesSra(expr.value);
+    case 'const':
+    case 'value':
+      return false;
   }
 }
 
@@ -624,6 +640,8 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     operation.kind === 'branch' && expressionReadsFcc(operation.condition));
   const hasIntegerMemory = operations.some(operation => operation.kind === 'load' || operation.kind === 'store');
   const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory;
+  const usesSra = operations.some(operation => operation.kind === 'assign' && expressionUsesSra(operation.value));
+  const usesRuntime = usesFpuState || usesSra;
   let lowered: CFunction;
   if (ir.blocks.length === 1) {
     lowered = lowerSingleBlock(ir);
@@ -639,11 +657,11 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
   } else {
     throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
   }
-  if (!usesFpuState) return lowered;
+  if (!usesRuntime) return lowered;
   return {
     ...lowered,
-    parameters: [{ name: 'fpu', type: 'vr4300_fpu_state *' }],
-    useVoidForEmptyParameters: false,
+    parameters: usesFpuState ? [{ name: 'fpu', type: 'vr4300_fpu_state *' }] : [],
+    useVoidForEmptyParameters: !usesFpuState,
     body: hasFccBranch
       ? [returnIfFalse(cCall('vr4300_fpu_check_cop1', [cVariable('fpu')], 'uint32_t')), ...lowered.body]
       : lowered.body,
