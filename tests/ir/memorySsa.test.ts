@@ -56,7 +56,8 @@ test('does not infer reaching definitions across basic blocks', () => {
     { kind: 'def', address: '0x10($sp)', size: 4, blockId: 0 },
     { kind: 'use', address: '0x10($sp)', size: 4, blockId: 1 },
   ]);
-  assert.equal(result.accesses[1].reachingVersion, undefined);
+  assert.equal(result.accesses[1].reachingVersion, 0);
+  assert.notEqual(result.accesses[1].reachingVersion, result.accesses[0].version);
 });
 
 test('does not infer aliases for probable, unknown or differently sized accesses', () => {
@@ -70,7 +71,8 @@ test('does not infer aliases for probable, unknown or differently sized accesses
   ]);
   assert.equal(result.accesses[1].reachingVersion, undefined);
   assert.equal(result.accesses[3].reachingVersion, undefined);
-  assert.equal(result.accesses[5].reachingVersion, undefined);
+  assert.equal(result.accesses[5].reachingVersion, 0);
+  assert.notEqual(result.accesses[5].reachingVersion, result.accesses[4].version);
 });
 
 
