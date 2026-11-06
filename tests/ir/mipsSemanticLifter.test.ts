@@ -702,3 +702,21 @@ test('uses VR4300 Unimplemented Operation for non-finite and out-of-range word c
   assert.doesNotMatch(convertWord, /INT32_MIN/);
   assert.doesNotMatch(convertWord, /raised \|= FE_INVALID/);
 });
+
+test('reports unsupported CTC1 writes instead of emitting unlowerable FCR operations', () => {
+  const make = (address: number, rt: string, fcr: string) => createMipsInstruction({
+    address, raw: 0, mnemonic: 'CTC1', operands: [rt, fcr],
+  });
+  const ir = liftInstructionsToMicroC(0x8000c000, [
+    make(0x8000c000, '$t0', 'fcr31'),
+    make(0x8000c004, '$t1', 'fcr0'),
+    make(0x8000c008, '$t2', 'fcr25'),
+  ]);
+  assert.deepEqual(ir.blocks[0].operations, [
+    { kind: 'fpuControlWrite', controlRegister: 31, value: { kind: 'value', name: 'rt0' } },
+  ]);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.mnemonic), ['CTC1', 'CTC1']);
+  assert.deepEqual(ir.unsupportedInstructions?.map(item => item.address), [0x8000c004, 0x8000c008]);
+  const lowered = decompileStructuredFunctionIR({ ...ir, unsupportedInstructions: [] });
+  assert.match(renderFunction(lowered), /vr4300_fpu_write_fcsr/);
+});
