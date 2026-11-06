@@ -34,29 +34,55 @@ export function inferFunctionMemoryEffects(
   const writes: MemoryEffectRange[] = [];
   let unknown = false;
 
+  const addRead = (expression: MicroCExpr, size: MemoryEffectRange['size'], alignment = 1) => {
+    const address = constantAddress(expression);
+    if (address === undefined) unknown = true;
+    else addRange(reads, { address: address & ~(alignment - 1), size });
+  };
+  const addWrite = (expression: MicroCExpr, size: MemoryEffectRange['size'], alignment = 1) => {
+    const address = constantAddress(expression);
+    if (address === undefined) unknown = true;
+    else addRange(writes, { address: address & ~(alignment - 1), size });
+  };
+
   for (const operation of ir.blocks.flatMap(block => block.operations)) {
-    if (operation.kind === 'load') {
-      const address = constantAddress(operation.address);
-      if (address === undefined) unknown = true;
-      else addRange(reads, { address, size: operation.size });
-      continue;
-    }
-    if (operation.kind === 'store') {
-      const address = constantAddress(operation.address);
-      if (address === undefined) unknown = true;
-      else addRange(writes, { address, size: operation.size });
-      continue;
-    }
-    if (operation.kind === 'call') {
-      const target = operation.target.kind === 'const' ? operation.target.value >>> 0 : undefined;
-      const summary = target === undefined ? undefined : callees.get(target);
-      if (!summary) {
-        unknown = true;
-        continue;
+    switch (operation.kind) {
+      case 'load':
+      case 'linkedLoad':
+      case 'fpuLoad':
+        addRead(operation.address, operation.size);
+        break;
+      case 'mergeLoad':
+        addRead(operation.address, 8, 8);
+        break;
+      case 'mergeLoadWord':
+        addRead(operation.address, 4, 4);
+        break;
+      case 'store':
+      case 'conditionalStore':
+      case 'fpuStore':
+        addWrite(operation.address, operation.size);
+        break;
+      case 'mergeStore':
+        addWrite(operation.address, 8, 8);
+        break;
+      case 'mergeStoreWord':
+        addWrite(operation.address, 4, 4);
+        break;
+      case 'call': {
+        const target = operation.target.kind === 'const' ? operation.target.value >>> 0 : undefined;
+        const summary = target === undefined ? undefined : callees.get(target);
+        if (!summary) {
+          unknown = true;
+          break;
+        }
+        for (const range of summary.reads) addRange(reads, range);
+        for (const range of summary.writes) addRange(writes, range);
+        if (summary.unknown) unknown = true;
+        break;
       }
-      for (const range of summary.reads) addRange(reads, range);
-      for (const range of summary.writes) addRange(writes, range);
-      if (summary.unknown) unknown = true;
+      default:
+        break;
     }
   }
 
