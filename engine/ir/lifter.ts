@@ -104,6 +104,22 @@ export function liftInstructionsToMicroC(
         }
         break;
       }
+      case 'MFHI':
+      case 'MFLO':
+        if (a) operations.push({
+          kind: 'hiloTransfer',
+          direction: instruction.mnemonic === 'MFHI' ? 'from-hi' : 'from-lo',
+          register: normalizeRegister(a),
+        });
+        break;
+      case 'MTHI':
+      case 'MTLO':
+        if (a) operations.push({
+          kind: 'hiloTransfer',
+          direction: instruction.mnemonic === 'MTHI' ? 'to-hi' : 'to-lo',
+          register: normalizeRegister(a),
+        });
+        break;
       case 'ADDU':
       case 'SUBU':
         if (target && b && c) {
