@@ -1,6 +1,7 @@
 import type { FunctionIR } from '../ir/microC';
 import type { MemorySSA } from '../ir/memorySsa';
 import { buildMemorySSAFromFunctionIR } from '../ir/memorySsaBuilder';
+import { analyzeCanonicalStructure, type CanonicalStructuralAnalysis } from './structuralPipeline';
 import { lowerRomCfgToFunctionIR } from '../decompiler/romCfgToFunctionIR';
 import type { RomFunctionEntry } from '../decompiler/romFunctionEntry';
 import { RomAddressMap } from '../rom/addressMap';
@@ -99,4 +100,89 @@ export function analyzeMappedRomFunction(
     options,
   );
   return buildAnalysisResult(cfg);
+}
+
+
+export interface MappedRomProgramOptions extends RomFunctionCfgOptions {
+  maxReachableInstructions?: number;
+}
+
+export interface MappedRomFunctionFailure {
+  readonly address: number;
+  readonly reason: string;
+}
+
+export interface MappedRomProgramAnalysis {
+  readonly structural: CanonicalStructuralAnalysis;
+  readonly functions: Array<{ readonly address: number; readonly analysis: RomFunctionAnalysisResult }>;
+  readonly failures: MappedRomFunctionFailure[];
+  readonly unresolvedDirectTargets: number[];
+  readonly unresolvedIndirectCallers: number[];
+}
+
+/**
+ * Recover direct-call-reachable functions from explicit ROM/VRAM segments,
+ * then run the bounded ROM CFG -> Micro-C -> Memory SSA pipeline for each
+ * recovered entry. All instruction addresses remain in the VRAM domain.
+ */
+export function analyzeMappedRomProgram(
+  rom: Uint8Array,
+  segments: readonly RomSegment[],
+  entryPoints: readonly number[],
+  options: MappedRomProgramOptions = {},
+): MappedRomProgramAnalysis {
+  const errors = validateRomSegments(segments);
+  if (errors.length > 0) {
+    throw new Error('invalid ROM segment map: ' + errors.join('; '));
+  }
+
+  const addressMap = new RomAddressMap(segments);
+  const byteOrder = options.byteOrder ?? 'big';
+  const readWord = (address: number): number => {
+    const offset = addressMap.vramToRom(address);
+    if (offset === undefined) {
+      throw new Error('instruction address 0x' + address.toString(16) + ' is not covered by a validated ROM segment');
+    }
+    return readRomWord(rom, offset, byteOrder);
+  };
+
+  const structural = analyzeCanonicalStructure(entryPoints, {
+    readWord,
+    ...(options.maxReachableInstructions !== undefined
+      ? { maxInstructions: options.maxReachableInstructions }
+      : {}),
+  });
+
+  const { maxReachableInstructions: _maxReachableInstructions, ...functionOptions } = options;
+  const functions: Array<{ address: number; analysis: RomFunctionAnalysisResult }> = [];
+  const failures: MappedRomFunctionFailure[] = [];
+  for (const fn of structural.functions) {
+    try {
+      functions.push({
+        address: fn.address,
+        analysis: analyzeMappedRomFunction(rom, segments, fn.address, functionOptions),
+      });
+    } catch (error) {
+      failures.push({
+        address: fn.address,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const knownFunctions = new Set(functions.map(fn => fn.address));
+  const unresolvedDirectTargets = [...new Set(structural.callGraph.edges
+    .filter(edge => edge.kind === 'heuristic' && edge.to !== undefined && !knownFunctions.has(edge.to))
+    .map(edge => edge.to!))].sort((a, b) => a - b);
+  const unresolvedIndirectCallers = [...new Set(structural.callGraph.edges
+    .filter(edge => edge.kind === 'jalr')
+    .map(edge => edge.from))].sort((a, b) => a - b);
+
+  return {
+    structural,
+    functions,
+    failures,
+    unresolvedDirectTargets,
+    unresolvedIndirectCallers,
+  };
 }
