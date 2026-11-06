@@ -37,10 +37,14 @@ function lowerExpr(expr: MicroCExpr, inheritedWidth: 32 | 64 = 32): CExpr {
       if (expr.op === 'sra') {
         return cCall('vr4300_sra64', [lowerExpr(expr.left, width), lowerExpr(expr.right, width)], 'uint64_t');
       }
+      if (expr.op === 'sra32') {
+        return cCall('vr4300_sra32', [lowerExpr(expr.left, 32), lowerExpr(expr.right, 32)], 'uint32_t');
+      }
       return { kind: 'binary', op: expr.op, left: lowerExpr(expr.left, width), right: lowerExpr(expr.right, width), type: integerType };
     case 'unary':
       return { kind: 'unary', op: expr.op, operand: lowerExpr(expr.value, width), type: integerType };
     case 'cast':
+      if (expr.type === 'sext32') return cCall('vr4300_sext32', [lowerExpr(expr.value, 32)], 'uint64_t');
       return { kind: 'cast', type: expr.type as CExpr['type'], operand: lowerExpr(expr.value, width) };
   }
 }
@@ -325,10 +329,24 @@ function lowerOperation(operation: MicroCOperation): CStmt | undefined {
 function expressionUsesSra(expr: MicroCExpr): boolean {
   switch (expr.kind) {
     case 'binary':
-      return expr.op === 'sra' || expressionUsesSra(expr.left) || expressionUsesSra(expr.right);
+      return expr.op === 'sra' || expr.op === 'sra32' || expressionUsesSra(expr.left) || expressionUsesSra(expr.right);
     case 'unary':
     case 'cast':
       return expressionUsesSra(expr.value);
+    case 'const':
+    case 'value':
+      return false;
+  }
+}
+
+function expressionUsesSignExtend32(expr: MicroCExpr): boolean {
+  switch (expr.kind) {
+    case 'cast':
+      return expr.type === 'sext32' || expressionUsesSignExtend32(expr.value);
+    case 'binary':
+      return expressionUsesSignExtend32(expr.left) || expressionUsesSignExtend32(expr.right);
+    case 'unary':
+      return expressionUsesSignExtend32(expr.value);
     case 'const':
     case 'value':
       return false;
@@ -663,7 +681,8 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
   const hasSignedArithmetic = operations.some(operation => operation.kind === 'signedArithmetic');
   const usesFpuState = fpuOperations.length > 0 || hasFccBranch || hasIntegerMemory || hasSignedArithmetic;
   const usesSra = operations.some(operation => operation.kind === 'assign' && expressionUsesSra(operation.value));
-  const usesRuntime = usesFpuState || usesSra;
+  const usesSignExtend32 = operations.some(operation => operation.kind === 'assign' && expressionUsesSignExtend32(operation.value));
+  const usesRuntime = usesFpuState || usesSra || usesSignExtend32;
   let lowered: CFunction;
   if (ir.blocks.length === 1) {
     lowered = lowerSingleBlock(ir);

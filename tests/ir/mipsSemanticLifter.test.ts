@@ -17,10 +17,12 @@ test('lifts arithmetic, immediate, and LUI semantics', () => {
   ]);
 
   assert.deepEqual(ir.blocks[0].operations, [
-    { kind: 'assign', target: 'rt0', value: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt1' }, right: { kind: 'value', name: 'rt2' } } },
-    { kind: 'assign', target: 'rt3', value: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt0' }, right: { kind: 'const', value: 4 } } },
-    { kind: 'assign', target: 'rt4', value: { kind: 'binary', op: '<<', left: { kind: 'const', value: 4660 }, right: { kind: 'const', value: 16 } } },
+    { kind: 'assign', target: 'rt0', value: { kind: 'cast', type: 'sext32', value: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt1', width: 32 }, right: { kind: 'value', name: 'rt2', width: 32 }, width: 32 }, width: 64 } },
+    { kind: 'assign', target: 'rt3', value: { kind: 'cast', type: 'sext32', value: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt0', width: 32 }, right: { kind: 'const', value: 4 }, width: 32 }, width: 64 } },
+    { kind: 'assign', target: 'rt4', value: { kind: 'cast', type: 'sext32', value: { kind: 'binary', op: '<<', left: { kind: 'const', value: 4660 }, right: { kind: 'const', value: 16 }, width: 32 }, width: 64 } },
   ]);
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_sext32/);
 });
 
 test('models signed 32-bit and 64-bit arithmetic with overflow-aware operations', () => {
@@ -43,6 +45,34 @@ test('models signed 32-bit and 64-bit arithmetic with overflow-aware operations'
   assert.match(c, /vr4300_signed_add64\(fpu,/);
   assert.match(c, /vr4300_signed_sub64\(fpu,/);
   assert.match(c, /exception_code = 12u/);
+});
+
+test('models 64-bit logical operations and sign-extends 32-bit shift results', () => {
+  const ir = liftInstructionsToMicroC(0x80000000, [
+    instruction('AND', ['$t0', '$t1', '$t2']),
+    instruction('OR', ['$t3', '$t4', '$t5']),
+    instruction('XOR', ['$t6', '$t7', '$t8']),
+    instruction('NOR', ['$t9', '$s0', '$s1']),
+    instruction('ANDI', ['$s2', '$s3', '0xffff']),
+    instruction('ORI', ['$s4', '$s5', '0x8000']),
+    instruction('XORI', ['$s6', '$s7', '0x00ff']),
+    instruction('SLL', ['$t0', '$t1', '4']),
+    instruction('SRL', ['$t2', '$t3', '5']),
+    instruction('SRA', ['$t4', '$t5', '6']),
+    instruction('SLLV', ['$t6', '$t7', '$t8']),
+    instruction('SRLV', ['$t9', '$s0', '$s1']),
+    instruction('SRAV', ['$s2', '$s3', '$s4']),
+  ]);
+  const values = ir.blocks[0].operations.map(operation =>
+    operation.kind === 'assign' ? operation.value : undefined,
+  );
+  assert.ok(values.slice(0, 7).every(value => value?.width === 64));
+  assert.equal(values[3]?.kind, 'unary');
+  assert.ok(values.slice(7).every(value => value?.kind === 'cast' && value.type === 'sext32'));
+  const c = renderFunction(decompileStructuredFunctionIR(ir));
+  assert.match(c, /vr4300_sext32/);
+  assert.match(c, /vr4300_sra32/);
+  assert.deepEqual(ir.unsupportedInstructions, undefined);
 });
 
 test('lifts 64-bit integer arithmetic into explicitly wide Micro-C expressions', () => {

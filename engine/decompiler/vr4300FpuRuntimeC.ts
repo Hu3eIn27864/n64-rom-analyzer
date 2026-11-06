@@ -180,6 +180,21 @@ static inline bool vr4300_signed_sub64(vr4300_fpu_state *fpu, uint64_t left, uin
     return true;
 }
 
+static inline uint64_t vr4300_sext32(uint32_t value)
+{
+    return (value & UINT32_C(0x80000000)) != 0u
+        ? (UINT64_C(0xffffffff00000000) | value) : (uint64_t)value;
+}
+
+static inline uint32_t vr4300_sra32(uint32_t value, unsigned shift)
+{
+    shift &= 31u;
+    if (shift == 0u) return value;
+    const uint32_t sign_fill = (value & UINT32_C(0x80000000)) != 0u
+        ? (UINT32_MAX << (32u - shift)) : 0u;
+    return (value >> shift) | sign_fill;
+}
+
 static inline uint64_t vr4300_sra64(uint64_t value, unsigned shift)
 {
     shift &= 63u;
