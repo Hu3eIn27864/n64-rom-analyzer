@@ -67,7 +67,7 @@ test('reachability includes delay-slot instructions for calls, jumps and returns
   };
 
   const result = discoverReachableCode([0], { readWord });
-  assert.deepEqual(result.visitedAddresses, [0x00, 0x04, 0x08, 0x100, 0x104, 0x108]);
+  assert.deepEqual(result.visitedAddresses, [0x00, 0x04, 0x08, 0x0c, 0x100, 0x104, 0x108]);
   assert.equal(result.instructions.find(item => item.address === 0x04)?.mnemonic, 'ADDIU');
   assert.equal(result.instructions.find(item => item.address === 0x108)?.mnemonic, 'ADDIU');
 });
