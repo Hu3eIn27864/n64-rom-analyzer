@@ -323,6 +323,7 @@ test('lowers COP1 compares with predicate selection, FCC writes and FCSR invalid
   const c = renderFunction(decompileStructuredFunctionIR(ir));
   assert.match(c, /vr4300_fpu_compare_d\(fpu, 3, 11, 2, 4\)/);
   assert.match(c, /vr4300_fpu_commit_compare/);
+  assert.match(c, /vr4300_fpu_read_compare_d/);
   assert.match(c, /exception_code = 15u/);
   assert.match(c, /UINT32_MAX/);
   assert.match(c, /fcsr & \(UINT32_C\(1\) << 11\)/);
