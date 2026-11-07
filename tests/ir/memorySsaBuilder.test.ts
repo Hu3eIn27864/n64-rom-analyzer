@@ -180,7 +180,7 @@ test('models conditional and merge stores as may-definitions, not definite write
   const result = buildMemorySSAFromFunctionIR(ir);
   assert.equal(result.accesses[1].kind, 'mayDef');
   assert.deepEqual(result.accesses[2].reachingByteVersions, [1, 1, 1, 1]);
-  assert.deepEqual(result.accesses[2].possibleByteVersions, [[2], [3], [4], [5]]);
+  assert.deepEqual(result.accesses[2].possibleByteVersions, [[2], [2], [2], [2]]);
   assert.equal(result.accesses[2].reachingVersion, 1);
 });
 
@@ -239,7 +239,8 @@ test('unknown calls conservatively clobber observed caller stack lanes', () => {
   assert.deepEqual(result.accesses.map(access => access.kind), [
     'def', 'mayDef', 'mayDef', 'mayDef', 'mayDef', 'use',
   ]);
-  assert.deepEqual(result.accesses[5].reachingByteVersions, [2, 3, 4, 5]);
+  assert.deepEqual(result.accesses[5].reachingByteVersions, [1, 1, 1, 1]);
+  assert.deepEqual(result.accesses[5].possibleByteVersions, [[2], [3], [4], [5]]);
 });
 
 test('known callees do not alias caller stack through their private SP frame', () => {
