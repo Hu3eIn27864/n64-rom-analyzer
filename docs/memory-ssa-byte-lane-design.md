@@ -1,6 +1,6 @@
 # Memory SSA byte-lane design
 
-Status: **PARTIALLY IMPLEMENTED — BYTE-LANE DATAFLOW ADDED; INSTRUCTION MASKS AND INTERPROCEDURAL INTEGRATION REMAIN OPEN**
+Status: **PARTIALLY IMPLEMENTED — BYTE-LANE DATAFLOW, MERGE MASKS, AND CONSERVATIVE UNKNOWN-CALL CLOBBERS INTEGRATED**
 
 ## Problem
 
@@ -56,4 +56,4 @@ Unknown and probable pointer spaces remain outside the exact byte-lane solver. T
 
 ## Integration boundary
 
-This design does not claim that the current `overlappingAccesses` metadata implements byte-level Memory SSA. It is a prerequisite specification for a separate solver change and must be validated independently before call effects are injected as Memory SSA definitions.
+This design does not claim that `overlappingAccesses` metadata alone implements byte-level Memory SSA. Unknown call effects are now injected conservatively into observed caller stack/frame lanes; known callee-private SP/FP ranges are intentionally not treated as caller-frame aliases. Absolute/global call effects and external memory ranges remain outside the current lane domain.
