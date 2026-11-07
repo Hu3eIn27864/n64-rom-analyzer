@@ -66,7 +66,7 @@ export function inferFunctionMemoryEffects(
     else addRange(reads, { ...address, address: address.base ? address.address & ~(alignment - 1) : (address.address & ~(alignment - 1)) >>> 0, size });
   };
   const addWrite = (expression: MicroCExpr, size: MemoryEffectRange['size'], alignment = 1) => {
-    const address = memoryAddress(expression);
+    const address = memoryAddress(expression, ir.globalPointerBase);
     if (address === undefined) unknown = true;
     else addRange(writes, { ...address, address: address.base ? address.address & ~(alignment - 1) : (address.address & ~(alignment - 1)) >>> 0, size });
   };
