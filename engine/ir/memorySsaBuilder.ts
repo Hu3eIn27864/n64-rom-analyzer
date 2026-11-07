@@ -75,15 +75,15 @@ function collectOperationAccesses(operation: MicroCOperation, blockId: number): 
     case 'linkedLoad':
       return [memoryInput('use', operation.address, operation.size, blockId)];
     case 'mergeLoad':
-      return [memoryInput('use', operation.address, 8, blockId, 8)];
+      return [memoryInput('use', operation.address, 8, blockId, 8, mergeByteMask(operation.address, 8, operation.direction))];
     case 'mergeLoadWord':
-      return [memoryInput('use', operation.address, 4, blockId, 4)];
+      return [memoryInput('use', operation.address, 4, blockId, 4, mergeByteMask(operation.address, 4, operation.direction))];
     case 'store':
       return [memoryInput('def', operation.address, operation.size, blockId)];
     case 'mergeStore':
-      return [memoryInput('mayDef', operation.address, 8, blockId, 8)];
+      return [memoryInput('mayDef', operation.address, 8, blockId, 8, mergeByteMask(operation.address, 8, operation.direction))];
     case 'mergeStoreWord':
-      return [memoryInput('mayDef', operation.address, 4, blockId, 4)];
+      return [memoryInput('mayDef', operation.address, 4, blockId, 4, mergeByteMask(operation.address, 4, operation.direction))];
     case 'conditionalStore':
       return [memoryInput('mayDef', operation.address, operation.size, blockId)];
     case 'fpuLoad':
