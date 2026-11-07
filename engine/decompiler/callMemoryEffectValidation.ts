@@ -12,6 +12,10 @@ type MemoryState = {
   invalidatedRanges: MemoryEffectRange[];
 };
 
+function constantAddress(expr: MicroCExpr): number | undefined {
+  return expr.kind === 'const' ? expr.value >>> 0 : undefined;
+}
+
 function memoryAddress(expr: MicroCExpr, alignment = 1): Pick<MemoryEffectRange, 'address' | 'base'> | undefined {
   let current = expr;
   while (current.kind === 'cast') current = current.value;
