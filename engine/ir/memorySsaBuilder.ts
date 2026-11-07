@@ -1,4 +1,5 @@
 import type { FunctionIR, MicroCExpr, MicroCOperation } from './microC';
+import type { FunctionMemoryEffectSummary } from '../decompiler/functionMemoryEffects';
 import {
   buildMemorySSAForCFG,
   type MemoryAccess,
@@ -107,11 +108,70 @@ function collectOperationAccesses(operation: MicroCOperation, blockId: number): 
   }
 }
 
-/** Collect memory reads/writes from Micro-C operations in block/operation order. */
-export function collectMemoryAccesses(ir: FunctionIR): MemoryInput[] {
-  return ir.blocks.flatMap(block =>
-    block.operations.flatMap(operation => collectOperationAccesses(operation, block.id)),
-  );
+/**
+ * Collect stack/frame lanes observed by this function. An unresolved or
+ * effect-unknown call conservatively clobbers these lanes at its program
+ * point. Callee SP/FP ranges are deliberately not copied into the caller:
+ * they describe the callee's private frame, not the caller's frame.
+ */
+function observedStackLanes(ir: FunctionIR): Array<{ address: string }> {
+  const lanes = new Map<string, { address: string }>();
+  for (const block of ir.blocks) {
+    for (const operation of block.operations) {
+      for (const access of collectOperationAccesses(operation, block.id)) {
+        const match = /^(0x[0-9a-f]+)\(\$(sp|fp)\)$/i.exec(access.address);
+        if (!match) continue;
+        let start = Number.parseInt(match[1].slice(2), 16);
+        if (start >= 0x80000000) start -= 0x100000000;
+        const mask = access.byteMask ?? Array.from({ length: access.size }, (_, index) => index);
+        for (const index of mask) {
+          const offset = start + index;
+          const address = '0x' + (offset >>> 0).toString(16) + '(
+
+/**
+ * Build Memory SSA directly from canonical FunctionIR.
+ *
+ * Only exact stack/frame addresses receive reaching versions. Global-register
+ * addresses remain probable, and dynamic/other register expressions remain
+ * unknown until a stronger alias model exists.
+ */
+export function buildMemorySSAFromFunctionIR(ir: FunctionIR): MemorySSA {
+  const accesses = collectMemoryAccesses(ir);
+  const blocks = ir.blocks.map(block => ({
+    id: block.id,
+    predecessors: block.predecessors,
+  }));
+  return buildMemorySSAForCFG(accesses, blocks);
+}
+ + match[2].toLowerCase() + ')';
+          lanes.set(match[2].toLowerCase() + '|' + offset, { address });
+        }
+      }
+    }
+  }
+  return [...lanes.values()];
+}
+
+/** Collect accesses in operation order, inserting conservative call clobbers. */
+export function collectMemoryAccesses(
+  ir: FunctionIR,
+  callees: ReadonlyMap<number, FunctionMemoryEffectSummary> = new Map(),
+): MemoryInput[] {
+  const observedLanes = observedStackLanes(ir);
+  return ir.blocks.flatMap(block => block.operations.flatMap(operation => {
+    if (operation.kind !== 'call') return collectOperationAccesses(operation, block.id);
+    const target = operation.target.kind === 'const' ? operation.target.value >>> 0 : undefined;
+    const summary = target === undefined ? undefined : callees.get(target);
+    if (summary && !summary.unknown) return [];
+    // A call with an unknown target or unknown effects may alias any observed
+    // caller stack/frame byte. Emit one-byte may-def tokens at the call site.
+    return observedLanes.map(lane => ({
+      kind: 'mayDef' as const,
+      address: lane.address,
+      size: 1 as const,
+      blockId: block.id,
+    }));
+  }));
 }
 
 /**
