@@ -265,7 +265,7 @@ export function buildMemorySSA(
     if (current.kind !== 'use') {
       current.version = nextVersion++;
       current.previousVersion = previousVersion;
-      lastDefinition.set(key, current.version);
+      if (current.kind === 'def') lastDefinition.set(key, current.version);
     } else {
       current.reachingVersion = previousVersion;
     }
@@ -408,7 +408,7 @@ export function buildMemorySSAForCFG(
           access.reachingVersion = previousVersion;
         } else {
           access.previousVersion = previousVersion;
-          current.set(location, access.version!);
+          if (access.kind === 'def') current.set(location, access.version!);
         }
       }
 
