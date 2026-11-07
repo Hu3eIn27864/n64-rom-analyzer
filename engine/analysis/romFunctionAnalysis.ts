@@ -223,7 +223,7 @@ export function analyzeMappedRomProgram(
 
   return {
     structural,
-    functions,
+    functions: functionsWithCallEffects,
     failures,
     unresolvedDirectTargets,
     unresolvedIndirectCallers,
