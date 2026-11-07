@@ -149,7 +149,7 @@ function buildByteLaneSSA(
               id: phis.length,
               blockId,
               inputs: nextInputs,
-              location: base === 'absolute' ? `0x${(Number(offset) >>> 0).toString(16)}` : `0x${(Number(offset) >>> 0).toString(16)}(${base})`,
+              location: base === 'absolute' ? `0x${(Number(offset) >>> 0).toString(16)}` : `0x${(Number(offset) >>> 0).toString(16)}($${base})`,
               size: 1,
               version: nextVersion++,
             };
