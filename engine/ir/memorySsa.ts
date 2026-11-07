@@ -191,8 +191,8 @@ function buildByteLaneSSA(
     const active = new Set(phis.filter(phi => !aliases.has(phi.version!)).map(phi => phi.version!));
     for (const phi of phis) {
       if (aliases.has(phi.version!)) continue;
-      const inputs = [...new Set(Object.values(phi.inputs).map(resolve))];
-      if (inputs.length === 1 && inputs[0] !== phi.version && !active.has(inputs[0])) {
+      const inputs = [...new Set(Object.values(phi.inputs).map(resolve).filter(version => version !== phi.version))];
+      if (inputs.length === 1 && !active.has(inputs[0])) {
         aliases.set(phi.version!, inputs[0]);
         collapsed = true;
       }
