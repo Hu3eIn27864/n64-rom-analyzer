@@ -342,7 +342,7 @@ test('unknown calls conservatively clobber observed absolute byte lanes', () => 
 
 
 test('resolves GP-relative accesses only with an explicitly proven GP base', () => {
-  const gpAddress = { kind: 'binary', op: '+', left: v('rgp'), right: c(0x24) } as const;
+  const gpAddress = { kind: 'binary', op: '+', left: { kind: 'value', name: 'rgp' }, right: { kind: 'const', value: 0x24 } } as const;
   const unresolved = makeIR([
     { kind: 'store', address: gpAddress, value: c(1), size: 4 },
     { kind: 'load', target: 'x', address: gpAddress, size: 4 },
