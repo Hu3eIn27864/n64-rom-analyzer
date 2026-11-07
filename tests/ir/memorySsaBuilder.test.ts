@@ -218,3 +218,48 @@ test('merge loads consume only selected byte lanes after ordinary stores', () =>
   const result = buildMemorySSAFromFunctionIR(ir);
   assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1, 1]);
 });
+
+
+test('unknown calls conservatively clobber observed caller stack lanes', () => {
+  const address = stackAddress(96);
+  const ir: FunctionIR = {
+    functionAddress: 0x80008000,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'store', address, value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'call', target: { kind: 'value', name: 'r25' }, args: [] },
+        { kind: 'load', target: 'r2', address, size: 4, signed: false },
+      ],
+    }],
+  };
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.deepEqual(result.accesses.map(access => access.kind), [
+    'def', 'mayDef', 'mayDef', 'mayDef', 'mayDef', 'use',
+  ]);
+  assert.deepEqual(result.accesses[5].reachingByteVersions, [2, 3, 4, 5]);
+});
+
+test('known callees do not alias caller stack through their private SP frame', () => {
+  const address = stackAddress(104);
+  const target = 0x80009000;
+  const ir: FunctionIR = {
+    functionAddress: 0x80008000,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'store', address, value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'call', target: { kind: 'const', value: target }, args: [] },
+        { kind: 'load', target: 'r2', address, size: 4, signed: false },
+      ],
+    }],
+  };
+  const summaries = new Map([[target, {
+    reads: [],
+    writes: [{ base: 'sp' as const, address: -16, size: 4 as const }],
+    unknown: false,
+  }]]);
+  const result = buildMemorySSAFromFunctionIR(ir, summaries);
+  assert.deepEqual(result.accesses.map(access => access.kind), ['def', 'use']);
+  assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1, 1, 1]);
+});
