@@ -15,12 +15,12 @@ A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($s
 - Loads expose the reaching version for every byte in address order.
 - CFG joins create a separate Phi for each lane whose predecessor versions differ.
 - Loop-carried lane definitions are solved by a bounded fixed-point pass.
-- Conditional stores and merge stores are classified as `mayDef` rather than definite full-range stores. Merge operations now carry the exact big-endian byte mask selected by their effective-address lane and left/right direction; conditional stores conservatively invalidate their full modeled range.
+- Conditional stores and merge stores are classified as `mayDef` rather than definite full-range stores. Merge operations carry the exact big-endian byte mask selected by their effective-address lane and left/right direction; conditional stores conservatively describe their full modeled range. A may-def no longer replaces the definite reaching version: its token is propagated separately in `possibleByteVersions`, including across CFG joins. A later definite store clears the possible tokens for the bytes it fully overwrites.
 - The old width-keyed `phis` and scalar version fields remain in place for compatibility; the new lane-specific Phis are exposed as `bytePhis`.
 
 ## Remaining work
 
-- Distinguish a may-def token from a definite reaching definition in downstream consumers; currently it is an explicit conservative kill token.
+- Teach downstream consumers to interpret `possibleByteVersions` as conditional provenance rather than definite dataflow.
 - Model known global/absolute call writes and externally visible memory ranges in a shared non-stack byte-lane domain.
 - Integrate call-site summaries and external memory effects into lane state.
 - Define a documented compact scalar summary for mixed byte provenance (the lane array remains authoritative).
