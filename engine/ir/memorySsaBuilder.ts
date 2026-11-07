@@ -127,4 +127,58 @@ function observedMemoryLanes(ir: FunctionIR): Array<{ address: string }> {
         const mask = access.byteMask ?? Array.from({ length: access.size }, (_, index) => index);
         for (const index of mask) {
           const offset = start + index;
-          const address = '0x' + (offset >>> 0).toString(16) + (base === 'absolute' ? '' : '($'
+          const address = '0x' + (offset >>> 0).toString(16)
+            + (base === 'absolute' ? '' : '($' + base + ')');
+          lanes.set(base + '|' + offset, { address });
+        }
+      }
+    }
+  }
+  return [...lanes.values()];
+}
+
+/** Collect accesses in operation order, inserting conservative call clobbers. */
+export function collectMemoryAccesses(
+  ir: FunctionIR,
+  callees: ReadonlyMap<number, FunctionMemoryEffectSummary> = new Map(),
+): MemoryInput[] {
+  const observedLanes = observedMemoryLanes(ir);
+  return ir.blocks.flatMap(block => block.operations.flatMap(operation => {
+    if (operation.kind !== 'call') return collectOperationAccesses(operation, block.id);
+    const target = operation.target.kind === 'const' ? operation.target.value >>> 0 : undefined;
+    const summary = target === undefined ? undefined : callees.get(target);
+    const lanes = summary && !summary.unknown
+      ? summary.writes.filter(range => range.base === undefined).flatMap(range =>
+        Array.from({ length: range.size }, (_, index) => ({
+          address: '0x' + ((range.address + index) >>> 0).toString(16),
+        })))
+      : observedLanes;
+    // Known absolute ranges share the caller's absolute lane domain. Unknown
+    // calls conservatively invalidate every observed exact memory lane; SP/FP
+    // summary ranges remain callee-private and are never imported.
+    return lanes.map(lane => ({
+      kind: 'mayDef' as const,
+      address: lane.address,
+      size: 1 as const,
+      blockId: block.id,
+    }));
+  }));
+}
+
+/**
+ * Build Memory SSA directly from canonical FunctionIR.
+ *
+ * Exact SP/FP and absolute addresses receive reaching versions. GP-relative
+ * and dynamic expressions remain probable/unknown until base resolution exists.
+ */
+export function buildMemorySSAFromFunctionIR(
+  ir: FunctionIR,
+  callees: ReadonlyMap<number, FunctionMemoryEffectSummary> = new Map(),
+): MemorySSA {
+  const accesses = collectMemoryAccesses(ir, callees);
+  const blocks = ir.blocks.map(block => ({
+    id: block.id,
+    predecessors: block.predecessors,
+  }));
+  return buildMemorySSAForCFG(accesses, blocks);
+}
