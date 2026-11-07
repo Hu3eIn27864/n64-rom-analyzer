@@ -14,7 +14,7 @@ export type FunctionMemoryEffectSummary = {
   unknown: boolean;
 };
 
-function memoryAddress(expr: MicroCExpr): Pick<MemoryEffectRange, 'address' | 'base'> | undefined {
+function memoryAddress(expr: MicroCExpr, globalPointerBase?: number): Pick<MemoryEffectRange, 'address' | 'base'> | undefined {
   if (expr.kind === 'const') return { address: expr.value >>> 0 };
   let current = expr;
   while (current.kind === 'cast') current = current.value;
@@ -33,9 +33,12 @@ function memoryAddress(expr: MicroCExpr): Pick<MemoryEffectRange, 'address' | 'b
   const register = baseExpr.name.toLowerCase().replace(/^\\$/, '');
   const base = register === 'sp' || register === 'rsp' ? 'sp'
     : register === 'fp' || register === 'rfp' ? 'fp' : undefined;
-  if (!base) return undefined;
   const rawOffset = offsetExpr.value | 0;
-  return { address: sign * rawOffset, base };
+  if (base) return { address: sign * rawOffset, base };
+  if ((register === 'gp' || register === 'rgp') && globalPointerBase !== undefined) {
+    return { address: (globalPointerBase + sign * rawOffset) >>> 0 };
+  }
+  return undefined;
 }
 
 function addRange(target: MemoryEffectRange[], range: MemoryEffectRange): void {
@@ -58,7 +61,7 @@ export function inferFunctionMemoryEffects(
   let unknown = false;
 
   const addRead = (expression: MicroCExpr, size: MemoryEffectRange['size'], alignment = 1) => {
-    const address = memoryAddress(expression);
+    const address = memoryAddress(expression, ir.globalPointerBase);
     if (address === undefined) unknown = true;
     else addRange(reads, { ...address, address: address.base ? address.address & ~(alignment - 1) : (address.address & ~(alignment - 1)) >>> 0, size });
   };
