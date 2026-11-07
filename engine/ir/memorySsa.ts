@@ -47,7 +47,7 @@ export interface MemoryBasicBlock {
 }
 
 function classifyAddress(address: string): MemoryConfidence {
-  if (/^0x[0-9a-f]+\(\$?(?:sp|fp)\)$/i.test(address)) return 'exact';
+  if (/^0x[0-9a-f]+(?:\(\$?(?:sp|fp)\))?$/i.test(address)) return 'exact';
   if (/^0x[0-9a-f]+\(\$?(?:gp|t9)\)$/i.test(address)) return 'probable';
   return 'unknown';
 }
@@ -65,11 +65,11 @@ function exactLocationKey(access: MemoryAccess): string | undefined {
 function annotateOverlappingAccesses(accesses: MemoryAccess[]): void {
   const ranges = accesses.map(access => {
     if (access.confidence !== 'exact') return undefined;
-    const match = /^(0x[0-9a-f]+)\((\$?(?:sp|fp))\)$/i.exec(access.address);
+    const match = /^(0x[0-9a-f]+)(?:\((\$?(?:sp|fp))\))?$/i.exec(access.address);
     if (!match) return undefined;
     let start = Number.parseInt(match[1].slice(2), 16);
-    if (start >= 0x80000000) start -= 0x100000000;
-    return { base: match[2].replace(/^\$/, '').toLowerCase(), start, end: start + access.size };
+    if (match[2] && start >= 0x80000000) start -= 0x100000000;
+    return { base: match[2] ? match[2].replace(/^\$/, '').toLowerCase() : 'absolute', start, end: start + access.size };
   });
 
   for (let i = 0; i < accesses.length; i++) {
@@ -90,11 +90,11 @@ function annotateOverlappingAccesses(accesses: MemoryAccess[]): void {
 
 function exactByteLocations(access: MemoryAccess): string[] {
   if (access.confidence !== 'exact') return [];
-  const match = /^(0x[0-9a-f]+)\((\$?(?:sp|fp))\)$/i.exec(access.address);
+  const match = /^(0x[0-9a-f]+)(?:\((\$?(?:sp|fp))\))?$/i.exec(access.address);
   if (!match) return [];
   let start = Number.parseInt(match[1].slice(2), 16);
-  if (start >= 0x80000000) start -= 0x100000000;
-  const base = match[2].replace(/^\$/, '').toLowerCase();
+  if (match[2] && start >= 0x80000000) start -= 0x100000000;
+  const base = match[2] ? match[2].replace(/^\$/, '').toLowerCase() : 'absolute';
   const lanes = access.byteMask ?? Array.from({ length: access.size }, (_, index) => index);
   return lanes.map(index => base + '|' + (start + index));
 }
@@ -149,7 +149,7 @@ function buildByteLaneSSA(
               id: phis.length,
               blockId,
               inputs: nextInputs,
-              location: `0x${(Number(offset) >>> 0).toString(16)}($${base})`,
+              location: base === 'absolute' ? `0x${(Number(offset) >>> 0).toString(16)}` : `0x${(Number(offset) >>> 0).toString(16)}($${base})`,
               size: 1,
               version: nextVersion++,
             };

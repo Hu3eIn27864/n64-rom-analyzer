@@ -6,6 +6,8 @@ import {
   collectMemoryAccesses,
 } from '../../engine/ir/memorySsaBuilder';
 
+const absoluteAddress = (address: number): MicroCExpr => ({ kind: 'const', value: address, width: 32 });
+
 const stackAddress = (offset: number): MicroCExpr => ({
   kind: 'binary',
   op: '+',
@@ -290,4 +292,50 @@ test('may-def provenance survives CFG joins without replacing definite byte vers
   const load = result.accesses[result.accesses.length - 1];
   assert.deepEqual(load.reachingByteVersions, [1, 1, 1, 1]);
   assert.deepEqual(load.possibleByteVersions, [[2], [], [], []]);
+});
+
+
+test('known callee absolute writes create may-defs only for the written shared lanes', () => {
+  const address = 0x80010000;
+  const target = 0x8000b000;
+  const ir: FunctionIR = {
+    functionAddress: 0x8000a000,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'store', address: absoluteAddress(address), value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'call', target: { kind: 'const', value: target }, args: [] },
+        { kind: 'load', target: 'r2', address: absoluteAddress(address), size: 4, signed: false },
+      ],
+    }],
+  };
+  const summaries = new Map([[target, {
+    reads: [],
+    writes: [{ address: address + 1, size: 2 as const }],
+    unknown: false,
+  }]]);
+  const result = buildMemorySSAFromFunctionIR(ir, summaries);
+  assert.deepEqual(result.accesses.map(access => access.kind), ['def', 'mayDef', 'mayDef', 'use']);
+  assert.deepEqual(result.accesses[3].reachingByteVersions, [1, 1, 1, 1]);
+  assert.deepEqual(result.accesses[3].possibleByteVersions, [[], [2], [3], []]);
+});
+
+test('unknown calls conservatively clobber observed absolute byte lanes', () => {
+  const address = 0x80011000;
+  const ir: FunctionIR = {
+    functionAddress: 0x8000a100,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'store', address: absoluteAddress(address), value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'call', target: { kind: 'value', name: 'r25' }, args: [] },
+        { kind: 'load', target: 'r2', address: absoluteAddress(address), size: 4, signed: false },
+      ],
+    }],
+  };
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.deepEqual(result.accesses.slice(1, 5).map(access => access.address), [
+    '0x80011000', '0x80011001', '0x80011002', '0x80011003',
+  ]);
+  assert.deepEqual(result.accesses[5].possibleByteVersions, [[2], [3], [4], [5]]);
 });
