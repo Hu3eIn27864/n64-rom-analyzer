@@ -41,12 +41,15 @@ function baseOffset(expression: MicroCExpr): BaseOffset | undefined {
   return undefined;
 }
 
-function formatMemoryAddress(expression: MicroCExpr, alignment: 1 | 4 | 8 = 1): string {
+function formatMemoryAddress(expression: MicroCExpr, alignment: 1 | 4 | 8 = 1, globalPointerBase?: number): string {
   if (expression.kind === 'const') return '0x' + ((expression.value & ~(alignment - 1)) >>> 0).toString(16);
   const parsed = baseOffset(expression);
   if (!parsed) return 'dynamic memory expression';
 
   const register = parsed.base.toLowerCase();
+  if ((register === 'rgp' || register === 'gp') && globalPointerBase !== undefined) {
+    return '0x' + ((globalPointerBase + parsed.offset) >>> 0 & ~(alignment - 1)).toString(16);
+  }
   const architecturalName = register === 'rsp' ? '$sp'
     : register === 'rfp' ? '$fp'
     : register === 'rgp' ? '$gp'
@@ -73,27 +76,28 @@ function memoryInput(
   blockId: number,
   alignment: 1 | 4 | 8 = 1,
   byteMask?: number[],
+  globalPointerBase?: number,
 ): MemoryInput {
   return {
     kind,
-    address: formatMemoryAddress(address, alignment),
+    address: formatMemoryAddress(address, alignment, globalPointerBase),
     size,
     blockId,
     ...(byteMask ? { byteMask } : {}),
   };
 }
 
-function collectOperationAccesses(operation: MicroCOperation, blockId: number): MemoryInput[] {
+function collectOperationAccesses(operation: MicroCOperation, blockId: number, globalPointerBase?: number): MemoryInput[] {
   switch (operation.kind) {
     case 'load':
     case 'linkedLoad':
-      return [memoryInput('use', operation.address, operation.size, blockId)];
+      return [memoryInput('use', operation.address, operation.size, blockId, 1, undefined, globalPointerBase)];
     case 'mergeLoad':
-      return [memoryInput('use', operation.address, 8, blockId, 8, mergeByteMask(operation.address, 8, operation.direction))];
+      return [memoryInput('use', operation.address, 8, blockId, 8, mergeByteMask(operation.address, 8, operation.direction), globalPointerBase)];
     case 'mergeLoadWord':
-      return [memoryInput('use', operation.address, 4, blockId, 4, mergeByteMask(operation.address, 4, operation.direction))];
+      return [memoryInput('use', operation.address, 4, blockId, 4, mergeByteMask(operation.address, 4, operation.direction), globalPointerBase)];
     case 'store':
-      return [memoryInput('def', operation.address, operation.size, blockId)];
+      return [memoryInput('def', operation.address, operation.size, blockId, 1, undefined, globalPointerBase)];
     case 'mergeStore':
       return [memoryInput('mayDef', operation.address, 8, blockId, 8, mergeByteMask(operation.address, 8, operation.direction))];
     case 'mergeStoreWord':
@@ -118,7 +122,7 @@ function observedMemoryLanes(ir: FunctionIR): Array<{ address: string }> {
   const lanes = new Map<string, { address: string }>();
   for (const block of ir.blocks) {
     for (const operation of block.operations) {
-      for (const access of collectOperationAccesses(operation, block.id)) {
+      for (const access of collectOperationAccesses(operation, block.id, ir.globalPointerBase)) {
         const match = /^(0x[0-9a-f]+)(?:\(\$(sp|fp)\))?$/i.exec(access.address);
         if (!match) continue;
         let start = Number.parseInt(match[1].slice(2), 16);
@@ -144,7 +148,7 @@ export function collectMemoryAccesses(
 ): MemoryInput[] {
   const observedLanes = observedMemoryLanes(ir);
   return ir.blocks.flatMap(block => block.operations.flatMap(operation => {
-    if (operation.kind !== 'call') return collectOperationAccesses(operation, block.id);
+    if (operation.kind !== 'call') return collectOperationAccesses(operation, block.id, ir.globalPointerBase);
     const target = operation.target.kind === 'const' ? operation.target.value >>> 0 : undefined;
     const summary = target === undefined ? undefined : callees.get(target);
     const lanes = summary && !summary.unknown
