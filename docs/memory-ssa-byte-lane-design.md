@@ -21,7 +21,7 @@ A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($s
 ## Remaining work
 
 - Teach downstream consumers to interpret `possibleByteVersions` as conditional provenance rather than definite dataflow.
-- Resolve GP-relative addresses from a proven GP base; model unknown external effects beyond locally observed exact lanes.
+- Resolve GP-relative addresses only when FunctionIR carries an explicitly validated `globalPointerBase`; model unknown external effects beyond locally observed exact lanes.
 - Integrate call-site summaries and external memory effects into lane state.
 - Define a documented compact scalar summary for mixed byte provenance (the lane array remains authoritative).
 
@@ -57,3 +57,8 @@ Unknown and probable pointer spaces remain outside the exact byte-lane solver. T
 ## Integration boundary
 
 This design does not claim that `overlappingAccesses` metadata alone implements byte-level Memory SSA. Unknown call effects are injected conservatively into observed caller stack/frame and absolute lanes. Known callee absolute writes are injected into the shared absolute lane domain; known callee-private SP/FP ranges are intentionally not treated as caller-frame aliases. GP-relative and dynamic aliases remain unresolved.
+
+
+## Proven GP-base contract
+
+`FunctionIR.globalPointerBase` is optional metadata and must be populated only by a caller that has independently validated the runtime `$gp` value for that function. When present, GP-relative constant offsets are normalized to the shared absolute address namespace before byte-lane construction and effect summarization. When absent, GP-relative accesses remain probable/unknown and do not participate in exact reaching definitions. The current ROM lifting pipeline does not infer this value from relocation placeholders or heuristics.
