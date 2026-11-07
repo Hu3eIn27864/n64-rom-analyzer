@@ -179,7 +179,9 @@ test('models conditional and merge stores as may-definitions, not definite write
   };
   const result = buildMemorySSAFromFunctionIR(ir);
   assert.equal(result.accesses[1].kind, 'mayDef');
-  assert.deepEqual(result.accesses[2].reachingByteVersions, [2, 2, 2, 2]);
+  assert.deepEqual(result.accesses[2].reachingByteVersions, [1, 1, 1, 1]);
+  assert.deepEqual(result.accesses[2].possibleByteVersions, [[2], [2], [2], [2]]);
+  assert.equal(result.accesses[2].reachingVersion, 1);
 });
 
 
@@ -237,7 +239,8 @@ test('unknown calls conservatively clobber observed caller stack lanes', () => {
   assert.deepEqual(result.accesses.map(access => access.kind), [
     'def', 'mayDef', 'mayDef', 'mayDef', 'mayDef', 'use',
   ]);
-  assert.deepEqual(result.accesses[5].reachingByteVersions, [2, 3, 4, 5]);
+  assert.deepEqual(result.accesses[5].reachingByteVersions, [1, 1, 1, 1]);
+  assert.deepEqual(result.accesses[5].possibleByteVersions, [[2], [3], [4], [5]]);
 });
 
 test('known callees do not alias caller stack through their private SP frame', () => {
@@ -262,4 +265,29 @@ test('known callees do not alias caller stack through their private SP frame', (
   const result = buildMemorySSAFromFunctionIR(ir, summaries);
   assert.deepEqual(result.accesses.map(access => access.kind), ['def', 'use']);
   assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1, 1, 1]);
+});
+
+
+test('may-def provenance survives CFG joins without replacing definite byte versions', () => {
+  const result = buildMemorySSAFromFunctionIR({
+    functionAddress: 0x8000a000,
+    blocks: [
+      {
+        id: 0, predecessors: [], successors: [1, 2],
+        operations: [{ kind: 'store', address: stackAddress(112), value: { kind: 'const', value: 1 }, size: 4 }],
+      },
+      {
+        id: 1, predecessors: [0], successors: [3],
+        operations: [{ kind: 'conditionalStore', target: 'r2', address: stackAddress(112), value: { kind: 'const', value: 2 }, size: 1 }],
+      },
+      emptyBlock(2, [0], [3]),
+      {
+        id: 3, predecessors: [1, 2], successors: [],
+        operations: [{ kind: 'load', target: 'r3', address: stackAddress(112), size: 4, signed: false }],
+      },
+    ],
+  });
+  const load = result.accesses[result.accesses.length - 1];
+  assert.deepEqual(load.reachingByteVersions, [1, 1, 1, 1]);
+  assert.deepEqual(load.possibleByteVersions, [[2], [], [], []]);
 });
