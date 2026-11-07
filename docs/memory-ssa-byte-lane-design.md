@@ -20,14 +20,13 @@ A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($s
 
 ## Remaining work
 
-- Teach downstream consumers to interpret `possibleByteVersions` as conditional provenance rather than definite dataflow.
-- Resolve GP-relative addresses only when FunctionIR carries an explicitly validated `globalPointerBase`; model unknown external effects beyond locally observed exact lanes.
-- Integrate call-site summaries and external memory effects into lane state.
-- Define a documented compact scalar summary for mixed byte provenance (the lane array remains authoritative).
+- Teach downstream consumers to interpret `possibleByteVersions` as conditional provenance rather than definite dataflow. The byte-lane solver records these tokens, but consumers must not treat them as definite reaching definitions.
+- Extend conservative invalidation for unknown external effects and aliases beyond the exact lanes currently observed in a function. Current call-effect integration covers modeled caller lanes and known callee summaries; it is not a general points-to or alias analysis.
+- Define a documented compact scalar summary for mixed byte provenance, or explicitly keep the per-byte arrays as the only authoritative representation and deprecate ambiguous scalar fields.
 
-## Required representation
+## Implemented representation
 
-The next implementation should model memory state per byte lane within a bounded address space:
+The current implementation models memory state per byte lane within a bounded address space:
 
 - Normalize exact stack/frame accesses to a canonical base plus signed byte offset.
 - Represent each byte as a reaching definition token, with live-on-entry represented by version zero.
