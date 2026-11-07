@@ -9,6 +9,15 @@ test('classifies stack accesses as exact', () => {
   assert.equal(result.accesses[0].confidence, 'exact');
 });
 
+test('classifies absolute addresses as exact byte-lane locations', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x80001000', size: 4, blockId: 0 },
+    { kind: 'use', address: '0x80001002', size: 2, blockId: 0 },
+  ], [{ id: 0, predecessors: [] }]);
+  assert.equal(result.accesses[0].confidence, 'exact');
+  assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1]);
+});
+
 test('classifies global-register accesses as probable', () => {
   const result = buildMemorySSA([
     { kind: 'def', address: '0x20($gp)', size: 4, blockId: 1 },
