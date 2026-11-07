@@ -19,8 +19,10 @@ export interface MemoryAccess {
   byteMask?: number[];
   /** Per-byte reaching versions for exact stack/frame accesses, in address order. */
   reachingByteVersions?: number[];
-  /** Per-byte previous versions for exact stack/frame definitions, in address order. */
+  /** Per-byte previous definite versions for exact stack/frame definitions. */
   previousByteVersions?: number[];
+  /** Per-byte may-def tokens that could have changed the lane before this access. */
+  possibleByteVersions?: number[][];
 }
 
 export interface MemoryPhi {
@@ -113,6 +115,7 @@ function buildByteLaneSSA(
   const sortedLanes = [...lanes].sort();
   let nextVersion = Math.max(0, ...accesses.map(access => access.version ?? 0)) + 1;
   const outgoing = new Map(blockIds.map(id => [id, new Map<string, number>()]));
+  const outgoingPossible = new Map(blockIds.map(id => [id, new Map<string, Set<number>>() ]));
   const phis: MemoryPhi[] = [];
   const phiByKey = new Map<string, MemoryPhi>();
   const phiKey = (block: number, lane: string) => block + '|' + lane;
@@ -122,15 +125,20 @@ function buildByteLaneSSA(
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     let changed = false;
     const nextOutgoing = new Map<number, Map<string, number>>();
+    const nextOutgoingPossible = new Map<number, Map<string, Set<number>>>();
     for (const blockId of blockIds) {
       const block = byBlock.get(blockId)!;
       const predecessors = [...block.predecessors].sort((a, b) => a - b);
       const state = new Map<string, number>();
+      const possible = new Map<string, Set<number>>();
       for (const lane of sortedLanes) {
         const inputs = predecessors.length === 0
           ? []
           : predecessors.map(predecessor => [predecessor, outgoing.get(predecessor)?.get(lane) ?? 0] as const);
         const versions = [...new Set(inputs.map(([, version]) => version))];
+        const possibleInputs = predecessors.flatMap(predecessor =>
+          [...(outgoingPossible.get(predecessor)?.get(lane) ?? [])]);
+        possible.set(lane, new Set(possibleInputs));
         if (versions.length > 1) {
           const key = phiKey(blockId, lane);
           let phi = phiByKey.get(key);
@@ -163,17 +171,34 @@ function buildByteLaneSSA(
         if (locations.length === 0) continue;
         if (access.kind === 'use') {
           access.reachingByteVersions = locations.map(lane => state.get(lane) ?? 0);
+          access.possibleByteVersions = locations.map(lane => [...(possible.get(lane) ?? [])].sort((a, b) => a - b));
         } else {
           const version = access.version!;
           access.previousByteVersions = locations.map(lane => state.get(lane) ?? 0);
-          for (const lane of locations) state.set(lane, version);
+          if (access.kind === 'mayDef') {
+            for (const lane of locations) possible.get(lane)!.add(version);
+          } else {
+            for (const lane of locations) {
+              state.set(lane, version);
+              possible.set(lane, new Set());
+            }
+          }
         }
       }
       nextOutgoing.set(blockId, state);
+      nextOutgoingPossible.set(blockId, possible);
       const old = outgoing.get(blockId)!;
       if (old.size !== state.size || [...state].some(([key, value]) => old.get(key) !== value)) changed = true;
+      const oldPossible = outgoingPossible.get(blockId)!;
+      if (oldPossible.size !== possible.size || [...possible].some(([key, values]) => {
+        const previous = oldPossible.get(key) ?? new Set<number>();
+        return values.size !== previous.size || [...values].some(value => !previous.has(value));
+      })) changed = true;
     }
-    for (const blockId of blockIds) outgoing.set(blockId, nextOutgoing.get(blockId)!);
+    for (const blockId of blockIds) {
+      outgoing.set(blockId, nextOutgoing.get(blockId)!);
+      outgoingPossible.set(blockId, nextOutgoingPossible.get(blockId)!);
+    }
     if (!changed) { converged = true; break; }
   }
   if (!converged) throw new Error('byte-lane memory SSA fixed-point solver did not converge');
