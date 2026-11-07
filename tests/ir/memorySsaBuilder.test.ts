@@ -181,3 +181,40 @@ test('models conditional and merge stores as may-definitions, not definite write
   assert.equal(result.accesses[1].kind, 'mayDef');
   assert.deepEqual(result.accesses[2].reachingByteVersions, [2, 2, 2, 2]);
 });
+
+
+test('tracks exact big-endian merge-load and merge-store byte masks', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80007000,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'mergeLoadWord', target: 'r2', address: stackAddress(1), direction: 'left' },
+        { kind: 'mergeLoadWord', target: 'r3', address: stackAddress(1), direction: 'right' },
+        { kind: 'mergeStoreWord', address: stackAddress(2), value: { kind: 'value', name: 'r4' }, direction: 'left' },
+        { kind: 'mergeStoreWord', address: stackAddress(2), value: { kind: 'value', name: 'r5' }, direction: 'right' },
+        { kind: 'mergeLoad', target: 'r6', address: stackAddress(5), direction: 'left' },
+        { kind: 'mergeLoad', target: 'r7', address: stackAddress(5), direction: 'right' },
+      ],
+    }],
+  };
+  const accesses = collectMemoryAccesses(ir);
+  assert.deepEqual(accesses.map(access => access.byteMask), [
+    [0, 1], [1, 2, 3], [0, 1, 2], [2, 3], [0, 1, 2, 3, 4, 5], [5, 6, 7],
+  ]);
+});
+
+test('merge loads consume only selected byte lanes after ordinary stores', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80007100,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'store', address: stackAddress(0), value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'mergeLoadWord', target: 'r2', address: stackAddress(2), direction: 'left' },
+      ],
+    }],
+  };
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1, 1]);
+});
