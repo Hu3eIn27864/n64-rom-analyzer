@@ -42,6 +42,7 @@ function baseOffset(expression: MicroCExpr): BaseOffset | undefined {
 }
 
 function formatMemoryAddress(expression: MicroCExpr, alignment: 1 | 4 | 8 = 1): string {
+  if (expression.kind === 'const') return '0x' + ((expression.value & ~(alignment - 1)) >>> 0).toString(16);
   const parsed = baseOffset(expression);
   if (!parsed) return 'dynamic memory expression';
 
@@ -109,25 +110,71 @@ function collectOperationAccesses(operation: MicroCOperation, blockId: number): 
 }
 
 /**
- * Collect stack/frame lanes observed by this function. An unresolved or
- * effect-unknown call conservatively clobbers these lanes at its program
- * point. Callee SP/FP ranges are deliberately not copied into the caller:
- * they describe the callee's private frame, not the caller's frame.
+ * Collect exact stack/frame and absolute lanes observed by this function.
+ * Unknown calls conservatively clobber them; known callees contribute only
+ * absolute writes because their SP/FP ranges describe private frames.
  */
-function observedStackLanes(ir: FunctionIR): Array<{ address: string }> {
+function observedMemoryLanes(ir: FunctionIR): Array<{ address: string }> {
   const lanes = new Map<string, { address: string }>();
   for (const block of ir.blocks) {
     for (const operation of block.operations) {
       for (const access of collectOperationAccesses(operation, block.id)) {
-        const match = /^(0x[0-9a-f]+)\(\$(sp|fp)\)$/i.exec(access.address);
+        const match = /^(0x[0-9a-f]+)(?:\(\$(sp|fp)\))?$/i.exec(access.address);
         if (!match) continue;
         let start = Number.parseInt(match[1].slice(2), 16);
-        if (start >= 0x80000000) start -= 0x100000000;
+        if (match[2] && start >= 0x80000000) start -= 0x100000000;
+        const base = match[2]?.toLowerCase() ?? 'absolute';
         const mask = access.byteMask ?? Array.from({ length: access.size }, (_, index) => index);
         for (const index of mask) {
           const offset = start + index;
-          const address = '0x' + (offset >>> 0).toString(16) + '($' + match[2].toLowerCase() + ')';
-          lanes.set(match[2].toLowerCase() + '|' + offset, { address });
+          const address = '0x' + (offset >>> 0).toString(16) + (base === 'absolute' ? '' : '(
+        }
+      }
+    }
+  }
+  return [...lanes.values()];
+}
+
+/** Collect accesses in operation order, inserting conservative call clobbers. */
+export function collectMemoryAccesses(
+  ir: FunctionIR,
+  callees: ReadonlyMap<number, FunctionMemoryEffectSummary> = new Map(),
+): MemoryInput[] {
+  const observedLanes = observedMemoryLanes(ir);
+  return ir.blocks.flatMap(block => block.operations.flatMap(operation => {
+    if (operation.kind !== 'call') return collectOperationAccesses(operation, block.id);
+    const target = operation.target.kind === 'const' ? operation.target.value >>> 0 : undefined;
+    const summary = target === undefined ? undefined : callees.get(target);
+    const lanes = summary && !summary.unknown
+      ? summary.writes.filter(range => range.base === undefined).flatMap(range =>
+        Array.from({ length: range.size }, (_, index) => ({ address: '0x' + ((range.address + index) >>> 0).toString(16) })))
+      : observedLanes;
+    // Known absolute ranges share the caller's absolute lane domain. Unknown
+    // calls conservatively invalidate every observed exact memory lane; SP/FP
+    // summary ranges remain callee-private and are never imported.
+    return lanes.map(lane => ({ kind: 'mayDef' as const, address: lane.address, size: 1 as const, blockId: block.id }));
+  }));
+}
+
+/**
+ * Build Memory SSA directly from canonical FunctionIR.
+ *
+ * Exact SP/FP and absolute addresses receive reaching versions. GP-relative
+ * and dynamic expressions remain probable/unknown until base resolution exists.
+ */
+export function buildMemorySSAFromFunctionIR(
+  ir: FunctionIR,
+  callees: ReadonlyMap<number, FunctionMemoryEffectSummary> = new Map(),
+): MemorySSA {
+  const accesses = collectMemoryAccesses(ir, callees);
+  const blocks = ir.blocks.map(block => ({
+    id: block.id,
+    predecessors: block.predecessors,
+  }));
+  return buildMemorySSAForCFG(accesses, blocks);
+}
+ + base + ')');
+          lanes.set(base + '|' + offset, { address });
         }
       }
     }
