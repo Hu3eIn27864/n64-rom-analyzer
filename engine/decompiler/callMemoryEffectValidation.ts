@@ -12,18 +12,36 @@ type MemoryState = {
   invalidatedRanges: MemoryEffectRange[];
 };
 
-function constantAddress(expr: MicroCExpr): number | undefined {
-  return expr.kind === 'const' ? expr.value >>> 0 : undefined;
+function memoryAddress(expr: MicroCExpr, alignment = 1): Pick<MemoryEffectRange, 'address' | 'base'> | undefined {
+  let current = expr;
+  while (current.kind === 'cast') current = current.value;
+  if (current.kind === 'const') return { address: (current.value & ~(alignment - 1)) >>> 0 };
+  if (current.kind !== 'binary') return undefined;
+  let baseExpr = current.left;
+  let offsetExpr = current.right;
+  let sign = 1;
+  if (current.op === '+' && offsetExpr.kind === 'value' && baseExpr.kind === 'const') {
+    [baseExpr, offsetExpr] = [offsetExpr, baseExpr];
+  } else if (current.op === '-') sign = -1;
+  else if (current.op !== '+') return undefined;
+  while (baseExpr.kind === 'cast') baseExpr = baseExpr.value;
+  while (offsetExpr.kind === 'cast') offsetExpr = offsetExpr.value;
+  if (baseExpr.kind !== 'value' || offsetExpr.kind !== 'const') return undefined;
+  const register = baseExpr.name.toLowerCase().replace(/^\\$/, '');
+  const base = register === 'sp' || register === 'rsp' ? 'sp'
+    : register === 'fp' || register === 'rfp' ? 'fp' : undefined;
+  if (!base) return undefined;
+  return { base, address: (sign * (offsetExpr.value | 0)) & ~(alignment - 1) };
 }
 
 function overlaps(a: MemoryEffectRange, b: MemoryEffectRange): boolean {
-  return a.address < b.address + b.size && b.address < a.address + a.size;
+  return a.base === b.base && a.address < b.address + b.size && b.address < a.address + a.size;
 }
 
 function addRange(target: MemoryEffectRange[], range: MemoryEffectRange): boolean {
-  if (target.some(existing => existing.address === range.address && existing.size === range.size)) return false;
+  if (target.some(existing => existing.base === range.base && existing.address === range.address && existing.size === range.size)) return false;
   target.push(range);
-  target.sort((a, b) => a.address - b.address || a.size - b.size);
+  target.sort((a, b) => (a.base ?? '').localeCompare(b.base ?? '') || a.address - b.address || a.size - b.size);
   return true;
 }
 
@@ -43,7 +61,8 @@ function sameState(a: MemoryState, b: MemoryState): boolean {
   return a.unknownCall === b.unknownCall
     && a.invalidatedRanges.length === b.invalidatedRanges.length
     && a.invalidatedRanges.every((range, index) =>
-      range.address === b.invalidatedRanges[index].address
+      range.base === b.invalidatedRanges[index].base
+      && range.address === b.invalidatedRanges[index].address
       && range.size === b.invalidatedRanges[index].size);
 }
 
@@ -69,10 +88,10 @@ function transfer(
       // store. Conditional and merge stores are excluded because they may
       // not overwrite every byte of their nominal aligned range.
       if (operation.kind === 'store' || operation.kind === 'fpuStore') {
-        const storeAddress = constantAddress(operation.address);
+        const storeAddress = memoryAddress(operation.address);
         if (storeAddress !== undefined) {
           const storeRange: MemoryEffectRange = {
-            address: storeAddress >>> 0,
+            ...storeAddress,
             size: operation.size,
           };
           state.invalidatedRanges = state.invalidatedRanges.filter(write =>
@@ -109,8 +128,8 @@ function transfer(
       // Unknown calls can clobber any address, including stack/frame and
       // dynamic pointers. Check this before requiring a constant load address.
       if (state.unknownCall) return { invalidLoad: true, unknownLoad: true };
-      const rawAddress = constantAddress(addressExpression);
-      if (rawAddress === undefined) {
+      const address = memoryAddress(addressExpression, alignment);
+      if (address === undefined) {
         // A dynamic load may alias any known call write range. Do not claim
         // preservation when the address cannot be compared precisely.
         if (state.invalidatedRanges.length > 0) {
@@ -118,8 +137,7 @@ function transfer(
         }
         continue;
       }
-      const address = (rawAddress & ~(alignment - 1)) >>> 0;
-      const range: MemoryEffectRange = { address, size };
+      const range: MemoryEffectRange = { ...address, size };
       if (state.invalidatedRanges.some(write => overlaps(write, range))) {
         return { invalidLoad: true, unknownLoad: false };
       }
