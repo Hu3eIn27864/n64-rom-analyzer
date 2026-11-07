@@ -250,3 +250,33 @@ test('rejects empty, unaligned and unmapped program entry points', () => {
   assert.throws(() => analyzeMappedRomProgram(rom, segments, [0x80001002]), /not a valid aligned VRAM address/);
   assert.throws(() => analyzeMappedRomProgram(rom, segments, [0x80002000]), /not covered by a validated ROM segment/);
 });
+
+
+test('threads externally validated per-function GP bases through mapped program analysis', () => {
+  const rom = new Uint8Array(0x190);
+  const view = new DataView(rom.buffer);
+  const mappedWords = [[0x100,0x0c000800],[0x104,0],[0x108,0x03e00008],[0x10c,0],[0x180,0xaf980024],[0x184,0x8f990024],[0x188,0x03e00008],[0x18c,0]] as const;
+  for (const [offset, word] of mappedWords) view.setUint32(offset, word, false);
+  const segments = [
+    { romStart:0x100,romEnd:0x110,vramStart:0x80001000,vramEnd:0x80001010,type:'code' as const },
+    { romStart:0x180,romEnd:0x190,vramStart:0x80002000,vramEnd:0x80002010,type:'code' as const },
+  ];
+  const withoutProof = analyzeMappedRomProgram(rom, segments, [0x80001000]);
+  const unproven = withoutProof.functions.find(fn => fn.address === 0x80002000)!;
+  assert.equal(unproven.analysis.functionIR.globalPointerBase, undefined);
+  assert.equal(unproven.analysis.memorySSA.accesses[0].confidence, 'probable');
+  const withProof = analyzeMappedRomProgram(rom, segments, [0x80001000], { globalPointerBases: new Map([[0x80002000,0x80010000]]) });
+  const callee = withProof.functions.find(fn => fn.address === 0x80002000)!;
+  assert.equal(callee.analysis.functionIR.globalPointerBase, 0x80010000);
+  assert.equal(callee.analysis.memorySSA.accesses[0].address, '0x80010024');
+  assert.equal(callee.analysis.memorySSA.accesses[0].confidence, 'exact');
+  assert.deepEqual(callee.analysis.memorySSA.accesses[1].reachingByteVersions, [1,1,1,1]);
+  assert.deepEqual(withProof.memoryEffects.get(0x80002000)?.writes, [{ address:0x80010024,size:4 }]);
+});
+
+test('rejects invalid or unmapped GP base metadata before program analysis', () => {
+  const rom = words([0x03e00008,0]);
+  const segments = [{ romStart:0,romEnd:8,vramStart:0x80001000,vramEnd:0x80001008,type:'code' as const }];
+  assert.throws(() => analyzeMappedRomProgram(rom,segments,[0x80001000],{ globalPointerBases:new Map([[0x80002000,0x80010000]]) }), /global pointer map function.*not covered/);
+  assert.throws(() => analyzeMappedRomProgram(rom,segments,[0x80001000],{ globalPointerBases:new Map([[0x80001000,0x80010001]]) }), /must be an aligned unsigned 32-bit address/);
+});
