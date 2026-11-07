@@ -99,15 +99,15 @@ function collectOperationAccesses(operation: MicroCOperation, blockId: number, g
     case 'store':
       return [memoryInput('def', operation.address, operation.size, blockId, 1, undefined, globalPointerBase)];
     case 'mergeStore':
-      return [memoryInput('mayDef', operation.address, 8, blockId, 8, mergeByteMask(operation.address, 8, operation.direction))];
+      return [memoryInput('mayDef', operation.address, 8, blockId, 8, mergeByteMask(operation.address, 8, operation.direction), globalPointerBase)];
     case 'mergeStoreWord':
-      return [memoryInput('mayDef', operation.address, 4, blockId, 4, mergeByteMask(operation.address, 4, operation.direction))];
+      return [memoryInput('mayDef', operation.address, 4, blockId, 4, mergeByteMask(operation.address, 4, operation.direction), globalPointerBase)];
     case 'conditionalStore':
-      return [memoryInput('mayDef', operation.address, operation.size, blockId)];
+      return [memoryInput('mayDef', operation.address, operation.size, blockId, 1, undefined, globalPointerBase)];
     case 'fpuLoad':
-      return [memoryInput('use', operation.address, operation.size, blockId)];
+      return [memoryInput('use', operation.address, operation.size, blockId, 1, undefined, globalPointerBase)];
     case 'fpuStore':
-      return [memoryInput('def', operation.address, operation.size, blockId)];
+      return [memoryInput('def', operation.address, operation.size, blockId, 1, undefined, globalPointerBase)];
     default:
       return [];
   }
@@ -173,7 +173,7 @@ export function collectMemoryAccesses(
  * Build Memory SSA directly from canonical FunctionIR.
  *
  * Exact SP/FP and absolute addresses receive reaching versions. GP-relative
- * and dynamic expressions remain probable/unknown until base resolution exists.
+ * expressions are normalized only when FunctionIR supplies a proven GP base.
  */
 export function buildMemorySSAFromFunctionIR(
   ir: FunctionIR,
