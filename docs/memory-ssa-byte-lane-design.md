@@ -20,8 +20,8 @@ A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($s
 
 ## Remaining work
 
-- Integrate call-site summaries and external memory effects into lane state.
 - Distinguish a may-def token from a definite reaching definition in downstream consumers; currently it is an explicit conservative kill token.
+- Model known global/absolute call writes and externally visible memory ranges in a shared non-stack byte-lane domain.
 - Integrate call-site summaries and external memory effects into lane state.
 - Define a documented compact scalar summary for mixed byte provenance (the lane array remains authoritative).
 
