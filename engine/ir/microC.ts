@@ -59,6 +59,8 @@ export interface UnsupportedInstruction {
 
 export interface FunctionIR {
   functionAddress: number;
+  /** Explicitly validated runtime value held in $gp; omitted when not proven. */
+  globalPointerBase?: number;
   blocks: MicroCBasicBlock[];
   /** Instructions whose behavior was not represented in the lifted IR. */
   unsupportedInstructions?: UnsupportedInstruction[];
