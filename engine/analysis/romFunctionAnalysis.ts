@@ -168,6 +168,24 @@ export function analyzeMappedRomProgram(
     }
   }
 
+  // Validate the complete external GP map before recovery/analysis. Map keys
+  // must refer to function entries covered by the same validated ROM map.
+  for (const [functionAddress, globalPointerBase] of options.globalPointerBases ?? []) {
+    if (!Number.isInteger(functionAddress) || functionAddress < 0
+      || functionAddress > 0xffffffff || functionAddress % 4 !== 0) {
+      throw new Error('global pointer map key is not a valid aligned VRAM function address');
+    }
+    if (addressMap.vramToRom(functionAddress) === undefined) {
+      throw new Error('global pointer map function 0x' + functionAddress.toString(16)
+        + ' is not covered by a validated ROM segment');
+    }
+    if (!Number.isInteger(globalPointerBase) || globalPointerBase < 0
+      || globalPointerBase > 0xffffffff || globalPointerBase % 4 !== 0) {
+      throw new Error('global pointer base for function 0x' + functionAddress.toString(16)
+        + ' must be an aligned unsigned 32-bit address');
+    }
+  }
+
   const byteOrder = options.byteOrder ?? 'big';
   const readWord = (address: number): number => {
     const offset = addressMap.vramToRom(address);
