@@ -133,12 +133,51 @@ test('maps merge, linked, conditional and FPU memory operations to access widths
 
   assert.deepEqual(collectMemoryAccesses(ir).map(access => [access.kind, access.address, access.size]), [
     ['use', '0x0($sp)', 4],
-    ['def', '0x0($sp)', 4],
+    ['mayDef', '0x0($sp)', 4],
     ['use', '0x0($sp)', 8],
-    ['def', '0x0($sp)', 8],
+    ['mayDef', '0x0($sp)', 8],
     ['use', '0xfffffffc($sp)', 8],
-    ['def', '0xfffffffc($sp)', 8],
+    ['mayDef', '0xfffffffc($sp)', 8],
     ['use', '0xfffffffc($sp)', 4],
     ['def', '0xfffffffc($sp)', 8],
   ]);
+});
+
+
+test('exposes partial store provenance through the canonical FunctionIR builder', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80005000,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [
+        { kind: 'store', address: stackAddress(64), value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'store', address: stackAddress(66), value: { kind: 'const', value: 2 }, size: 1 },
+        { kind: 'load', target: 'r2', address: stackAddress(64), size: 4, signed: false },
+      ],
+    }],
+  };
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.deepEqual(result.accesses[2].reachingByteVersions, [1, 1, 2, 1]);
+});
+
+test('models conditional and merge stores as may-definitions, not definite writes', () => {
+  const address = stackAddress(80);
+  const ir: FunctionIR = {
+    functionAddress: 0x80006000,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [
+        { kind: 'store', address, value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'conditionalStore', target: 'r2', address, value: { kind: 'const', value: 2 }, size: 4 },
+        { kind: 'load', target: 'r3', address, size: 4, signed: false },
+      ],
+    }],
+  };
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.equal(result.accesses[1].kind, 'mayDef');
+  assert.deepEqual(result.accesses[2].reachingByteVersions, [2, 2, 2, 2]);
 });
