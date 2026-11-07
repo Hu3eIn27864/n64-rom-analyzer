@@ -50,3 +50,44 @@ test('rejects a Phi candidate without conflicting backedge states', () => {
     },
   ]));
 });
+
+
+test('rejects contradictory stable merge metadata', () => {
+  assert.throws(() => materializeLoopBackedgePhis([
+    {
+      register: 't0', initial: 'entry_value',
+      merge: { register: 't0', values: ['then_value', 'else_value'], requiresPhi: false },
+    },
+  ]), /conflicting states without a Phi/);
+});
+
+test('rejects a claimed Phi when backedge values are not actually conflicting', () => {
+  assert.throws(() => materializeLoopBackedgePhis([
+    {
+      register: 't0', initial: 'entry_value',
+      merge: { register: 't0', values: ['same', 'same'], requiresPhi: true },
+    },
+  ]), /requires conflicting backedge states/);
+});
+
+test('rejects empty backedge state values', () => {
+  assert.throws(() => materializeLoopBackedgePhis([
+    {
+      register: 't0', initial: 'entry_value',
+      merge: { register: 't0', values: ['then_value', '  '], requiresPhi: true },
+    },
+  ]), /empty state/);
+});
+
+test('rejects duplicate candidate targets even when the first candidate is stable', () => {
+  assert.throws(() => materializeLoopBackedgePhis([
+    {
+      register: 't0', initial: 'entry_value',
+      merge: { register: 't0', values: ['stable'], requiresPhi: false },
+    },
+    {
+      register: 't0', initial: 'entry_value',
+      merge: { register: 't0', values: ['then_value', 'else_value'], requiresPhi: true },
+    },
+  ]), /duplicate loop backedge Phi target/);
+});

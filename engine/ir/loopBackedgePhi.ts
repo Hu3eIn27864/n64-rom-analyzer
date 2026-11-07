@@ -24,20 +24,30 @@ export function materializeLoopBackedgePhis(
     if (!register || !initial) {
       throw new Error('loop backedge Phi requires register and initial state');
     }
-    if (input.merge.register !== register) {
+    if (input.merge.register.trim() !== register) {
       throw new Error(`loop backedge merge target mismatch for ${register}`);
-    }
-    if (!input.merge.requiresPhi) continue;
-    if (input.merge.values.length < 2) {
-      throw new Error(`loop backedge Phi for ${register} requires conflicting backedge states`);
     }
     if (seen.has(register)) {
       throw new Error(`duplicate loop backedge Phi target ${register}`);
     }
     seen.add(register);
+
+    const values = input.merge.values.map(value => value.trim());
+    if (values.some(value => value.length === 0)) {
+      throw new Error(`loop backedge merge for ${register} contains an empty state`);
+    }
+    const uniqueValues = [...new Set(values)];
+    if (input.merge.requiresPhi && uniqueValues.length < 2) {
+      throw new Error(`loop backedge Phi for ${register} requires conflicting backedge states`);
+    }
+    if (!input.merge.requiresPhi && uniqueValues.length > 1) {
+      throw new Error(`loop backedge merge for ${register} has conflicting states without a Phi`);
+    }
+    if (!input.merge.requiresPhi) continue;
+
     candidates.push({
       register,
-      incoming: [initial, ...input.merge.values],
+      incoming: [initial, ...uniqueValues],
     });
   }
 
