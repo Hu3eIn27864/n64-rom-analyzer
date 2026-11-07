@@ -48,7 +48,7 @@ function formatMemoryAddress(expression: MicroCExpr, alignment: 1 | 4 | 8 = 1, g
 
   const register = parsed.base.toLowerCase();
   if ((register === 'rgp' || register === 'gp') && globalPointerBase !== undefined) {
-    return '0x' + ((globalPointerBase + parsed.offset) >>> 0 & ~(alignment - 1)).toString(16);
+    return '0x' + ((((globalPointerBase + parsed.offset) >>> 0) & ~(alignment - 1)) >>> 0).toString(16);
   }
   const architecturalName = register === 'rsp' ? '$sp'
     : register === 'rfp' ? '$fp'
