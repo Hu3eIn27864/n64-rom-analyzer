@@ -2,7 +2,7 @@ export type MemoryConfidence = 'exact' | 'probable' | 'unknown';
 
 export interface MemoryAccess {
   id: number;
-  kind: 'use' | 'def';
+  kind: 'use' | 'def' | 'mayDef';
   address: string;
   size: 1 | 2 | 4 | 8;
   blockId: number;
@@ -162,7 +162,7 @@ export function buildMemorySSA(
 
     const key = current.blockId + '|' + location;
     const previousVersion = lastDefinition.get(key) ?? 0;
-    if (current.kind === 'def') {
+    if (current.kind !== 'use') {
       current.version = nextVersion++;
       current.previousVersion = previousVersion;
       lastDefinition.set(key, current.version);
