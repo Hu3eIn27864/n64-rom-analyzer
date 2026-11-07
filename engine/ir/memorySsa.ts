@@ -15,6 +15,8 @@ export interface MemoryAccess {
   reachingVersion?: number;
   /** Other exact stack/frame accesses whose byte ranges intersect this access. */
   overlappingAccesses?: number[];
+  /** Byte positions touched within the aligned access; used by merge operations. */
+  byteMask?: number[];
   /** Per-byte reaching versions for exact stack/frame accesses, in address order. */
   reachingByteVersions?: number[];
   /** Per-byte previous versions for exact stack/frame definitions, in address order. */
@@ -91,7 +93,8 @@ function exactByteLocations(access: MemoryAccess): string[] {
   let start = Number.parseInt(match[1].slice(2), 16);
   if (start >= 0x80000000) start -= 0x100000000;
   const base = match[2].replace(/^\$/, '').toLowerCase();
-  return Array.from({ length: access.size }, (_, index) => base + '|' + (start + index));
+  const lanes = access.byteMask ?? Array.from({ length: access.size }, (_, index) => index);
+  return lanes.map(index => base + '|' + (start + index));
 }
 
 /** A separate byte-lane dataflow pass supplements the legacy width-keyed SSA. */

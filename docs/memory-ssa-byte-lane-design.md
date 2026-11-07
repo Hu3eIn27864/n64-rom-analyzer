@@ -15,12 +15,12 @@ A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($s
 - Loads expose the reaching version for every byte in address order.
 - CFG joins create a separate Phi for each lane whose predecessor versions differ.
 - Loop-carried lane definitions are solved by a bounded fixed-point pass.
-- Conditional stores and merge stores are classified as `mayDef` rather than definite full-range stores. They conservatively invalidate the modeled lanes without claiming a definite overwrite.
+- Conditional stores and merge stores are classified as `mayDef` rather than definite full-range stores. Merge operations now carry the exact big-endian byte mask selected by their effective-address lane and left/right direction; conditional stores conservatively invalidate their full modeled range.
 - The old width-keyed `phis` and scalar version fields remain in place for compatibility; the new lane-specific Phis are exposed as `bytePhis`.
 
 ## Remaining work
 
-- Model exact byte masks for merge-load/store variants rather than invalidating the aligned containing word/doubleword.
+- Integrate call-site summaries and external memory effects into lane state.
 - Distinguish a may-def token from a definite reaching definition in downstream consumers; currently it is an explicit conservative kill token.
 - Integrate call-site summaries and external memory effects into lane state.
 - Define a documented compact scalar summary for mixed byte provenance (the lane array remains authoritative).
@@ -39,7 +39,7 @@ The next implementation should model memory state per byte lane within a bounded
 
 ## Control-flow and instruction semantics
 
-The dataflow solver must remain fixed-point based so loop-carried definitions converge. Conditional stores must not be treated as definite writes. Merge stores must update only the byte lanes guaranteed by the instruction semantics; their aligned containing word/doubleword is not necessarily fully overwritten. Merge loads must record the bytes actually consumed, rather than treating the aligned containing range as a full-width read.
+The dataflow solver must remain fixed-point based so loop-carried definitions converge. Conditional stores must not be treated as definite writes. Merge stores must update only the byte lanes guaranteed by the instruction semantics; their aligned containing word/doubleword is not necessarily fully overwritten. Merge loads must record the bytes actually consumed, rather than treating the aligned containing range as a full-width read. For the N64 big-endian MIPS forms, left operations select the prefix through the effective byte lane and right operations select the suffix beginning at that lane.
 
 Unknown and probable pointer spaces remain outside the exact byte-lane solver. They must not silently alias exact stack/frame locations. A future alias-analysis layer may conservatively invalidate lane states when it proves or cannot rule out overlap.
 
