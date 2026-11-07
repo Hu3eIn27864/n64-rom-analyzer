@@ -86,11 +86,11 @@ function annotateOverlappingAccesses(accesses: MemoryAccess[]): void {
 
 function exactByteLocations(access: MemoryAccess): string[] {
   if (access.confidence !== 'exact') return [];
-  const match = /^(0x[0-9a-f]+)\\((\\$?(?:sp|fp))\\)$/i.exec(access.address);
+  const match = /^(0x[0-9a-f]+)\((\$?(?:sp|fp))\)$/i.exec(access.address);
   if (!match) return [];
   let start = Number.parseInt(match[1].slice(2), 16);
   if (start >= 0x80000000) start -= 0x100000000;
-  const base = match[2].replace(/^\\$/, '').toLowerCase();
+  const base = match[2].replace(/^\$/, '').toLowerCase();
   return Array.from({ length: access.size }, (_, index) => base + '|' + (start + index));
 }
 
