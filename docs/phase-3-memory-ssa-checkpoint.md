@@ -54,3 +54,23 @@ tests/analysis/romFunctionAnalysis.test.ts exercises the bounded ROM-to-Micro-C-
 ## Safety boundary
 
 No memory dependency is inferred for probable or unknown addresses. Exact address equality is not treated as proof of general pointer non-aliasing. This implementation is an isolated semantic-analysis component, not a claim of complete memory correctness.
+
+
+## Alias boundary audit (November 2026)
+
+The current exact interprocedural range domain is intentionally limited to absolute constants and base-relative stack/frame offsets:
+
+| Address form | Memory SSA confidence | Function effect summary |
+| --- | --- | --- |
+| Absolute constant | Not a stack/frame SSA location | Exact absolute range |
+| SP + constant | Exact | Base-aware signed-offset range |
+| FP + constant | Exact | Base-aware signed-offset range |
+| GP/T9 + constant | Probable | Unknown |
+| Other register + constant | Unknown | Unknown |
+| Computed/dynamic pointer | Unknown | Unknown |
+
+A GP/T9 expression is not promoted to an exact object merely because it has a constant displacement. The register may refer to a global data region, a small-data region, a table, or a dynamically established base. No cross-space alias conclusion is made.
+
+Direct calls outside the analyzed closed function set, indirect calls, and calls with unknown summaries remain conservative. External/device writes are not modeled as a known finite set of ranges. Linked-load/conditional-store pairs are represented as memory accesses, but reservation invalidation by intervening writes and external observers is not yet a complete LL/SC model.
+
+Regression coverage guards the current boundary: GP/T9 and other pointer expressions must not appear as precise read/write ranges. Future global-data analysis must introduce explicit object identity or a validated global address map before changing this classification.

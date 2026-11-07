@@ -146,3 +146,25 @@ test('does not conflate stack-relative and frame-relative ranges', () => {
   assert.equal(preservesMemoryRange(summary, { base: 'fp', address: -16, size: 4 }), true);
   assert.equal(preservesMemoryRange(summary, { base: 'sp', address: -14, size: 2 }), false);
 });
+
+
+test('keeps GP and T9 based memory effects unknown', () => {
+  const gp = { kind: 'binary', op: '+', left: v('rgp'), right: c(16) } as const;
+  const t9 = { kind: 'binary', op: '+', left: v('rt9'), right: c(-8) } as const;
+  const summary = inferFunctionMemoryEffects(makeIR([
+    { kind: 'load', target: 'global', address: gp, size: 4 },
+    { kind: 'store', address: t9, value: c(1), size: 4 },
+  ]));
+  assert.deepEqual(summary.reads, []);
+  assert.deepEqual(summary.writes, []);
+  assert.equal(summary.unknown, true);
+});
+
+test('does not treat an unresolved pointer expression as a precise effect', () => {
+  const pointer = { kind: 'binary', op: '+', left: v('r4'), right: c(12) } as const;
+  const summary = inferFunctionMemoryEffects(makeIR([
+    { kind: 'store', address: pointer, value: c(1), size: 1 },
+  ]));
+  assert.deepEqual(summary.writes, []);
+  assert.equal(summary.unknown, true);
+});
