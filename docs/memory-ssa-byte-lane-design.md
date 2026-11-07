@@ -1,12 +1,29 @@
 # Memory SSA byte-lane design
 
-Status: **DESIGN NOTE — NOT IMPLEMENTED**
+Status: **PARTIALLY IMPLEMENTED — BYTE-LANE DATAFLOW ADDED; INSTRUCTION MASKS AND INTERPROCEDURAL INTEGRATION REMAIN OPEN**
 
 ## Problem
 
-The current solver creates reaching definitions for exact stack/frame locations keyed by both address and access width. It separately annotates intersecting byte ranges in `overlappingAccesses`. That annotation is useful alias evidence, but it is not a reaching definition and must not be consumed as one.
+The legacy solver still exposes access-width reaching definitions and descriptive `overlappingAccesses`. A supplemental byte-lane dataflow pass now records per-byte `reachingByteVersions` and `previousByteVersions` for exact SP/FP accesses. It creates lane-specific `bytePhis` at joins and solves loop-carried definitions to a fixed point. The legacy scalar fields remain for compatibility and must not be mistaken for a complete summary when the byte lanes have mixed provenance.
 
 A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($sp)` is the motivating case: the load is fully covered by the store, even though the access keys differ. Conversely, a one-byte store at `0x12($sp)` cannot establish the other three bytes of a later word load.
+
+## Implemented slice
+
+- Exact stack/frame accesses are expanded to byte lanes with SP and FP kept distinct.
+- Full and partial definite stores update only their addressed lanes.
+- Loads expose the reaching version for every byte in address order.
+- CFG joins create a separate Phi for each lane whose predecessor versions differ.
+- Loop-carried lane definitions are solved by a bounded fixed-point pass.
+- Conditional stores and merge stores are classified as `mayDef` rather than definite full-range stores. They conservatively invalidate the modeled lanes without claiming a definite overwrite.
+- The old width-keyed `phis` and scalar version fields remain in place for compatibility; the new lane-specific Phis are exposed as `bytePhis`.
+
+## Remaining work
+
+- Model exact byte masks for merge-load/store variants rather than invalidating the aligned containing word/doubleword.
+- Distinguish a may-def token from a definite reaching definition in downstream consumers; currently it is an explicit conservative kill token.
+- Integrate call-site summaries and external memory effects into lane state.
+- Define a documented compact scalar summary for mixed byte provenance (the lane array remains authoritative).
 
 ## Required representation
 
