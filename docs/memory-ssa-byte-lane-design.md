@@ -1,6 +1,6 @@
 # Memory SSA byte-lane design
 
-Status: **PARTIALLY IMPLEMENTED — BYTE-LANE DATAFLOW ADDED; INSTRUCTION MASKS AND INTERPROCEDURAL INTEGRATION REMAIN OPEN**
+Status: **PARTIALLY IMPLEMENTED — BYTE-LANE DATAFLOW, MERGE MASKS, AND CONSERVATIVE UNKNOWN-CALL CLOBBERS INTEGRATED**
 
 ## Problem
 
@@ -20,8 +20,8 @@ A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($s
 
 ## Remaining work
 
-- Integrate call-site summaries and external memory effects into lane state.
 - Distinguish a may-def token from a definite reaching definition in downstream consumers; currently it is an explicit conservative kill token.
+- Model known global/absolute call writes and externally visible memory ranges in a shared non-stack byte-lane domain.
 - Integrate call-site summaries and external memory effects into lane state.
 - Define a documented compact scalar summary for mixed byte provenance (the lane array remains authoritative).
 
@@ -56,4 +56,4 @@ Unknown and probable pointer spaces remain outside the exact byte-lane solver. T
 
 ## Integration boundary
 
-This design does not claim that the current `overlappingAccesses` metadata implements byte-level Memory SSA. It is a prerequisite specification for a separate solver change and must be validated independently before call effects are injected as Memory SSA definitions.
+This design does not claim that `overlappingAccesses` metadata alone implements byte-level Memory SSA. Unknown call effects are now injected conservatively into observed caller stack/frame lanes; known callee-private SP/FP ranges are intentionally not treated as caller-frame aliases. Absolute/global call effects and external memory ranges remain outside the current lane domain.
