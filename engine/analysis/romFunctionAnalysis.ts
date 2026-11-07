@@ -197,7 +197,18 @@ export function analyzeMappedRomProgram(
   }
 
   const memoryEffects = inferProgramMemoryEffects(functions.map(fn => fn.analysis.functionIR));
-  const callMemoryValidations = functions.map(fn => ({
+  // Rebuild each function's byte-lane Memory SSA with the closed-program
+  // summaries available. Unknown/external effects become conservative
+  // caller-frame may-def tokens; known callee-private SP/FP ranges do not
+  // alias the caller's frame.
+  const functionsWithCallEffects = functions.map(fn => ({
+    ...fn,
+    analysis: {
+      ...fn.analysis,
+      memorySSA: buildMemorySSAFromFunctionIR(fn.analysis.functionIR, memoryEffects),
+    },
+  }));
+  const callMemoryValidations = functionsWithCallEffects.map(fn => ({
     address: fn.address,
     validation: validateCallMemoryEffects(fn.analysis.functionIR, memoryEffects),
   }));
