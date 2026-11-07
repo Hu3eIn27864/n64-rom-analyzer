@@ -88,6 +88,12 @@ export function analyzeMappedRomFunction(
       + (entryAddress >>> 0).toString(16));
   }
 
+  for (const [functionAddress, globalPointerBase] of options.globalPointerBases ?? []) {
+    if (!Number.isInteger(functionAddress) || functionAddress < 0 || functionAddress > 0xffffffff || functionAddress % 4 !== 0) throw new Error('global pointer map key is not a valid aligned VRAM function address');
+    if (addressMap.vramToRom(functionAddress) === undefined) throw new Error('global pointer map function 0x' + functionAddress.toString(16) + ' is not covered by a validated ROM segment');
+    if (!Number.isInteger(globalPointerBase) || globalPointerBase < 0 || globalPointerBase > 0xffffffff || globalPointerBase % 4 !== 0) throw new Error('global pointer base for function 0x' + functionAddress.toString(16) + ' must be an aligned unsigned 32-bit address');
+  }
+
   const byteOrder = options.byteOrder ?? 'big';
   const readWordAt: RomInstructionWordReader = address => {
     const offset = addressMap.vramToRom(address);
@@ -107,6 +113,8 @@ export function analyzeMappedRomFunction(
 
 export interface MappedRomProgramOptions extends RomFunctionCfgOptions {
   maxReachableInstructions?: number;
+  /** Externally validated runtime $gp values, keyed by function VRAM entry address. */
+  globalPointerBases?: ReadonlyMap<number, number>;
 }
 
 export interface MappedRomFunctionFailure {
@@ -160,6 +168,24 @@ export function analyzeMappedRomProgram(
     }
   }
 
+  // Validate the complete external GP map before recovery/analysis. Map keys
+  // must refer to function entries covered by the same validated ROM map.
+  for (const [functionAddress, globalPointerBase] of options.globalPointerBases ?? []) {
+    if (!Number.isInteger(functionAddress) || functionAddress < 0
+      || functionAddress > 0xffffffff || functionAddress % 4 !== 0) {
+      throw new Error('global pointer map key is not a valid aligned VRAM function address');
+    }
+    if (addressMap.vramToRom(functionAddress) === undefined) {
+      throw new Error('global pointer map function 0x' + functionAddress.toString(16)
+        + ' is not covered by a validated ROM segment');
+    }
+    if (!Number.isInteger(globalPointerBase) || globalPointerBase < 0
+      || globalPointerBase > 0xffffffff || globalPointerBase % 4 !== 0) {
+      throw new Error('global pointer base for function 0x' + functionAddress.toString(16)
+        + ' must be an aligned unsigned 32-bit address');
+    }
+  }
+
   const byteOrder = options.byteOrder ?? 'big';
   const readWord = (address: number): number => {
     const offset = addressMap.vramToRom(address);
@@ -196,12 +222,18 @@ export function analyzeMappedRomProgram(
     }
   }
 
-  const memoryEffects = inferProgramMemoryEffects(functions.map(fn => fn.analysis.functionIR));
+  const functionsWithProvenBases = functions.map(fn => {
+    const globalPointerBase = options.globalPointerBases?.get(fn.address);
+    if (globalPointerBase === undefined) return fn;
+    const functionIR: FunctionIR = { ...fn.analysis.functionIR, globalPointerBase };
+    return { ...fn, analysis: { ...fn.analysis, functionIR, memorySSA: buildMemorySSAFromFunctionIR(functionIR) } };
+  });
+  const memoryEffects = inferProgramMemoryEffects(functionsWithProvenBases.map(fn => fn.analysis.functionIR));
   // Rebuild each function's byte-lane Memory SSA with the closed-program
   // summaries available. Unknown/external effects become conservative
   // caller-frame may-def tokens; known callee-private SP/FP ranges do not
   // alias the caller's frame.
-  const functionsWithCallEffects = functions.map(fn => ({
+  const functionsWithCallEffects = functionsWithProvenBases.map(fn => ({
     ...fn,
     analysis: {
       ...fn.analysis,

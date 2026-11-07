@@ -62,3 +62,8 @@ This design does not claim that `overlappingAccesses` metadata alone implements 
 ## Proven GP-base contract
 
 `FunctionIR.globalPointerBase` is optional metadata and must be populated only by a caller that has independently validated the runtime `$gp` value for that function. When present, GP-relative constant offsets are normalized to the shared absolute address namespace before byte-lane construction and effect summarization. When absent, GP-relative accesses remain probable/unknown and do not participate in exact reaching definitions. The current ROM lifting pipeline does not infer this value from relocation placeholders or heuristics.
+
+
+## Program-level GP metadata
+
+Mapped ROM program analysis accepts an optional `globalPointerBases` map keyed by validated function VRAM entry address. Values must be aligned unsigned 32-bit addresses supplied by an external source that has established the runtime `$gp` value. The map is validated against the segment map, attached to the corresponding `FunctionIR` before program memory-effect inference, and used to rebuild byte-lane Memory SSA before call-effect integration. No automatic GP inference is performed from instruction patterns alone.
