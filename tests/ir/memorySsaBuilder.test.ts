@@ -342,11 +342,22 @@ test('unknown calls conservatively clobber observed absolute byte lanes', () => 
 
 
 test('resolves GP-relative accesses only with an explicitly proven GP base', () => {
-  const gpAddress = { kind: 'binary', op: '+', left: { kind: 'value', name: 'rgp' }, right: { kind: 'const', value: 0x24 } } as const;
-  const unresolved = makeIR([
-    { kind: 'store', address: gpAddress, value: c(1), size: 4 },
-    { kind: 'load', target: 'x', address: gpAddress, size: 4 },
-  ]);
+  const gpAddress: MicroCExpr = {
+    kind: 'binary',
+    op: '+',
+    left: { kind: 'value', name: 'rgp' },
+    right: { kind: 'const', value: 0x24 },
+  };
+  const unresolved: FunctionIR = {
+    functionAddress: 0x80012000,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'store', address: gpAddress, value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'load', target: 'x', address: gpAddress, size: 4, signed: false },
+      ],
+    }],
+  };
   const unresolvedResult = buildMemorySSAFromFunctionIR(unresolved);
   assert.equal(unresolvedResult.accesses[0].confidence, 'probable');
   assert.equal(unresolvedResult.accesses[1].reachingByteVersions, undefined);
