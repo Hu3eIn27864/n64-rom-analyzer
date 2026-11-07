@@ -127,7 +127,8 @@ function observedMemoryLanes(ir: FunctionIR): Array<{ address: string }> {
         const mask = access.byteMask ?? Array.from({ length: access.size }, (_, index) => index);
         for (const index of mask) {
           const offset = start + index;
-          const address = '0x' + (offset >>> 0).toString(16) + (base === 'absolute' ? '' : '(
+          const address = '0x' + (offset >>> 0).toString(16) + (base === 'absolute' ? '' : '($' + base + ')');
+          lanes.set(base + '|' + offset, { address });
         }
       }
     }
