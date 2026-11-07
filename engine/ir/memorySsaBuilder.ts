@@ -126,7 +126,36 @@ function observedStackLanes(ir: FunctionIR): Array<{ address: string }> {
         const mask = access.byteMask ?? Array.from({ length: access.size }, (_, index) => index);
         for (const index of mask) {
           const offset = start + index;
-          const address = '0x' + (offset >>> 0).toString(16) + '(
+          const address = '0x' + (offset >>> 0).toString(16) + '($' + match[2].toLowerCase() + ')';
+          lanes.set(match[2].toLowerCase() + '|' + offset, { address });
+        }
+      }
+    }
+  }
+  return [...lanes.values()];
+}
+
+/** Collect accesses in operation order, inserting conservative call clobbers. */
+export function collectMemoryAccesses(
+  ir: FunctionIR,
+  callees: ReadonlyMap<number, FunctionMemoryEffectSummary> = new Map(),
+): MemoryInput[] {
+  const observedLanes = observedStackLanes(ir);
+  return ir.blocks.flatMap(block => block.operations.flatMap(operation => {
+    if (operation.kind !== 'call') return collectOperationAccesses(operation, block.id);
+    const target = operation.target.kind === 'const' ? operation.target.value >>> 0 : undefined;
+    const summary = target === undefined ? undefined : callees.get(target);
+    if (summary && !summary.unknown) return [];
+    // A call with an unknown target or unknown effects may alias any observed
+    // caller stack/frame byte. Emit one-byte may-def tokens at the call site.
+    return observedLanes.map(lane => ({
+      kind: 'mayDef' as const,
+      address: lane.address,
+      size: 1 as const,
+      blockId: block.id,
+    }));
+  }));
+}
 
 /**
  * Build Memory SSA directly from canonical FunctionIR.
@@ -135,8 +164,11 @@ function observedStackLanes(ir: FunctionIR): Array<{ address: string }> {
  * addresses remain probable, and dynamic/other register expressions remain
  * unknown until a stronger alias model exists.
  */
-export function buildMemorySSAFromFunctionIR(ir: FunctionIR): MemorySSA {
-  const accesses = collectMemoryAccesses(ir);
+export function buildMemorySSAFromFunctionIR(
+  ir: FunctionIR,
+  callees: ReadonlyMap<number, FunctionMemoryEffectSummary> = new Map(),
+): MemorySSA {
+  const accesses = collectMemoryAccesses(ir, callees);
   const blocks = ir.blocks.map(block => ({
     id: block.id,
     predecessors: block.predecessors,
