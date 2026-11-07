@@ -339,3 +339,21 @@ test('unknown calls conservatively clobber observed absolute byte lanes', () => 
   ]);
   assert.deepEqual(result.accesses[5].possibleByteVersions, [[2], [3], [4], [5]]);
 });
+
+
+test('resolves GP-relative accesses only with an explicitly proven GP base', () => {
+  const gpAddress = { kind: 'binary', op: '+', left: v('rgp'), right: c(0x24) } as const;
+  const unresolved = makeIR([
+    { kind: 'store', address: gpAddress, value: c(1), size: 4 },
+    { kind: 'load', target: 'x', address: gpAddress, size: 4 },
+  ]);
+  const unresolvedResult = buildMemorySSAFromFunctionIR(unresolved);
+  assert.equal(unresolvedResult.accesses[0].confidence, 'probable');
+  assert.equal(unresolvedResult.accesses[1].reachingByteVersions, undefined);
+
+  const resolved = { ...unresolved, globalPointerBase: 0x80010000 };
+  const result = buildMemorySSAFromFunctionIR(resolved);
+  assert.equal(result.accesses[0].address, '0x80010024');
+  assert.equal(result.accesses[0].confidence, 'exact');
+  assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1, 1, 1]);
+});
