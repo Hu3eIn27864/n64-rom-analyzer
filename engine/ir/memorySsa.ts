@@ -234,7 +234,7 @@ export function buildMemorySSA(
 
     const key = current.blockId + '|' + location;
     const previousVersion = lastDefinition.get(key) ?? 0;
-    if (current.kind === 'def') {
+    if (current.kind !== 'use') {
       current.version = nextVersion++;
       current.previousVersion = previousVersion;
       lastDefinition.set(key, current.version);
@@ -299,7 +299,7 @@ export function buildMemorySSAForCFG(
     const key = exactLocationKey(access);
     if (key !== undefined) {
       locations.set(key, { address: access.address, size: access.size });
-      if (access.kind === 'def') access.version = nextVersion++;
+      if (access.kind !== 'use') access.version = nextVersion++;
     }
   }
 
