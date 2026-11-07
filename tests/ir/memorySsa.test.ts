@@ -223,3 +223,74 @@ test('reports overlap symmetrically across CFG blocks but keeps bases distinct',
   ]);
   assert.equal(result.accesses[1].reachingVersion, 0);
 });
+
+
+test('tracks byte lanes across a full-width store and a contained partial load', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x10($sp)', size: 4, blockId: 0 },
+    { kind: 'use', address: '0x12($sp)', size: 2, blockId: 0 },
+  ], [{ id: 0, predecessors: [] }]);
+
+  assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1]);
+  assert.equal(result.accesses[1].reachingVersion, 0);
+});
+
+test('tracks mixed byte provenance after a partial store', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x20($sp)', size: 4, blockId: 0 },
+    { kind: 'def', address: '0x22($sp)', size: 1, blockId: 0 },
+    { kind: 'use', address: '0x20($sp)', size: 4, blockId: 0 },
+  ], [{ id: 0, predecessors: [] }]);
+
+  assert.deepEqual(result.accesses[2].reachingByteVersions, [1, 1, 2, 1]);
+  assert.deepEqual(result.accesses[1].previousByteVersions, [1]);
+});
+
+test('creates lane-specific Phis only for bytes changed on one branch', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x30($sp)', size: 4, blockId: 0 },
+    { kind: 'def', address: '0x31($sp)', size: 1, blockId: 1 },
+    { kind: 'use', address: '0x30($sp)', size: 4, blockId: 3 },
+  ], [
+    { id: 0, predecessors: [] },
+    { id: 1, predecessors: [0] },
+    { id: 2, predecessors: [0] },
+    { id: 3, predecessors: [1, 2] },
+  ]);
+
+  assert.equal(result.bytePhis.length, 1);
+  assert.equal(result.bytePhis[0].location, '0x31($sp)');
+  assert.deepEqual(result.bytePhis[0].inputs, { 1: 2, 2: 1 });
+  assert.deepEqual(result.accesses[2].reachingByteVersions, [1, result.bytePhis[0].version, 1, 1]);
+});
+
+test('solves loop-carried partial byte stores with a lane Phi', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x40($sp)', size: 4, blockId: 0 },
+    { kind: 'def', address: '0x42($sp)', size: 1, blockId: 2 },
+    { kind: 'use', address: '0x40($sp)', size: 4, blockId: 3 },
+  ], [
+    { id: 0, predecessors: [] },
+    { id: 1, predecessors: [0, 2] },
+    { id: 2, predecessors: [1] },
+    { id: 3, predecessors: [1] },
+  ]);
+
+  const lanePhi = result.bytePhis.find(phi => phi.location === '0x42($sp)');
+  assert.ok(lanePhi);
+  assert.deepEqual(result.accesses[2].reachingByteVersions, [
+    1, 1, lanePhi.version, 1,
+  ]);
+  assert.deepEqual(lanePhi.inputs, { 0: 1, 2: 2 });
+});
+
+test('does not merge SP and FP byte lanes', () => {
+  const result = buildMemorySSAForCFG([
+    { kind: 'def', address: '0x50($sp)', size: 4, blockId: 0 },
+    { kind: 'use', address: '0x50($fp)', size: 4, blockId: 1 },
+  ], [
+    { id: 0, predecessors: [] },
+    { id: 1, predecessors: [0] },
+  ]);
+  assert.deepEqual(result.accesses[1].reachingByteVersions, [0, 0, 0, 0]);
+});

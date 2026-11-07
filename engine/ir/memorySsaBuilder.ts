@@ -81,11 +81,11 @@ function collectOperationAccesses(operation: MicroCOperation, blockId: number): 
     case 'store':
       return [memoryInput('def', operation.address, operation.size, blockId)];
     case 'mergeStore':
-      return [memoryInput('def', operation.address, 8, blockId, 8)];
+      return [memoryInput('mayDef', operation.address, 8, blockId, 8)];
     case 'mergeStoreWord':
-      return [memoryInput('def', operation.address, 4, blockId, 4)];
+      return [memoryInput('mayDef', operation.address, 4, blockId, 4)];
     case 'conditionalStore':
-      return [memoryInput('def', operation.address, operation.size, blockId)];
+      return [memoryInput('mayDef', operation.address, operation.size, blockId)];
     case 'fpuLoad':
       return [memoryInput('use', operation.address, operation.size, blockId)];
     case 'fpuStore':
