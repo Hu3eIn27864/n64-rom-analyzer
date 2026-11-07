@@ -123,3 +123,26 @@ test('includes linked, merge, conditional and COP1 memory operations in summarie
   ]);
   assert.equal(summary.unknown, false);
 });
+
+
+test('summarizes stack and frame relative accesses in distinct address spaces', () => {
+  const stack = { kind: 'binary', op: '+', left: v('rsp'), right: c(-16) } as const;
+  const frame = { kind: 'binary', op: '+', left: v('rfp'), right: c(8) } as const;
+  const summary = inferFunctionMemoryEffects(makeIR([
+    { kind: 'load', target: 'saved', address: stack, size: 4 },
+    { kind: 'store', address: frame, value: c(1), size: 8 },
+  ]));
+  assert.deepEqual(summary.reads, [{ base: 'sp', address: -16, size: 4 }]);
+  assert.deepEqual(summary.writes, [{ base: 'fp', address: 8, size: 8 }]);
+  assert.equal(summary.unknown, false);
+});
+
+test('does not conflate stack-relative and frame-relative ranges', () => {
+  const summary = {
+    reads: [],
+    writes: [{ base: 'sp' as const, address: -16, size: 4 as const }],
+    unknown: false,
+  };
+  assert.equal(preservesMemoryRange(summary, { base: 'fp', address: -16, size: 4 }), true);
+  assert.equal(preservesMemoryRange(summary, { base: 'sp', address: -14, size: 2 }), false);
+});
