@@ -201,3 +201,41 @@ test('a partial local store does not restore an entire call-clobbered range', ()
   assert.equal(result.valid, false);
   assert.equal(result.unknownCall, false);
 });
+
+
+test('checks stack-relative call clobbers against stack-relative loads', () => {
+  const stackLoad: MicroCOperation = {
+    kind: 'load', target: 'saved',
+    address: { kind: 'binary', op: '+', left: v('rsp'), right: c(-16) },
+    size: 4,
+  };
+  const stackWrites: FunctionMemoryEffectSummary = {
+    reads: [],
+    writes: [{ base: 'sp', address: -16, size: 4 }],
+    unknown: false,
+  };
+  const result = validateCallMemoryEffects(
+    makeIR([call(0x80003000), stackLoad]),
+    new Map([[0x80003000, stackWrites]]),
+  );
+  assert.equal(result.valid, false);
+  assert.equal(result.unknownCall, false);
+});
+
+test('does not alias frame-relative writes with stack-relative loads', () => {
+  const stackLoad: MicroCOperation = {
+    kind: 'load', target: 'saved',
+    address: { kind: 'binary', op: '+', left: v('rsp'), right: c(-16) },
+    size: 4,
+  };
+  const frameWrites: FunctionMemoryEffectSummary = {
+    reads: [],
+    writes: [{ base: 'fp', address: -16, size: 4 }],
+    unknown: false,
+  };
+  const result = validateCallMemoryEffects(
+    makeIR([call(0x80004000), stackLoad]),
+    new Map([[0x80004000, frameWrites]]),
+  );
+  assert.equal(result.valid, true);
+});
