@@ -168,3 +168,18 @@ test('does not treat an unresolved pointer expression as a precise effect', () =
   assert.deepEqual(summary.writes, []);
   assert.equal(summary.unknown, true);
 });
+
+
+test('resolves GP-relative effect ranges only with an explicitly proven GP base', () => {
+  const gp = { kind: 'binary', op: '+', left: v('rgp'), right: c(-16) } as const;
+  const unresolved = inferFunctionMemoryEffects(makeIR([
+    { kind: 'store', address: gp, value: c(1), size: 4 },
+  ]));
+  assert.equal(unresolved.unknown, true);
+  assert.deepEqual(unresolved.writes, []);
+
+  const resolvedIR = { ...makeIR([{ kind: 'store', address: gp, value: c(1), size: 4 }]), globalPointerBase: 0x80010000 };
+  const resolved = inferFunctionMemoryEffects(resolvedIR);
+  assert.equal(resolved.unknown, false);
+  assert.deepEqual(resolved.writes, [{ address: 0x8000fff0, size: 4 }]);
+});
