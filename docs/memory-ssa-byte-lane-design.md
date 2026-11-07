@@ -1,16 +1,16 @@
 # Memory SSA byte-lane design
 
-Status: **PARTIALLY IMPLEMENTED — BYTE-LANE DATAFLOW, MERGE MASKS, AND CONSERVATIVE UNKNOWN-CALL CLOBBERS INTEGRATED**
+Status: **PARTIALLY IMPLEMENTED — STACK/ABSOLUTE BYTE-LANE DATAFLOW, MERGE MASKS, AND CONSERVATIVE CALL CLOBBERS INTEGRATED**
 
 ## Problem
 
-The legacy solver still exposes access-width reaching definitions and descriptive `overlappingAccesses`. A supplemental byte-lane dataflow pass now records per-byte `reachingByteVersions` and `previousByteVersions` for exact SP/FP accesses. It creates lane-specific `bytePhis` at joins and solves loop-carried definitions to a fixed point. The legacy scalar fields remain for compatibility and must not be mistaken for a complete summary when the byte lanes have mixed provenance.
+The legacy solver still exposes access-width reaching definitions and descriptive `overlappingAccesses`. A supplemental byte-lane dataflow pass now records per-byte `reachingByteVersions` and `previousByteVersions` for exact SP/FP and absolute-address accesses. It creates lane-specific `bytePhis` at joins and solves loop-carried definitions to a fixed point. The legacy scalar fields remain for compatibility and must not be mistaken for a complete summary when the byte lanes have mixed provenance.
 
 A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($sp)` is the motivating case: the load is fully covered by the store, even though the access keys differ. Conversely, a one-byte store at `0x12($sp)` cannot establish the other three bytes of a later word load.
 
 ## Implemented slice
 
-- Exact stack/frame accesses are expanded to byte lanes with SP and FP kept distinct.
+- Exact stack/frame accesses are expanded to byte lanes with SP and FP kept distinct; constant absolute addresses use a separate shared `absolute` lane namespace.
 - Full and partial definite stores update only their addressed lanes.
 - Loads expose the reaching version for every byte in address order.
 - CFG joins create a separate Phi for each lane whose predecessor versions differ.
@@ -21,7 +21,7 @@ A store of four bytes at `0x10($sp)` followed by a load of two bytes at `0x12($s
 ## Remaining work
 
 - Teach downstream consumers to interpret `possibleByteVersions` as conditional provenance rather than definite dataflow.
-- Model known global/absolute call writes and externally visible memory ranges in a shared non-stack byte-lane domain.
+- Resolve GP-relative addresses from a proven GP base; model unknown external effects beyond locally observed exact lanes.
 - Integrate call-site summaries and external memory effects into lane state.
 - Define a documented compact scalar summary for mixed byte provenance (the lane array remains authoritative).
 
@@ -56,4 +56,4 @@ Unknown and probable pointer spaces remain outside the exact byte-lane solver. T
 
 ## Integration boundary
 
-This design does not claim that `overlappingAccesses` metadata alone implements byte-level Memory SSA. Unknown call effects are now injected conservatively into observed caller stack/frame lanes; known callee-private SP/FP ranges are intentionally not treated as caller-frame aliases. Absolute/global call effects and external memory ranges remain outside the current lane domain.
+This design does not claim that `overlappingAccesses` metadata alone implements byte-level Memory SSA. Unknown call effects are injected conservatively into observed caller stack/frame and absolute lanes. Known callee absolute writes are injected into the shared absolute lane domain; known callee-private SP/FP ranges are intentionally not treated as caller-frame aliases. GP-relative and dynamic aliases remain unresolved.
