@@ -54,18 +54,30 @@ function formatMemoryAddress(expression: MicroCExpr, alignment: 1 | 4 | 8 = 1): 
   return '0x' + (alignedOffset >>> 0).toString(16) + '(' + architecturalName + ')';
 }
 
+/** N64 MIPS uses big-endian byte lanes for LWL/LWR and SWL/SWR. */
+function mergeByteMask(address: MicroCExpr, width: 4 | 8, direction: 'left' | 'right'): number[] {
+  const parsed = baseOffset(address);
+  if (!parsed) return Array.from({ length: width }, (_, index) => index);
+  const lane = ((parsed.offset % width) + width) % width;
+  return direction === 'left'
+    ? Array.from({ length: lane + 1 }, (_, index) => index)
+    : Array.from({ length: width - lane }, (_, index) => lane + index);
+}
+
 function memoryInput(
   kind: MemoryInput['kind'],
   address: MicroCExpr,
   size: MemoryInput['size'],
   blockId: number,
   alignment: 1 | 4 | 8 = 1,
+  byteMask?: number[],
 ): MemoryInput {
   return {
     kind,
     address: formatMemoryAddress(address, alignment),
     size,
     blockId,
+    ...(byteMask ? { byteMask } : {}),
   };
 }
 
