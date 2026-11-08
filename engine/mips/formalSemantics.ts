@@ -66,15 +66,18 @@ export function analyzeInstructionSemantics(
   } else if (op === 'JALR') {
     const targetRegister = b ?? a;
     addRead(targetRegister);
-    if (a !== '$ra') addWrite(a);
-    control = 'indirect';
-    description = 'JALR transfers control through a register and may write a return address.';
+    addWrite(a);
+    control = a && a !== '$zero' ? 'call' : 'indirect';
+    description = 'JALR transfers control through a register and writes the link address to its destination register.';
   } else if (/^(BEQ|BNE|BLEZ|BGTZ|BLTZ|BGEZ|BLTZAL|BGEZAL)$/.test(op)) {
-    addRead(a); addRead(b);
+    addRead(a);
+    if (op === 'BEQ' || op === 'BNE') addRead(b);
+    if (op === 'BLTZAL' || op === 'BGEZAL') addWrite('$ra');
     control = 'conditional-branch';
-    description = op + ' conditionally transfers control to its branch target.';
+    description = op + ' conditionally transfers control to its branch target.' + ((op === 'BLTZAL' || op === 'BGEZAL') ? ' It also writes the link address to $ra.' : '');
   } else if (/^(BEQL|BNEL|BLEZL|BGTZL|BLTZL|BGEZL)$/.test(op)) {
-    addRead(a); addRead(b);
+    addRead(a);
+    if (op === 'BEQL' || op === 'BNEL') addRead(b);
     control = 'branch-likely';
     description = op + ' is a branch-likely instruction with annulled delay-slot behavior when not taken.';
   } else if (/^(LWL|LWR|SWL|SWR)$/.test(op) && a && b) {
