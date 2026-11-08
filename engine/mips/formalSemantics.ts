@@ -46,9 +46,27 @@ export function analyzeInstructionSemantics(
   const addRead = (r?: string) => { if (r && r !== '$zero') reads.push(register(r)); };
   const addWrite = (r?: string) => { if (r && r !== '$zero') writes.push(register(r)); };
 
-  if (/^(ADDU|ADD|SUBU|SUB|DADDU|DADD|DSUBU|DSUB|AND|OR|XOR|NOR|SLT|SLTU|DSLL|DSRL|DSRA)$/.test(op)) {
+  if (/^(SLL|SRL|SRA|DSLL|DSRL|DSRA|DSLL32|DSRL32|DSRA32)$/.test(op)) {
+    addRead(b); addWrite(a);
+    description = op + ': immediate shift reads the value register and writes the destination register.';
+  } else if (/^(SLLV|SRLV|SRAV|DSLLV|DSRLV|DSRAV)$/.test(op)) {
+    addRead(b); addRead(c); addWrite(a);
+    description = op + ': variable shift reads the value and shift-amount registers and writes the destination register.';
+  } else if (/^(ADDU|ADD|SUBU|SUB|DADDU|DADD|DSUBU|DSUB|AND|OR|XOR|NOR|SLT|SLTU)$/.test(op)) {
     addRead(b); addRead(c); addWrite(a);
     description = op + ': result is computed from source registers and written to the destination register.';
+  } else if (/^(MULT|MULTU|DIV|DIVU|DMULT|DMULTU|DDIV|DDIVU)$/.test(op)) {
+    addRead(a); addRead(b);
+    writes.push('hi', 'lo');
+    description = op + ': source registers produce the HI/LO result pair.';
+  } else if (/^(MFHI|MFLO)$/.test(op)) {
+    reads.push(op === 'MFHI' ? 'hi' : 'lo');
+    addWrite(a);
+    description = op + ' reads the corresponding HI/LO special register and writes the general destination register.';
+  } else if (/^(MTHI|MTLO)$/.test(op)) {
+    addRead(a);
+    writes.push(op === 'MTHI' ? 'hi' : 'lo');
+    description = op + ' writes the source register to the corresponding HI/LO special register.';
   } else if (/^(ADDI|ADDIU|DADDI|DADDIU|ANDI|ORI|XORI|SLTI|SLTIU)$/.test(op)) {
     addRead(b); addWrite(a);
     description = op + ': immediate operation reads the source register and writes the destination register.';

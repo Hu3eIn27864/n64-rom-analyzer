@@ -112,3 +112,34 @@ test('relational branches read only their tested register, not the target operan
     assert.deepEqual(result.reads, ['t0', 't1'], mnemonic);
   }
 });
+
+
+test('immediate shifts do not treat the shift amount as a register', () => {
+  for (const mnemonic of ['SLL', 'SRL', 'SRA', 'DSLL', 'DSRL', 'DSRA', 'DSLL32', 'DSRL32', 'DSRA32']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$t0', '$t1', '7']);
+    assert.deepEqual(result.reads, ['t1'], mnemonic);
+    assert.deepEqual(result.writes, ['t0'], mnemonic);
+  }
+});
+
+test('variable shifts read both shift amount and value registers', () => {
+  for (const mnemonic of ['SLLV', 'SRLV', 'SRAV', 'DSLLV', 'DSRLV', 'DSRAV']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$t0', '$t1', '$t2']);
+    assert.deepEqual(result.reads, ['t1', 't2'], mnemonic);
+    assert.deepEqual(result.writes, ['t0'], mnemonic);
+  }
+});
+
+test('HI/LO multiply and divide operations expose special-register effects', () => {
+  for (const mnemonic of ['MULT', 'MULTU', 'DIV', 'DIVU', 'DMULT', 'DMULTU', 'DDIV', 'DDIVU']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$t0', '$t1']);
+    assert.deepEqual(result.reads, ['t0', 't1'], mnemonic);
+    assert.deepEqual(result.writes, ['hi', 'lo'], mnemonic);
+  }
+  assert.deepEqual(analyzeInstructionSemantics('MFHI', ['$v0']).reads, ['hi']);
+  assert.deepEqual(analyzeInstructionSemantics('MFHI', ['$v0']).writes, ['v0']);
+  assert.deepEqual(analyzeInstructionSemantics('MFLO', ['$v1']).reads, ['lo']);
+  assert.deepEqual(analyzeInstructionSemantics('MTHI', ['$a0']).reads, ['a0']);
+  assert.deepEqual(analyzeInstructionSemantics('MTHI', ['$a0']).writes, ['hi']);
+  assert.deepEqual(analyzeInstructionSemantics('MTLO', ['$a1']).writes, ['lo']);
+});
