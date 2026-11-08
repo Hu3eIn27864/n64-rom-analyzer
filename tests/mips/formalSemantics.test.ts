@@ -180,3 +180,21 @@ test('decoded COP1 transfers distinguish GPR, FPR and control-register effects',
   assert.deepEqual(ctc1.reads, ['a0']);
   assert.deepEqual(ctc1.writes, ['fcr3']);
 });
+
+
+test('conditional moves read the copied value and condition registers', () => {
+  for (const mnemonic of ['MOVZ', 'MOVN']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$v0', '$a0', '$a1']);
+    assert.deepEqual(result.reads, ['a0', 'a1'], mnemonic);
+    assert.deepEqual(result.writes, ['v0'], mnemonic);
+  }
+});
+
+test('register trap instructions read both compared operands without defining GPRs', () => {
+  for (const mnemonic of ['TGE', 'TGEU', 'TLT', 'TLTU', 'TEQ', 'TNE']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$t0', '$t1']);
+    assert.deepEqual(result.reads, ['t0', 't1'], mnemonic);
+    assert.deepEqual(result.writes, [], mnemonic);
+    assert.match(result.description, /may raise a trap/);
+  }
+});
