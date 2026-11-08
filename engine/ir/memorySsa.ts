@@ -480,3 +480,67 @@ export function buildMemorySSAForCFG(
   const bytePhis = buildByteLaneSSA(normalized, blocks);
   return { accesses: normalized, phis: retainedPhis, bytePhis };
 }
+
+
+export interface MemoryLoadByteProvenance {
+  readonly byteIndex: number;
+  /** Version zero denotes live-on-entry memory, not a proven initialized value. */
+  readonly reachingVersion: number;
+  /** May-def tokens that could have changed this byte without definitely replacing it. */
+  readonly possibleVersions: readonly number[];
+}
+
+export interface MemoryLoadProvenanceSummary {
+  readonly accessId: number;
+  readonly lanes: readonly MemoryLoadByteProvenance[];
+  readonly hasLiveOnEntryBytes: boolean;
+  readonly hasConditionalWrites: boolean;
+  readonly hasMixedReachingVersions: boolean;
+  /** True only when every byte has a non-entry reaching version and no may-def is pending. */
+  readonly fullyDefined: boolean;
+  /** Present only when every byte has the same definite reaching version. */
+  readonly uniformReachingVersion?: number;
+}
+
+/**
+ * Summarize byte-lane provenance for a load without promoting may-def tokens
+ * to definite reaching definitions. Returns undefined for non-loads, accesses
+ * without byte-lane data, or malformed/incomplete lane arrays.
+ */
+export function summarizeMemoryLoadProvenance(
+  access: MemoryAccess,
+): MemoryLoadProvenanceSummary | undefined {
+  if (access.kind !== 'use' || !access.reachingByteVersions
+    || access.reachingByteVersions.length !== access.size) return undefined;
+
+  const possible = access.possibleByteVersions;
+  if (possible !== undefined && possible.length !== access.size) return undefined;
+
+  const lanes: MemoryLoadByteProvenance[] = [];
+  for (let byteIndex = 0; byteIndex < access.size; byteIndex++) {
+    const reachingVersion = access.reachingByteVersions[byteIndex];
+    const possibleVersions = possible?.[byteIndex] ?? [];
+    if (!Number.isSafeInteger(reachingVersion) || reachingVersion < 0
+      || !Array.isArray(possibleVersions)
+      || possibleVersions.some(version => !Number.isSafeInteger(version) || version <= 0)) {
+      return undefined;
+    }
+    lanes.push({ byteIndex, reachingVersion, possibleVersions: [...new Set(possibleVersions)].sort((a, b) => a - b) });
+  }
+
+  const reachingVersions = [...new Set(lanes.map(lane => lane.reachingVersion))];
+  const hasLiveOnEntryBytes = lanes.some(lane => lane.reachingVersion === 0);
+  const hasConditionalWrites = lanes.some(lane => lane.possibleVersions.length > 0);
+  const hasMixedReachingVersions = reachingVersions.length > 1;
+  const uniformReachingVersion = reachingVersions.length === 1 ? reachingVersions[0] : undefined;
+
+  return {
+    accessId: access.id,
+    lanes,
+    hasLiveOnEntryBytes,
+    hasConditionalWrites,
+    hasMixedReachingVersions,
+    fullyDefined: !hasLiveOnEntryBytes && !hasConditionalWrites,
+    ...(uniformReachingVersion !== undefined ? { uniformReachingVersion } : {}),
+  };
+}
