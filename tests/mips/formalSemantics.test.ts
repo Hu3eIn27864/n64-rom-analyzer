@@ -74,3 +74,29 @@ test('LL/LLD and SC/SCD expose linked reservation and conditional result semanti
   assert.deepEqual(scd.memory, [{ kind: 'write', address: '0($t7)', size: 8, atomic: 'store-conditional' }]);
   assert.deepEqual(scd.writes, ['t6']);
 });
+
+
+test('JALR models both the target read and link destination write', () => {
+  const defaultLink = analyzeInstructionSemantics('JALR', ['$ra', '$t9']);
+  assert.deepEqual(defaultLink.reads, ['t9']);
+  assert.deepEqual(defaultLink.writes, ['ra']);
+  assert.equal(defaultLink.control, 'call');
+
+  const explicitLink = analyzeInstructionSemantics('JALR', ['$s0', '$t9']);
+  assert.deepEqual(explicitLink.reads, ['t9']);
+  assert.deepEqual(explicitLink.writes, ['s0']);
+  assert.equal(explicitLink.control, 'call');
+
+  const noLink = analyzeInstructionSemantics('JALR', ['$zero', '$t9']);
+  assert.deepEqual(noLink.writes, []);
+  assert.equal(noLink.control, 'indirect');
+});
+
+test('BLTZAL and BGEZAL expose their conditional link-register effect', () => {
+  for (const mnemonic of ['BLTZAL', 'BGEZAL']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$t0', 'target']);
+    assert.deepEqual(result.reads, ['t0']);
+    assert.deepEqual(result.writes, ['ra']);
+    assert.equal(result.control, 'conditional-branch');
+  }
+});
