@@ -115,7 +115,7 @@ export function decodeRomFunctionCfgFromReader(
         if (instruction.targetAddress === undefined || instruction.targetAddress === after) {
           throw new Error('conditional branch at 0x' + address.toString(16) + ' has no resolved target');
         }
-        const delay = decodeAt(after);
+        const delay = decodeDelaySlot(after);
         if (isControlTransfer(delay)) {
           throw new Error('control transfer in delay slot at 0x' + after.toString(16) + ' is unsupported');
         }
@@ -139,7 +139,7 @@ export function decodeRomFunctionCfgFromReader(
       }
 
       if (instruction.isJump) {
-        const delay = decodeAt(after);
+        const delay = decodeDelaySlot(after);
         if (isControlTransfer(delay)) {
           throw new Error('control transfer in delay slot at 0x' + after.toString(16) + ' is unsupported');
         }
