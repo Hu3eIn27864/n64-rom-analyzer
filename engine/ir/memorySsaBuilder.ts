@@ -61,9 +61,11 @@ function formatMemoryAddress(expression: MicroCExpr, alignment: 1 | 4 | 8 = 1, g
 
 /** N64 MIPS uses big-endian byte lanes for LWL/LWR and SWL/SWR. */
 function mergeByteMask(address: MicroCExpr, width: 4 | 8, direction: 'left' | 'right'): number[] {
-  const parsed = baseOffset(address);
-  if (!parsed) return Array.from({ length: width }, (_, index) => index);
-  const lane = ((parsed.offset % width) + width) % width;
+  // Absolute constant addresses carry the effective byte lane directly.
+  // Stack/frame and GP-relative expressions use their constant displacement.
+  const offset = address.kind === 'const' ? address.value : baseOffset(address)?.offset;
+  if (offset === undefined) return Array.from({ length: width }, (_, index) => index);
+  const lane = ((offset % width) + width) % width;
   return direction === 'left'
     ? Array.from({ length: lane + 1 }, (_, index) => index)
     : Array.from({ length: width - lane }, (_, index) => lane + index);
