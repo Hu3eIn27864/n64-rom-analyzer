@@ -1,6 +1,7 @@
 import test from 'node:test';
 import { strict as assert } from 'node:assert';
-import { analyzeInstructionSemantics } from '../../engine/mips/formalSemantics';
+import { analyzeDecodedInstructionSemantics, analyzeInstructionSemantics } from '../../engine/mips/formalSemantics';
+import { decodeInstruction } from '../../engine/mips/decoder';
 
 test('ADDU exposes register reads and destination write', () => {
   assert.deepEqual(analyzeInstructionSemantics('ADDU', ['$v0', '$a0', '$a1']), {
@@ -142,4 +143,40 @@ test('HI/LO multiply and divide operations expose special-register effects', () 
   assert.deepEqual(analyzeInstructionSemantics('MTHI', ['$a0']).reads, ['a0']);
   assert.deepEqual(analyzeInstructionSemantics('MTHI', ['$a0']).writes, ['hi']);
   assert.deepEqual(analyzeInstructionSemantics('MTLO', ['$a1']).writes, ['lo']);
+});
+
+
+test('decoded COP1 compare instructions read FPRs and write the selected FCC', () => {
+  const raw = ((0x11 << 26) | (0x10 << 21) | (3 << 16) | (2 << 11) | (5 << 8) | 0x32) >>> 0;
+  const instruction = decodeInstruction(raw, 0x80001000);
+  const result = analyzeDecodedInstructionSemantics(instruction);
+  assert.deepEqual(result.reads, ['f2', 'f3']);
+  assert.deepEqual(result.writes, ['fcc5']);
+});
+
+test('decoded COP1 arithmetic instructions expose FPR data flow', () => {
+  const raw = ((0x11 << 26) | (0x10 << 21) | (7 << 16) | (4 << 11) | (9 << 6) | 0x00) >>> 0;
+  const result = analyzeDecodedInstructionSemantics(decodeInstruction(raw, 0x80001004));
+  assert.deepEqual(result.reads, ['f4', 'f7']);
+  assert.deepEqual(result.writes, ['f9']);
+});
+
+test('decoded COP1 transfers distinguish GPR, FPR and control-register effects', () => {
+  const encode = (fmt: number, rt: number, fs: number) =>
+    ((0x11 << 26) | (fmt << 21) | (rt << 16) | (fs << 11)) >>> 0;
+  const mfc1 = analyzeDecodedInstructionSemantics(decodeInstruction(encode(0x00, 4, 3), 0x80001008));
+  assert.deepEqual(mfc1.reads, ['f3']);
+  assert.deepEqual(mfc1.writes, ['a0']);
+
+  const mtc1 = analyzeDecodedInstructionSemantics(decodeInstruction(encode(0x04, 4, 3), 0x8000100c));
+  assert.deepEqual(mtc1.reads, ['a0']);
+  assert.deepEqual(mtc1.writes, ['f3']);
+
+  const cfc1 = analyzeDecodedInstructionSemantics(decodeInstruction(encode(0x02, 4, 3), 0x80001010));
+  assert.deepEqual(cfc1.reads, ['fcr3']);
+  assert.deepEqual(cfc1.writes, ['a0']);
+
+  const ctc1 = analyzeDecodedInstructionSemantics(decodeInstruction(encode(0x06, 4, 3), 0x80001014));
+  assert.deepEqual(ctc1.reads, ['a0']);
+  assert.deepEqual(ctc1.writes, ['fcr3']);
 });

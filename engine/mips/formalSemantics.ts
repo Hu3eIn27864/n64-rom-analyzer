@@ -1,3 +1,5 @@
+import type { MipsInstruction } from '../model/instruction';
+
 export type MipsMemoryAccess = {
   kind: 'read' | 'write';
   address: string;
@@ -147,4 +149,70 @@ export function analyzeInstructionSemantics(
   }
 
   return { mnemonic: op, reads: [...new Set(reads)], writes: [...new Set(writes)], memory, control, description };
+}
+
+
+/**
+ * Extend mnemonic-level semantics with canonical decoder metadata for COP1.
+ * FPRs, FCRs and FCCs use distinct names so data-flow consumers do not
+ * accidentally conflate them with general-purpose registers.
+ */
+export function analyzeDecodedInstructionSemantics(
+  instruction: MipsInstruction,
+): MipsInstructionSemantics {
+  const base = analyzeInstructionSemantics(instruction.mnemonic, instruction.operands);
+  const reads = [...base.reads];
+  const writes = [...base.writes];
+  const addUnique = (items: string[], value: string) => {
+    if (!items.includes(value)) items.push(value);
+  };
+  const [first, second] = instruction.operands;
+  const gpr = (value?: string) => value?.replace(/^\$/, '');
+  const fpr = (value?: string) => value?.replace(/^\$/, '').toLowerCase();
+
+  switch (instruction.mnemonic) {
+    case 'MFC1':
+    case 'DMFC1':
+      if (second) addUnique(reads, fpr(second)!);
+      if (first) addUnique(writes, gpr(first)!);
+      break;
+    case 'MTC1':
+    case 'DMTC1':
+      if (first) addUnique(reads, gpr(first)!);
+      if (second) addUnique(writes, fpr(second)!);
+      break;
+    case 'CFC1':
+      if (second) addUnique(reads, second.toLowerCase());
+      if (first) addUnique(writes, gpr(first)!);
+      break;
+    case 'CTC1':
+      if (first) addUnique(reads, gpr(first)!);
+      if (second) addUnique(writes, second.toLowerCase());
+      break;
+    default: {
+      if (instruction.fpuComparePredicate !== undefined
+        && instruction.fpuSourceRegister !== undefined
+        && instruction.fpuTargetRegister !== undefined) {
+        addUnique(reads, `f${instruction.fpuSourceRegister}`);
+        addUnique(reads, `f${instruction.fpuTargetRegister}`);
+        addUnique(writes, `fcc${instruction.fpuCompareConditionCode ?? 0}`);
+        break;
+      }
+
+      const mnemonic = instruction.mnemonic;
+      const binary = /^(ADD|SUB|MUL|DIV)\.(S|D|W|L)$/.test(mnemonic);
+      const unary = /^(SQRT|ABS|MOV|NEG|ROUND\.W|TRUNC\.W|CEIL\.W|FLOOR\.W|CVT\.(S|D|W))\.(S|D|W|L)$/.test(mnemonic);
+      if ((binary || unary)
+        && instruction.fpuSourceRegister !== undefined
+        && instruction.fpuDestinationRegister !== undefined) {
+        addUnique(reads, `f${instruction.fpuSourceRegister}`);
+        if (binary && instruction.fpuTargetRegister !== undefined) {
+          addUnique(reads, `f${instruction.fpuTargetRegister}`);
+        }
+        addUnique(writes, `f${instruction.fpuDestinationRegister}`);
+      }
+    }
+  }
+
+  return { ...base, reads, writes };
 }
