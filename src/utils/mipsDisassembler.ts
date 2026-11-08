@@ -293,8 +293,11 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
   } else if (opcode === 0x01) {
     // REGIMM
     const branchTarget = pc + 4 + (signImm16 * 4);
-    isBranchOrJump = true;
-    targetAddress = branchTarget;
+    const isRegimmBranch = [0x00, 0x01, 0x02, 0x03, 0x10, 0x11, 0x12, 0x13].includes(rt);
+    if (isRegimmBranch) {
+      isBranchOrJump = true;
+      targetAddress = branchTarget;
+    }
     switch (rt) {
       case 0x00:
         opcodeName = 'BLTZ';
@@ -335,6 +338,36 @@ export function disassembleMipsWord(word: number, pc: number): MipsInstruction {
         opcodeName = 'BGEZALL';
         asm = `bgezall ${rsName}, ${formatHex32(branchTarget)}`;
         args = [rsName, formatHex32(branchTarget)];
+        break;
+      case 0x08:
+        opcodeName = 'TGEI';
+        asm = `tgei ${rsName}, ${signImm16}`;
+        args = [rsName, signImm16.toString()];
+        break;
+      case 0x09:
+        opcodeName = 'TGEIU';
+        asm = `tgeiu ${rsName}, ${signImm16}`;
+        args = [rsName, signImm16.toString()];
+        break;
+      case 0x0A:
+        opcodeName = 'TLTI';
+        asm = `tlti ${rsName}, ${signImm16}`;
+        args = [rsName, signImm16.toString()];
+        break;
+      case 0x0B:
+        opcodeName = 'TLTIU';
+        asm = `tltiu ${rsName}, ${signImm16}`;
+        args = [rsName, signImm16.toString()];
+        break;
+      case 0x0C:
+        opcodeName = 'TEQI';
+        asm = `teqi ${rsName}, ${signImm16}`;
+        args = [rsName, signImm16.toString()];
+        break;
+      case 0x0E:
+        opcodeName = 'TNEI';
+        asm = `tnei ${rsName}, ${signImm16}`;
+        args = [rsName, signImm16.toString()];
         break;
       default:
         opcodeName = 'REGIMM_UNK';
