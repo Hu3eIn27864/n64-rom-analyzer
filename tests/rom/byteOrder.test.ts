@@ -73,3 +73,35 @@ test('N64 ROM byte-order normalization', async (t) => {
     assert.deepEqual(parsed.rom, z64);
   });
 });
+
+
+test('parses every multibyte header field identically after all byte-order normalizations', () => {
+  const z64 = makeZ64Rom();
+  const view = new DataView(z64.buffer);
+  view.setUint32(0x04, 0x12345678, false);
+  view.setUint32(0x0c, 0x87654321, false);
+  view.setUint32(0x10, 0x11223344, false);
+  view.setUint32(0x14, 0x55667788, false);
+  z64.set([0x4e, 0x41, 0x42, 0x43, 0x45, 0x02], 0x3b);
+
+  const variants = [
+    { bytes: z64, endian: 'z64' as const },
+    { bytes: swapPairs(z64), endian: 'v64' as const },
+    { bytes: reverseWords(z64), endian: 'n64' as const },
+  ];
+
+  for (const variant of variants) {
+    const { header } = parseN64Rom(variant.bytes);
+    assert.equal(header.endian, variant.endian);
+    assert.equal(header.clockRate, 0x12345678);
+    assert.equal(header.entryPoint, 0x80001000);
+    assert.equal(header.release, 0x87654321);
+    assert.equal(header.crc1, 0x11223344);
+    assert.equal(header.crc2, 0x55667788);
+    assert.equal(header.gameCode, 'NABC');
+    assert.equal(header.manufacturer, 0x4e);
+    assert.equal(header.cartridgeId, 0x4142);
+    assert.equal(header.country, 0x43);
+    assert.equal(header.version, 0x45);
+  }
+});
