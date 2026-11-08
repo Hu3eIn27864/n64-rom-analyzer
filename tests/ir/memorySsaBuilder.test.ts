@@ -368,3 +368,39 @@ test('resolves GP-relative accesses only with an explicitly proven GP base', () 
   assert.equal(result.accesses[0].confidence, 'exact');
   assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1, 1, 1]);
 });
+
+
+test('tracks big-endian merge byte masks for absolute constant addresses', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80013000,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'mergeLoadWord', target: 'r2', address: absoluteAddress(0x80001001), direction: 'left' },
+        { kind: 'mergeLoadWord', target: 'r3', address: absoluteAddress(0x80001001), direction: 'right' },
+        { kind: 'mergeStoreWord', address: absoluteAddress(0x80001002), value: { kind: 'value', name: 'r4' }, direction: 'left' },
+        { kind: 'mergeStoreWord', address: absoluteAddress(0x80001002), value: { kind: 'value', name: 'r5' }, direction: 'right' },
+        { kind: 'mergeLoad', target: 'r6', address: absoluteAddress(0x80001005), direction: 'left' },
+        { kind: 'mergeLoad', target: 'r7', address: absoluteAddress(0x80001005), direction: 'right' },
+      ],
+    }],
+  };
+  assert.deepEqual(collectMemoryAccesses(ir).map(access => access.byteMask), [
+    [0, 1], [1, 2, 3], [0, 1, 2], [2, 3], [0, 1, 2, 3, 4, 5], [5, 6, 7],
+  ]);
+});
+
+test('absolute merge loads consume only the selected lanes after ordinary stores', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80013100,
+    blocks: [{
+      id: 0, predecessors: [], successors: [],
+      operations: [
+        { kind: 'store', address: absoluteAddress(0x80002000), value: { kind: 'const', value: 1 }, size: 4 },
+        { kind: 'mergeLoadWord', target: 'r2', address: absoluteAddress(0x80002002), direction: 'left' },
+      ],
+    }],
+  };
+  const result = buildMemorySSAFromFunctionIR(ir);
+  assert.deepEqual(result.accesses[1].reachingByteVersions, [1, 1, 1]);
+});
