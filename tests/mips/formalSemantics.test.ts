@@ -100,3 +100,15 @@ test('BLTZAL and BGEZAL expose their conditional link-register effect', () => {
     assert.equal(result.control, 'conditional-branch');
   }
 });
+
+
+test('relational branches read only their tested register, not the target operand', () => {
+  for (const mnemonic of ['BLEZ', 'BGTZ', 'BLTZ', 'BGEZ', 'BLTZAL', 'BGEZAL']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$t0', '0x80001000']);
+    assert.deepEqual(result.reads, ['t0'], mnemonic);
+  }
+  for (const mnemonic of ['BEQ', 'BNE']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$t0', '$t1', '0x80001000']);
+    assert.deepEqual(result.reads, ['t0', 't1'], mnemonic);
+  }
+});
