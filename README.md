@@ -18,7 +18,7 @@ According to the checked-in [implementation status](docs/implementation-status.m
 - [x] Typecheck, test/build and analysis-regression workflows.
 - [x] Real-ROM byte comparison.
 - [ ] Formal MIPS semantics integration.
-- [ ] Memory SSA/data-flow analysis.
+- [x] Bounded exact-location Memory SSA/data-flow analysis (stack/frame and absolute byte lanes, CFG/loop Phis, may-def provenance, and conservative modeled call clobbers); general pointer aliasing and unknown external effects beyond observed lanes remain incomplete.
 - [ ] Structured C AST generation.
 - [ ] Independent execution-backed differential verification.
 - [ ] Real compiler/toolchain rebuild.
