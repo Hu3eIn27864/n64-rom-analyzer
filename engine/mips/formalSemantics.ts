@@ -72,6 +72,9 @@ export function analyzeInstructionSemantics(
   } else if (/^(MOVZ|MOVN)$/.test(op)) {
     addRead(b); addRead(c); addWrite(a);
     description = op + ': conditionally copies the first source register to the destination when the second source is zero/nonzero.';
+  } else if (/^(TGEI|TGEIU|TLTI|TLTIU|TEQI|TNEI)$/.test(op)) {
+    addRead(a);
+    description = op + ': compares the source register with an immediate and may raise a trap when its predicate is satisfied.';
   } else if (/^(TGE|TGEU|TLT|TLTU|TEQ|TNE)$/.test(op)) {
     addRead(a); addRead(b);
     description = op + ': compares both source registers and may raise a trap when its predicate is satisfied.';
