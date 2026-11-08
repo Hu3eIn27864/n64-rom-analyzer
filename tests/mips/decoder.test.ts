@@ -58,6 +58,15 @@ test('VR4300 decoder corpus', () => {
   }
 });
 
+test('JALR with the zero destination is indirect rather than a call', () => {
+  const instruction = decodeInstruction(0x00800009, 0x80001000);
+  assert.equal(instruction.mnemonic, 'JALR');
+  assert.deepEqual(instruction.operands, ['$zero', '$a0']);
+  assert.equal(instruction.isJump, true);
+  assert.equal(instruction.isCall, false);
+  assert.equal(instruction.isReturn, false);
+});
+
 test('golden fixture arithmetic sequence decodes as expected', () => {
   const words = [
     0x27bdffe0, 0xafbf001c, 0x2404000a, 0x24050014,
