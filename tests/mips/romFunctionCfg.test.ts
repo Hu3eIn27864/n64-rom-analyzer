@@ -138,3 +138,18 @@ test('keeps the ordinary BC1F delay-slot instruction on both branch paths', () =
   assert.deepEqual(branch.instructions.map(instruction => instruction.mnemonic), ['BC1F', 'ADDIU']);
   assert.deepEqual(branch.successors, [0x80001014, 0x80001008]);
 });
+
+
+test('counts delay-slot instructions against the CFG instruction bound', () => {
+  const cases = [
+    [0x10850002, 0x00000000], // conditional branch + delay slot
+    [0x03e00008, 0x00000000], // return + delay slot
+    [0x08000405, 0x00000000], // direct jump + delay slot
+  ];
+  for (const values of cases) {
+    assert.throws(
+      () => decodeRomFunctionCfg(words(values), entry, { maxInstructions: 1 }),
+      /exceeded the CFG instruction bound/,
+    );
+  }
+});
