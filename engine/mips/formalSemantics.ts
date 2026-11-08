@@ -69,6 +69,12 @@ export function analyzeInstructionSemantics(
     addRead(a);
     writes.push(op === 'MTHI' ? 'hi' : 'lo');
     description = op + ' writes the source register to the corresponding HI/LO special register.';
+  } else if (/^(MOVZ|MOVN)$/.test(op)) {
+    addRead(b); addRead(c); addWrite(a);
+    description = op + ': conditionally copies the first source register to the destination when the second source is zero/nonzero.';
+  } else if (/^(TGE|TGEU|TLT|TLTU|TEQ|TNE)$/.test(op)) {
+    addRead(a); addRead(b);
+    description = op + ': compares both source registers and may raise a trap when its predicate is satisfied.';
   } else if (/^(ADDI|ADDIU|DADDI|DADDIU|ANDI|ORI|XORI|SLTI|SLTIU)$/.test(op)) {
     addRead(b); addWrite(a);
     description = op + ': immediate operation reads the source register and writes the destination register.';
