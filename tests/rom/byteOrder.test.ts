@@ -82,7 +82,7 @@ test('parses every multibyte header field identically after all byte-order norma
   view.setUint32(0x0c, 0x87654321, false);
   view.setUint32(0x10, 0x11223344, false);
   view.setUint32(0x14, 0x55667788, false);
-  z64.set([0x4e, 0x41, 0x42, 0x43, 0x45, 0x02], 0x3b);
+  z64.set([0x4e, 0x41, 0x42, 0x43, 0x45], 0x3b);
 
   const variants = [
     { bytes: z64, endian: 'z64' as const },
