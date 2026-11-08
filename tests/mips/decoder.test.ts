@@ -194,3 +194,20 @@ test('decodes CACHE operands and privileged VR4300 encodings without losing raw 
   const eret = decodeInstruction(((0x10 << 26) | (0x10 << 21) | 0x18) >>> 0, 0x80005014);
   assert.deepEqual([tlbp.mnemonic, eret.mnemonic], ['TLBP', 'ERET']);
 });
+
+
+test('decodes REGIMM immediate trap operations as non-control instructions', () => {
+  const cases = [
+    [0x08, 'TGEI'], [0x09, 'TGEIU'], [0x0a, 'TLTI'],
+    [0x0b, 'TLTIU'], [0x0c, 'TEQI'], [0x0e, 'TNEI'],
+  ] as const;
+  for (const [rt, mnemonic] of cases) {
+    const raw = ((0x01 << 26) | (8 << 21) | (rt << 16) | 0xfffe) >>> 0;
+    const instruction = decodeInstruction(raw, 0x80001000);
+    assert.equal(instruction.mnemonic, mnemonic);
+    assert.deepEqual(instruction.operands, ['$t0', '-2']);
+    assert.equal(instruction.isConditionalBranch, false);
+    assert.equal(instruction.isJump, false);
+    assert.equal(instruction.targetAddress, undefined);
+  }
+});
