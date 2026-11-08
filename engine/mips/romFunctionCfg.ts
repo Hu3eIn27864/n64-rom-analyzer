@@ -63,6 +63,15 @@ export function decodeRomFunctionCfgFromReader(
   const blocks = new Map<number, RomFunctionBasicBlock>();
   let instructionCount = 0;
 
+  const decodeDelaySlot = (address: number): MipsInstruction => {
+    if (instructionCount >= maxInstructions) {
+      throw new Error('function at 0x' + entry.address.toString(16) + ' exceeded the CFG instruction bound');
+    }
+    const instruction = decodeAt(address);
+    instructionCount += 1;
+    return instruction;
+  };
+
   const decodeAt = (address: number): MipsInstruction => {
     const normalizedAddress = address >>> 0;
     if (normalizedAddress % 4 !== 0) {
@@ -93,12 +102,11 @@ export function decodeRomFunctionCfgFromReader(
       const after = nextAddress(address);
 
       if (instruction.isReturn) {
-        const delay = decodeAt(after);
+        const delay = decodeDelaySlot(after);
         if (isControlTransfer(delay)) {
           throw new Error('control transfer in delay slot at 0x' + after.toString(16) + ' is unsupported');
         }
         instructions.push(delay);
-        instructionCount += 1;
         successors = [];
         break;
       }
@@ -111,7 +119,6 @@ export function decodeRomFunctionCfgFromReader(
         if (isControlTransfer(delay)) {
           throw new Error('control transfer in delay slot at 0x' + after.toString(16) + ' is unsupported');
         }
-        instructionCount += 1;
         const fallthrough = nextAddress(after);
         const target = instruction.targetAddress >>> 0;
 
@@ -137,7 +144,6 @@ export function decodeRomFunctionCfgFromReader(
           throw new Error('control transfer in delay slot at 0x' + after.toString(16) + ' is unsupported');
         }
         instructions.push(delay);
-        instructionCount += 1;
         if (instruction.isCall) {
           const fallthrough = nextAddress(after);
           successors = [fallthrough];
