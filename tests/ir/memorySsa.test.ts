@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { summarizeMemoryLoadProvenance } from '../../engine/ir/memorySsa';
 import { strict as assert } from 'node:assert';
 import { buildMemorySSA, buildMemorySSAForCFG } from '../../engine/ir/memorySsa';
 
@@ -302,4 +303,65 @@ test('does not merge SP and FP byte lanes', () => {
     { id: 1, predecessors: [0] },
   ]);
   assert.deepEqual(result.accesses[1].reachingByteVersions, [0, 0, 0, 0]);
+});
+
+
+test('summarizes fully defined byte provenance without losing mixed lane versions', () => {
+  const access = {
+    id: 7, kind: 'use' as const, address: '0x20($sp)', size: 4 as const, blockId: 0,
+    confidence: 'exact' as const, reachingByteVersions: [1, 1, 2, 1],
+  };
+  assert.deepEqual(summarizeMemoryLoadProvenance(access), {
+    accessId: 7,
+    lanes: [
+      { byteIndex: 0, reachingVersion: 1, possibleVersions: [] },
+      { byteIndex: 1, reachingVersion: 1, possibleVersions: [] },
+      { byteIndex: 2, reachingVersion: 2, possibleVersions: [] },
+      { byteIndex: 3, reachingVersion: 1, possibleVersions: [] },
+    ],
+    hasLiveOnEntryBytes: false,
+    hasConditionalWrites: false,
+    hasMixedReachingVersions: true,
+    fullyDefined: true,
+  });
+});
+
+test('keeps conditional may-def tokens separate from definite byte provenance', () => {
+  const access = {
+    id: 8, kind: 'use' as const, address: '0x30($sp)', size: 4 as const, blockId: 0,
+    confidence: 'exact' as const, reachingByteVersions: [1, 1, 1, 1],
+    possibleByteVersions: [[2], [], [4, 3], []],
+  };
+  const summary = summarizeMemoryLoadProvenance(access);
+  assert.ok(summary);
+  assert.equal(summary.fullyDefined, false);
+  assert.equal(summary.hasConditionalWrites, true);
+  assert.equal(summary.uniformReachingVersion, 1);
+  assert.deepEqual(summary.lanes[2].possibleVersions, [3, 4]);
+});
+
+test('reports live-on-entry lanes as incomplete rather than initialized values', () => {
+  const access = {
+    id: 9, kind: 'use' as const, address: '0x40($sp)', size: 2 as const, blockId: 0,
+    confidence: 'exact' as const, reachingByteVersions: [0, 1],
+  };
+  const summary = summarizeMemoryLoadProvenance(access);
+  assert.ok(summary);
+  assert.equal(summary.hasLiveOnEntryBytes, true);
+  assert.equal(summary.fullyDefined, false);
+});
+
+test('rejects incomplete or malformed byte provenance summaries conservatively', () => {
+  const base = {
+    id: 10, kind: 'use' as const, address: '0x50($sp)', size: 4 as const, blockId: 0,
+    confidence: 'exact' as const,
+  };
+  assert.equal(summarizeMemoryLoadProvenance({ ...base, reachingByteVersions: [1, 2] }), undefined);
+  assert.equal(summarizeMemoryLoadProvenance({ ...base, reachingByteVersions: [1, 2, -1, 4] }), undefined);
+  assert.equal(summarizeMemoryLoadProvenance({
+    ...base, reachingByteVersions: [1, 2, 3, 4], possibleByteVersions: [[], []],
+  }), undefined);
+  assert.equal(summarizeMemoryLoadProvenance({
+    ...base, reachingByteVersions: [1, 2, 3, 4], possibleByteVersions: [[], [], [], [0]],
+  }), undefined);
 });
