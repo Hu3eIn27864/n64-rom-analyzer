@@ -74,7 +74,7 @@ export function createMipsInstruction(input: {
     fpuDestinationRegister: input.fpuDestinationRegister,
     fpuComparePredicate: input.fpuComparePredicate,
     isJump,
-    isCall: mnemonic === 'JAL' || mnemonic === 'JALR',
+    isCall: mnemonic === 'JAL' || (mnemonic === 'JALR' && operands[0] !== '$zero'),
     isReturn: mnemonic === 'JR' && operands[0] === '$ra',
   };
 }
