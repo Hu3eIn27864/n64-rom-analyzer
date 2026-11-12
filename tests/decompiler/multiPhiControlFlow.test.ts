@@ -9,7 +9,7 @@ const add = (left: string, right: number) => ({ kind: 'binary', op: '+', left: v
 const assign = (target: string, value: number | ReturnType<typeof add>): MicroCOperation => ({ kind: 'assign', target, value: typeof value === 'number' ? c(value) : value });
 const load = (target: string, address: number, size: 1 | 2 | 4 | 8 = 4): MicroCOperation => ({ kind: 'load', target, address: c(address), size });
 const loadExpr = (target: string, address: MicroCExpr, size: 1 | 2 | 4 | 8 = 4): MicroCOperation => ({ kind: 'load', target, address, size });
-const store = (address: MicroCExpr, value: MicroCExpr, size: 4 | 8 = 4): MicroCOperation => ({ kind: 'store', address, value, size });
+const store = (address: MicroCExpr, value: MicroCExpr, size: 1 | 2 | 4 | 8 = 4): MicroCOperation => ({ kind: 'store', address, value, size });
 const call = (result: string, target: number, args: string[] = []): MicroCOperation => ({ kind: 'call', target: c(target), args: args.map(v), result });
 const phi = (target: string, initial: number, backedge: number): MicroCOperation => ({ kind: 'phi', target, inputs: { 0: c(initial), 6: c(backedge) } });
 const branch = (condition: string, trueTarget: number, falseTarget: number): MicroCOperation => ({ kind: 'branch', condition: v(condition), trueTarget, falseTarget });
@@ -194,4 +194,39 @@ test('accepts a containing store for a narrower load', () => {
 test('accepts multiple disjoint stores before a constant load', () => {
   const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([store(c(0x1000), c(7), 4), store(c(0x2000), c(8), 4), load('i', 0x3000, 4), assign('sum', 10)]));
   assert.ok(fn.body.some(stmt => stmt.kind === 'while'));
+});
+
+
+test('rejects a narrow symbolic store as proof for a wider dynamic load', () => {
+  assert.throws(
+    () => decompileMultiPhiBranchInLoopFunctionIR(makeIR([
+      assign('addr', 0x1000),
+      store(v('addr'), c(7), 1),
+      loadExpr('i', v('addr'), 4),
+      assign('sum', 10),
+    ])),
+    /cannot prove memory coherence for dynamic load in block 3 while defining i/,
+  );
+});
+
+test('rejects a symbolic word store as proof for a doubleword load', () => {
+  assert.throws(
+    () => decompileMultiPhiBranchInLoopFunctionIR(makeIR([
+      assign('addr', 0x1000),
+      store(v('addr'), c(7), 4),
+      loadExpr('i', v('addr'), 8),
+      assign('sum', 10),
+    ])),
+    /cannot prove memory coherence for dynamic load in block 3 while defining i/,
+  );
+});
+
+test('accepts a containing symbolic store for a narrower dynamic load', () => {
+  const fn = decompileMultiPhiBranchInLoopFunctionIR(makeIR([
+    assign('addr', 0x1000),
+    store(v('addr'), c(7), 8),
+    loadExpr('i', v('addr'), 4),
+    assign('sum', 10),
+  ]));
+  assert.ok(fn.body.some(statement => statement.kind === 'while'));
 });

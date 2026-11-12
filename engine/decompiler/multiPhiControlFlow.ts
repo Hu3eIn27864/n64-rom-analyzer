@@ -77,7 +77,7 @@ function coherentWithKnownStores(load: MemoryRange, stores: MemoryRange[]): bool
 function validateDefinitionProvenance(blockId: number, operations: MicroCOperation[], phiTargets: Set<string>): Set<string> {
   const available = new Set(phiTargets);
   const stores: MemoryRange[] = [];
-  const symbolicStores = new Set<string>();
+  const symbolicStores = new Map<string, number>();
   let unknownStore = false;
   for (const o of operations) {
     const target = definitionTarget(o);
@@ -102,8 +102,11 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
       const address = constantAddress(o.address);
       if (address === undefined) {
         const key = symbolicAddress(o.address);
-        const sameSymbolicStores = key !== undefined && symbolicStores.size > 0 && [...symbolicStores].every(storeKey => storeKey === key);
-        if (unknownStore || stores.length > 0 || (symbolicStores.size > 0 && !sameSymbolicStores)) {
+        const sameSymbolicStores = key !== undefined && symbolicStores.size > 0
+          && [...symbolicStores.keys()].every(storeKey => storeKey === key);
+        const symbolicCoverage = sameSymbolicStores
+          && [...symbolicStores.values()].every(storeSize => storeSize >= o.size);
+        if (unknownStore || stores.length > 0 || (symbolicStores.size > 0 && !symbolicCoverage)) {
           throw new Error(`multi-phi lowering cannot prove memory coherence for dynamic load in block ${blockId}${target ? ` while defining ${target}` : ''}`);
         }
       } else {
@@ -117,7 +120,7 @@ function validateDefinitionProvenance(blockId: number, operations: MicroCOperati
       if (address !== undefined) stores.push({ address, size: o.size });
       else {
         const key = symbolicAddress(o.address);
-        if (key !== undefined) symbolicStores.add(key);
+        if (key !== undefined) symbolicStores.set(key, Math.max(symbolicStores.get(key) ?? 0, o.size));
         else unknownStore = true;
       }
     }
