@@ -65,16 +65,20 @@ test('rejects a control transfer in a delay slot', () => {
 
 test('follows a direct jump but does not inline a call target', () => {
   const rom = words([
-    0x0c000405, // jal 0x80001014 (treated as call)
+    0x0c000406, // jal 0x80001018 (treated as a call)
     0x00000000,
-    0x08000405, // j 0x80001014
+    0x08000404, // j 0x80001010 (intra-function direct jump)
     0x00000000,
-    0x03e00008,
+    0x03e00008, // direct-jump target: jr ra
+    0x00000000,
+    0x03e00008, // call target: must not be inlined
     0x00000000,
   ]);
   const cfg = decodeRomFunctionCfg(rom, entry);
   assert.ok(cfg.blocks.some(b => b.startAddress === 0x80001008));
-  assert.ok(cfg.blocks.every(b => b.startAddress !== 0x80001014));
+  assert.ok(cfg.blocks.some(b => b.startAddress === 0x80001010));
+  assert.ok(cfg.blocks.every(b => b.startAddress !== 0x80001018));
+  assert.deepEqual(cfg.blocks.find(b => b.startAddress === 0x80001008)?.successors, [0x80001010]);
 });
 
 test('rejects an unresolved conditional branch target', () => {
