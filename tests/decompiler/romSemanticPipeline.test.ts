@@ -54,3 +54,37 @@ test('accepts ROM functions whose branch-and-link comparison uses full 64-bit GP
     reason.includes('64-bit GPR comparison semantics are not yet modeled'),
   ));
 });
+
+
+test('emits structured C from a semantically validated synthetic ROM return function', () => {
+  const rom = new Uint8Array([
+    ...bigEndianWord(0x03e00008),
+    ...bigEndianWord(0x00000000),
+  ]);
+  const result = validateDecodedRomFunction(decodeRomFunctionCfg(rom, entry));
+
+  assert.equal(result.validation.confidence, 'proven');
+  assert.equal(result.decompilation.status, 'generated');
+  if (result.decompilation.status !== 'generated') return;
+  assert.equal(result.decompilation.source, [
+    'void func_80001000(void)',
+    '{',
+    '    return;',
+    '}',
+  ].join('\\n'));
+});
+
+test('does not generate C when semantic validation rejects a function', () => {
+  const rom = new Uint8Array([
+    ...bigEndianWord(0x03e00008),
+    ...bigEndianWord(0x00000000),
+  ]);
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  cfg.blocks[0].instructions[0] = {
+    ...cfg.blocks[0].instructions[0],
+    mnemonic: 'MFC0',
+  };
+  const result = validateDecodedRomFunction(cfg);
+  assert.equal(result.validation.confidence, 'rejected');
+  assert.equal(result.decompilation.status, 'blocked');
+});
