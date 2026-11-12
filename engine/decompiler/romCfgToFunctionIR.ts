@@ -59,8 +59,22 @@ export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunct
   });
 
   const lifted = liftBasicBlocks(cfg.entry.address >>> 0, blocks);
+  const unresolvedIndirectDiagnostics = [
+    ...cfg.unresolvedIndirectJumps.map(address => ({ address, mnemonic: 'JR' })),
+    ...cfg.unresolvedIndirectCalls.map(address => ({ address, mnemonic: 'JALR' })),
+  ].map(({ address, mnemonic }) => ({
+    address,
+    mnemonic,
+    reason: mnemonic === 'JR'
+      ? 'indirect jump target is unresolved; function control flow cannot be proven complete'
+      : 'indirect call target is unresolved; callee memory effects and call contract are unknown',
+  }));
   const functionIR: FunctionIR = {
     ...lifted,
+    unsupportedInstructions: [
+      ...(lifted.unsupportedInstructions ?? []),
+      ...unresolvedIndirectDiagnostics,
+    ],
     blocks: lifted.blocks.map((block, id) => {
       const operations = block.operations.filter(operation => operation.kind !== 'branch' && operation.kind !== 'jump');
       const branch = block.operations.find((operation): operation is Extract<typeof operation, { kind: 'branch' }> => operation.kind === 'branch');
