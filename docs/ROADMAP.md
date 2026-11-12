@@ -14,7 +14,8 @@ This roadmap reflects the current implementation checklist and verification mode
 - [x] Paired, equal-length, non-overlapping ROM/VRAM segment validation and integer-only address translation.
 - [x] Canonical VR4300 decoder API and expanded decode corpus.
 - [x] Synthetic coverage for z64/v64/n64 normalization, malformed byte-order signatures, incomplete headers and byte-offset views.
-- [ ] Formal instruction semantics integration. A partial descriptive metadata layer exists; complete instruction semantics and runtime integration remain open.
+- [x] Decoder-aware descriptive register semantics for integer and COP1 instructions, including FPR/FCR/FCC data-flow metadata.
+- [ ] Complete semantic integration into canonical Micro-C lifting; descriptive annotations must not be mistaken for executable semantics.
 - [ ] Broader malformed-ROM and endian corpus, including segment and address-map edge cases.
 **Estimate for hardening:** 3–6 weeks.
 
@@ -42,7 +43,7 @@ This roadmap reflects the current implementation checklist and verification mode
 - [x] Closed-world direct-call memory-effect summaries integrated into mapped ROM program analysis, with conservative per-function CFG-aware call-clobber validation.
 - [ ] Base-aware stack/frame call-effect ranges, pointer aliasing, globals and full interprocedural Memory SSA integration.
 - [ ] External/device write invalidation and complete atomic memory semantics, including full LL/SC reservation-observer behavior.
-- [ ] Formal MIPS semantics integration.
+- [ ] Close the gap between descriptive MIPS semantics and canonical Micro-C lifting, with explicit unsupported diagnostics for every unmodeled architectural effect.
 **Estimate:** 3–6 months.
 
 ## M4 — Structured source generation (not complete)
@@ -60,6 +61,15 @@ This roadmap reflects the current implementation checklist and verification mode
 - [ ] Separate behavioral and binary verification reports.
 - [ ] Regression corpus with documented ROM provenance and legal test status.
 **Estimate:** 3–9 months initially; ongoing thereafter.
+
+## Immediate integration milestones
+
+1. Route decoder-enriched instruction metadata through all semantic annotation consumers (including COP1 FPR/FCC effects).
+2. Make differential execution compare independent initial machine-state snapshots so reference-side mutation cannot contaminate candidate execution.
+3. Select a small synthetic ROM function and carry it through decode, function CFG, Micro-C, structured C, and validation; record each stage's evidence level.
+4. Compile the generated C fixture with a real C toolchain before expanding the supported control-flow subset.
+
+These milestones prioritize a verified vertical slice over broad but disconnected feature additions.
 
 ## Near-term schedule
 
