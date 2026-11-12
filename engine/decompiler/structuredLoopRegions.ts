@@ -29,18 +29,12 @@ function validateRegion(ir: FunctionIR, region: LoopRegion): void {
   }
 }
 
-function compactLoopShape(ir: FunctionIR, region: LoopRegion): boolean {
-  if (ir.blocks.length !== 4 || region.nodeIds.length !== 2 || region.exitIds.length !== 1) return false;
-  const entries = ir.blocks.filter(block => block.predecessors.length === 0);
-  if (entries.length !== 1) return false;
-  const preheader = entries[0];
-  const header = ir.blocks.find(block => block.id === region.headerId);
-  return Boolean(
-    preheader.successors.length === 1
-    && preheader.successors[0] === region.headerId
-    && header?.predecessors.includes(preheader.id)
-    && region.backEdgeTailIds.every(id => header?.predecessors.includes(id)),
-  );
+function compactLoopShape(_ir: FunctionIR, _region: LoopRegion): boolean {
+  // The current renderer expects the loop header itself to be the CFG entry.
+  // It cannot yet preserve an explicit preheader in a reciprocal CFG, so
+  // these regions remain proven-but-not-lowerable rather than accepting
+  // malformed predecessor metadata as a shortcut.
+  return false;
 }
 
 /**
