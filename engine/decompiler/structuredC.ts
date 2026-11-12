@@ -751,6 +751,9 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
 
   const bodyBlock = trueLoops || trueHasLoopControl ? trueBlock : falseBlock;
   const exitBlock = bodyBlock.id === trueBlock.id ? falseBlock : trueBlock;
+  if (phiOperations(bodyBlock).length > 0 || phiOperations(exitBlock).length > 0) {
+    throw new Error('structured loop-phi lowering only supports Phi nodes in the loop header');
+  }
   if (exitBlock.successors.length !== 0 && !(exitBlock.successors.length === 1 && exitBlock.successors[0] === header.id)) throw new Error('structured loop-phi lowering requires a terminal loop exit');
   if (bodyBlock.predecessors.length !== 1 || bodyBlock.predecessors[0] !== header.id) throw new Error('structured loop-phi lowering requires the body to have only the header predecessor');
   if (!exitBlock.predecessors.includes(header.id)) throw new Error('structured loop-phi lowering requires the exit to be reachable from the header');
@@ -815,7 +818,7 @@ function isLoopWithPreheader(ir: FunctionIR): boolean {
   const header = ir.blocks.find(block => block.id === entry.successors[0]);
   if (!header || header.predecessors.length !== 2 || !header.predecessors.includes(entry.id)) return false;
   const branch = header.operations.at(-1);
-  if (!branch || branch.kind !== 'branch' || branch.falseTarget === undefined || phiOperations(header).length > 0) return false;
+  if (!branch || branch.kind !== 'branch' || branch.falseTarget === undefined || ir.blocks.some(block => phiOperations(block).length > 0)) return false;
   const trueBlock = ir.blocks.find(block => block.id === branch.trueTarget);
   const falseBlock = ir.blocks.find(block => block.id === branch.falseTarget);
   if (!trueBlock || !falseBlock || trueBlock.id === falseBlock.id) return false;
