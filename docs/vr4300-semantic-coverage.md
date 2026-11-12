@@ -10,6 +10,13 @@ This ledger distinguishes decoding from semantic lifting. A mnemonic appearing i
 - Decoder metadata: CP0 transfer operands preserve both the register number and the three-bit select field (`c0_regN_selM`; select zero retains `c0_regN`). CACHE operands and effective addresses are also preserved explicitly. These decoding guarantees do not imply that the corresponding stateful semantics are supported.
 - COP1: the currently supported transfers, arithmetic, comparisons, conversions, FCSR behavior, and runtime exceptions are represented in Micro-C.
 
+## Control-flow and structural coverage
+
+- Direct intra-function `J` targets are followed into recovered CFG blocks; `JAL`/linking calls retain a separate callee boundary.
+- Unresolved `JR`/`JALR` targets remain explicit diagnostics. `JALR $zero, rs` is classified as an indirect jump, not a call.
+- Ordinary and branch-likely delay slots are represented distinctly and counted against CFG instruction bounds.
+- These are structural guarantees, not a complete execution model for indirect targets, jump tables, exceptions or privileged transfers.
+
 ## Explicitly incomplete families
 
 | Family | Current policy | Work required |
