@@ -44,12 +44,22 @@ export function compareMachineStates(expected: MachineState, actual: MachineStat
   return { status: differences.length === 0 ? 'pass' : 'fail', differences };
 }
 
+function cloneMachineState(state: MachineState): MachineState {
+  return {
+    registers: [...state.registers],
+    memory: new Uint8Array(state.memory),
+    ...(state.pc === undefined ? {} : { pc: state.pc }),
+  };
+}
+
 export function runDifferentialTest(
   initial: MachineState,
   reference: StateExecutor,
   candidate: StateExecutor,
 ): DifferentialResult {
-  const expected = reference(initial);
-  const actual = candidate(initial);
+  // Executors must see independent snapshots so reference-side mutation cannot
+  // contaminate candidate execution or change the caller's initial state.
+  const expected = reference(cloneMachineState(initial));
+  const actual = candidate(cloneMachineState(initial));
   return compareMachineStates(expected, actual);
 }

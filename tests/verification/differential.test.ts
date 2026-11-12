@@ -28,3 +28,25 @@ test('reports memory differences', () => {
   assert.equal(result.differences[0].kind, 'memory');
   assert.equal(result.differences[0].location, '0x1');
 });
+
+
+test('runs reference and candidate against independent copies of the initial state', () => {
+  const initial = state(10);
+  const result = runDifferentialTest(
+    initial,
+    s => {
+      s.registers[1] = 20;
+      s.memory[0] = 20;
+      return s;
+    },
+    s => s,
+  );
+
+  assert.equal(result.status, 'fail');
+  assert.deepEqual(result.differences.map(difference => [difference.kind, difference.location]), [
+    ['register', 'r1'],
+    ['memory', '0x0'],
+  ]);
+  assert.equal(initial.registers[1], 10);
+  assert.equal(initial.memory[0], 10);
+});
