@@ -81,6 +81,8 @@ export function renderFunction(fn: CFunction): string {
 
 export function renderProgram(program: CProgram): string {
   const preamble = [...new Set(program.functions.flatMap(fn => fn.preamble ?? []))];
+  const hasStdint = preamble.some(source => /^\\s*#include\\s*[<"]stdint\\.h[>"]/m.test(source));
+  if (program.functions.length > 0 && !hasStdint) preamble.unshift('#include <stdint.h>');
   const functions = program.functions.map(fn => renderFunction({ ...fn, preamble: undefined }));
   const prefix = preamble.length ? preamble.join('\n\n') + '\n\n' : '';
   return prefix + functions.join('\n\n') + (functions.length ? '\n' : '');
