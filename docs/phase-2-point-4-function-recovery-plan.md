@@ -1,6 +1,6 @@
 # Phase 2.4 — Function Recovery Stabilization
 
-Status: **IMPLEMENTED — NOT YET INTEGRATED**
+Status: **IMPLEMENTED — INTEGRATED INTO THE CANONICAL STRUCTURAL AND MAPPED-PROGRAM ANALYSIS PATHS; LEGACY API CUTOVER REMAINS OPEN**
 
 ## Objective
 
@@ -20,7 +20,7 @@ Control-transfer delay slots are retained in recovered function ranges. A JR $ra
 
 No mutable result map is stored on the function or shared between invocations. The InstructionWordReader and ReachabilityOptions are passed unchanged to discoverReachableCode().
 
-Function confidence remains inference metadata. A JR $ra return is structural evidence; it is not behavioral or binary verification.
+Function confidence remains inference metadata. A JR $ra return is structural evidence; it is not behavioral or binary verification. Direct intra-function jumps are followed as CFG edges; direct calls remain separate callees, and unresolved indirect control transfers remain explicit diagnostics.
 
 ## Verification evidence
 
@@ -47,7 +47,8 @@ The full repository CI and Analysis Regression gates execute the analysis tests.
 - [x] Confidence remains non-authoritative inference.
 - [x] Tests cover the above cases.
 - [x] Function Recovery is classified IMPLEMENTED after CI execution.
-- [ ] Function Recovery is not INTEGRATED until the canonical production pipeline consumes it.
+- [x] Function Recovery is consumed by `analyzeCanonicalStructure()` and `analyzeMappedRomProgram()` for explicit mapped entry points.
+- [ ] Full production API cutover and automatic ROM segment/function-entry discovery remain open.
 
 ## Non-goals
 
