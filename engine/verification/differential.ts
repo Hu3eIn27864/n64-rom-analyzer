@@ -44,7 +44,7 @@ export function compareMachineStates(expected: MachineState, actual: MachineStat
   return { status: differences.length === 0 ? 'pass' : 'fail', differences };
 }
 
-export function runDifferentialTest(
+function cloneMachineState(state: MachineState): MachineState {\n  return {\n    registers: [...state.registers],\n    memory: new Uint8Array(state.memory),\n    ...(state.pc === undefined ? {} : { pc: state.pc }),\n  };\n}\n\nexport function runDifferentialTest(
   initial: MachineState,
   reference: StateExecutor,
   candidate: StateExecutor,
