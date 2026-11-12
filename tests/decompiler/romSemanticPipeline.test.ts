@@ -180,7 +180,59 @@ test('compiles conditional ROM C with inferred live-in register parameters', (t)
     const sourcePath = join(directory, 'conditional-function.c');
     writeFileSync(sourcePath, result.decompilation.source, 'utf8');
     const compiled = spawnSync('cc', [
-      '-std=c11', '-Wall', '-Wextra', '-Werror', '-fsyntax-only', sourcePath,
+      '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-error=unknown-pragmas', '-fsyntax-only', sourcePath,
+    ], { encoding: 'utf8' });
+    assert.equal(compiled.status, 0, compiled.stderr || compiled.stdout);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+
+test('compiles a preheader natural loop recovered from a synthetic ROM', (t) => {
+  const rom = new Uint8Array([
+    ...bigEndianWord(0x08000402), // J 0x80001008: explicit loop preheader
+    ...bigEndianWord(0x00000000), // jump delay slot
+    ...bigEndianWord(0x10800004), // BEQ $a0, $zero, 0x8000101c: loop exit
+    ...bigEndianWord(0x00000000), // branch delay slot
+    ...bigEndianWord(0x2484ffff), // ADDIU $a0, $a0, -1
+    ...bigEndianWord(0x08000402), // J 0x80001008: loop backedge
+    ...bigEndianWord(0x00000000), // jump delay slot
+    ...bigEndianWord(0x03e00008), // JR $ra
+    ...bigEndianWord(0x00000000), // return delay slot
+  ]);
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  assert.deepEqual(cfg.blocks.map(block => block.startAddress), [
+    0x80001000, 0x80001008, 0x80001010, 0x8000101c,
+  ]);
+  assert.deepEqual(cfg.blocks.map(block => block.successors), [
+    [0x80001008], [0x8000101c, 0x80001010], [0x80001008], [],
+  ]);
+  assert.equal(cfg.instructionCount, 9);
+  const result = validateDecodedRomFunction(cfg);
+
+  assert.equal(result.blockCount, 4);
+  assert.equal(result.instructionCount, 9);
+  assert.equal(result.validation.cfg, 'pass');
+  assert.equal(result.decompilation.status, 'generated');
+  if (result.decompilation.status !== 'generated') return;
+  assert.match(result.decompilation.source, /while \(1\)/);
+  assert.match(result.decompilation.source, /continue;/);
+  assert.match(result.decompilation.source, /break;/);
+  assert.match(result.decompilation.source, /uint64_t ra0/);
+
+  const compilerProbe = spawnSync('cc', ['--version'], { encoding: 'utf8' });
+  if (compilerProbe.error?.code === 'ENOENT') {
+    t.skip('C compiler cc is not installed in this environment');
+    return;
+  }
+  assert.equal(compilerProbe.status, 0, compilerProbe.stderr);
+  const directory = mkdtempSync(join(tmpdir(), 'n64-rom-analyzer-preheader-loop-'));
+  try {
+    const sourcePath = join(directory, 'preheader-loop.c');
+    writeFileSync(sourcePath, result.decompilation.source, 'utf8');
+    const compiled = spawnSync('cc', [
+      '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-error=unknown-pragmas', '-fsyntax-only', sourcePath,
     ], { encoding: 'utf8' });
     assert.equal(compiled.status, 0, compiled.stderr || compiled.stdout);
   } finally {
