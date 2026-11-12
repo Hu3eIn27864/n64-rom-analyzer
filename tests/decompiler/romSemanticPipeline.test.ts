@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { decodeRomFunctionCfg } from '../../engine/mips/romFunctionCfg';
 import { validateDecodedRomFunction } from '../../engine/decompiler/romSemanticPipeline';
 import type { RomFunctionEntry } from '../../engine/decompiler/romFunctionEntry';
@@ -87,4 +91,39 @@ test('does not generate C when semantic validation rejects a function', () => {
   const result = validateDecodedRomFunction(cfg);
   assert.equal(result.validation.confidence, 'rejected');
   assert.equal(result.decompilation.status, 'blocked');
+});
+
+
+test('compiles generated C from a validated synthetic ROM when a C compiler is available', (t) => {
+  const rom = new Uint8Array([
+    ...bigEndianWord(0x03e00008),
+    ...bigEndianWord(0x00000000),
+  ]);
+  const result = validateDecodedRomFunction(decodeRomFunctionCfg(rom, entry));
+  assert.equal(result.decompilation.status, 'generated');
+  if (result.decompilation.status !== 'generated') return;
+
+  const compilerProbe = spawnSync('cc', ['--version'], { encoding: 'utf8' });
+  if (compilerProbe.error?.code === 'ENOENT') {
+    t.skip('C compiler cc is not installed in this environment');
+    return;
+  }
+  assert.equal(compilerProbe.status, 0, compilerProbe.stderr);
+
+  const directory = mkdtempSync(join(tmpdir(), 'n64-rom-analyzer-c-'));
+  try {
+    const sourcePath = join(directory, 'synthetic-function.c');
+    writeFileSync(sourcePath, result.decompilation.source, 'utf8');
+    const compiled = spawnSync('cc', [
+      '-std=c11',
+      '-Wall',
+      '-Wextra',
+      '-Werror',
+      '-fsyntax-only',
+      sourcePath,
+    ], { encoding: 'utf8' });
+    assert.equal(compiled.status, 0, compiled.stderr || compiled.stdout);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
