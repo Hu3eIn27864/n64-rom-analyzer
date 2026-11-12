@@ -365,3 +365,28 @@ test('rejects incomplete or malformed byte provenance summaries conservatively',
     ...base, reachingByteVersions: [1, 2, 3, 4], possibleByteVersions: [[], [], [], [0]],
   }), undefined);
 });
+
+
+test('rejects negative, fractional and unsafe memory CFG block identifiers', () => {
+  for (const id of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(
+      () => buildMemorySSAForCFG([], [{ id, predecessors: [] }]),
+      /memory CFG block id must be a non-negative safe integer/,
+    );
+  }
+});
+
+test('rejects malformed predecessor and access block identifiers', () => {
+  assert.throws(
+    () => buildMemorySSAForCFG([], [
+      { id: 0, predecessors: [-1] },
+    ]),
+    /memory CFG predecessor id must be a non-negative safe integer/,
+  );
+  assert.throws(
+    () => buildMemorySSAForCFG([
+      { kind: 'use', address: '0x10($sp)', size: 4, blockId: 1.5 },
+    ], [{ id: 0, predecessors: [] }]),
+    /memory access block id must be a non-negative safe integer/,
+  );
+});
