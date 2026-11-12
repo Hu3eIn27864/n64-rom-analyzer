@@ -343,7 +343,7 @@ test('lowers a return-address-only function to a valid void C signature', () => 
   };
   const fn = decompileStructuredFunctionIR(returnOnlyIr);
   assert.equal(fn.returnType, 'void');
-  assert.equal(renderFunction(fn).split(String.fromCharCode(10)), [
+  assert.equal(renderFunction(fn), [
     'void func_80001200(void)',
     '{',
     '    return;',
