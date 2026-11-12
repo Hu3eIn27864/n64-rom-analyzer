@@ -16,7 +16,9 @@ export type PointerExpression =
 export function propagatePointer(expression: PointerExpression): PointerValue | undefined {
   switch (expression.kind) {
     case 'pointer':
-      return expression.value;
+      return expression.value.base.trim().length > 0 && Number.isSafeInteger(expression.value.offset)
+        ? expression.value
+        : undefined;
     case 'const':
       return undefined;
     case 'cast':
@@ -29,10 +31,12 @@ export function propagatePointer(expression: PointerExpression): PointerValue | 
       const rightConst = constantValue(expression.right);
 
       if (left && rightConst !== undefined) {
-        return { base: left.base, offset: left.offset + (expression.kind === 'add' ? rightConst : -rightConst) };
+        const offset = left.offset + (expression.kind === 'add' ? rightConst : -rightConst);
+        return Number.isSafeInteger(offset) ? { base: left.base, offset } : undefined;
       }
       if (expression.kind === 'add' && right && leftConst !== undefined) {
-        return { base: right.base, offset: right.offset + leftConst };
+        const offset = right.offset + leftConst;
+        return Number.isSafeInteger(offset) ? { base: right.base, offset } : undefined;
       }
       return undefined;
     }
@@ -40,7 +44,7 @@ export function propagatePointer(expression: PointerExpression): PointerValue | 
 }
 
 function constantValue(expression: PointerExpression): number | undefined {
-  if (expression.kind === 'const') return expression.value;
+  if (expression.kind === 'const') return Number.isSafeInteger(expression.value) ? expression.value : undefined;
   if (expression.kind === 'cast') return constantValue(expression.value);
   return undefined;
 }
