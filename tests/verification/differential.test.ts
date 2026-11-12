@@ -159,3 +159,68 @@ test('distinguishes absent HI/LO state from explicit zero values', () => {
     'lo.presence',
   ]);
 });
+
+
+test('compares raw COP1 register slots exactly, including 64-bit bigint values', () => {
+  const initial: MachineState = {
+    registers: [0n],
+    memory: new Uint8Array(0),
+    fprRegisters: [0x3f800000n, 0x7ff8000000000001n],
+    fcsr: 0x01000000,
+  };
+  const result = runDifferentialTest(
+    initial,
+    s => s,
+    s => ({
+      ...s,
+      fprRegisters: [0x3f800000n, 0x7ff8000000000002n],
+    }),
+  );
+  assert.equal(result.status, 'fail');
+  assert.deepEqual(result.differences, [{
+    kind: 'fpu-register',
+    location: 'f1',
+    expected: 0x7ff8000000000001n,
+    actual: 0x7ff8000000000002n,
+  }]);
+});
+
+test('compares FCSR state and detects absent-versus-zero FPU state', () => {
+  const initial: MachineState = {
+    registers: [0],
+    memory: new Uint8Array(0),
+    fprRegisters: [0n],
+    fcsr: 0,
+  };
+  const fcsrDifference = runDifferentialTest(
+    initial,
+    s => s,
+    s => ({ ...s, fcsr: 1 }),
+  );
+  assert.deepEqual(fcsrDifference.differences, [{
+    kind: 'fpu-control',
+    location: 'fcsr',
+    expected: 0,
+    actual: 1,
+  }]);
+
+  const presenceDifference = runDifferentialTest(
+    { registers: [0], memory: new Uint8Array(0) },
+    s => s,
+    s => ({ ...s, fprRegisters: [0n], fcsr: 0 }),
+  );
+  assert.deepEqual(presenceDifference.differences.map(difference => difference.location), [
+    'fprRegisters.presence',
+    'fcsr.presence',
+  ]);
+});
+
+test('compares the overlapping FPR slots and reports register-bank size mismatches', () => {
+  const result = runDifferentialTest(
+    { registers: [0], memory: new Uint8Array(0), fprRegisters: [1n, 2n, 3n] },
+    s => s,
+    s => ({ ...s, fprRegisters: [1n, 2n] }),
+  );
+  assert.equal(result.status, 'fail');
+  assert.deepEqual(result.differences.map(difference => difference.location), ['fprRegisters.length']);
+});
