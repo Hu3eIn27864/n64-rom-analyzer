@@ -29,3 +29,37 @@ test('canonicalizes proven pointer locations', () => {
   assert.equal(pointerLocation({ kind: 'add', left: ptr('gp', 4), right: num(12) }), 'gp+16');
   assert.equal(pointerLocation({ kind: 'sub', left: ptr('sp'), right: num(8) }), 'sp-8');
 });
+
+
+test('rejects malformed base pointers and unsafe or fractional offsets', () => {
+  assert.equal(propagatePointer(ptr('', 4)), undefined);
+  assert.equal(propagatePointer(ptr('sp', 1.5)), undefined);
+  assert.equal(propagatePointer(ptr('sp', Number.MAX_SAFE_INTEGER + 1)), undefined);
+  assert.equal(propagatePointer(ptr('   ', 0)), undefined);
+});
+
+test('does not propagate arithmetic that overflows the safe integer range', () => {
+  assert.equal(
+    propagatePointer({ kind: 'add', left: ptr('sp', Number.MAX_SAFE_INTEGER), right: num(1) }),
+    undefined,
+  );
+  assert.equal(
+    propagatePointer({ kind: 'sub', left: ptr('sp', Number.MIN_SAFE_INTEGER), right: num(1) }),
+    undefined,
+  );
+  assert.equal(
+    propagatePointer({ kind: 'add', left: ptr('sp'), right: num(Number.MAX_SAFE_INTEGER + 1) }),
+    undefined,
+  );
+  assert.equal(
+    propagatePointer({ kind: 'add', left: ptr('sp'), right: num(Number.NaN) }),
+    undefined,
+  );
+});
+
+test('pointer locations remain unavailable after unsafe arithmetic', () => {
+  assert.equal(
+    pointerLocation({ kind: 'add', left: ptr('gp', Number.MAX_SAFE_INTEGER), right: num(4) }),
+    undefined,
+  );
+});
