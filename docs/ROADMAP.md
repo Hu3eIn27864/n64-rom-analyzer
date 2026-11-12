@@ -27,8 +27,11 @@ This roadmap reflects the current implementation checklist and verification mode
 - [x] Narrow legacy-parity fixtures for direct calls, multiple calls, conditional branches and branch-likely function boundaries.
 - [x] Bounded ROM-function CFG decoding with explicit taken-only branch-likely delay-slot blocks.
 - [x] Bounded ROM-function pipeline to Micro-C IR and Memory SSA for explicit entries.
-- [ ] Broader CFG/edge parity for indirect control flow, jump tables and exceptional paths.
-- [ ] Production-pipeline integration and ROM segment/function-entry discovery.
+- [x] Resolved direct intra-function jump targets are queued and recovered as CFG blocks; direct call targets remain separate functions.
+- [x] Unresolved indirect jumps/calls are retained as explicit fatal diagnostics rather than silently terminating analysis.
+- [x] Loop-region analysis validates reciprocal unique CFG edges and rejects unreachable components before dominator analysis.
+- [ ] Broader CFG/edge parity for jump tables, computed indirect targets and exceptional paths.
+- [ ] Full ROM segment/function-entry discovery and production API cutover.
 **Estimate:** 1–3 months.
 
 ## M3 — Semantic analysis and memory model (in progress)
@@ -48,11 +51,13 @@ This roadmap reflects the current implementation checklist and verification mode
 
 ## M4 — Structured source generation (not complete)
 - [x] C AST and source renderer primitives.
-- [x] Narrow proof-gated branch/loop lowering for supported shapes.
-- [x] Fail-closed lowering when IR contains diagnostics for omitted instruction semantics.
-- [ ] General control-flow structuring for loops, branches and irreducible graphs.
-- [ ] Stable expression and statement lowering across the supported semantic subset.
-- [ ] Compile generated C with a real toolchain.
+- [x] Narrow proof-gated branch/loop lowering for supported shapes, including explicit-preheader natural loops and header-Phi loop-carried values.
+- [x] CFG-aware GPR live-in inference, including edge-specific Phi incoming uses.
+- [x] Fail-closed lowering when IR contains diagnostics for omitted instruction semantics or unsupported Phi placement.
+- [x] Compile generated conditional and preheader-loop C with a real C toolchain on synthetic ROM fixtures.
+- [ ] General control-flow structuring for nested/composed loops, irreducible graphs and multi-block loop bodies.
+- [ ] ABI-aware source-level parameter/return-type reconstruction beyond machine-state live-ins.
+- [ ] Stable expression and statement lowering across the full supported semantic subset.
 **Estimate:** 3–6 months.
 
 ## M5 — Independent verification (not complete)
@@ -64,10 +69,10 @@ This roadmap reflects the current implementation checklist and verification mode
 
 ## Immediate integration milestones
 
-1. Route decoder-enriched instruction metadata through all semantic annotation consumers (including COP1 FPR/FCC effects).
-2. Make differential execution compare independent initial machine-state snapshots so reference-side mutation cannot contaminate candidate execution.
-3. Select a small synthetic ROM function and carry it through decode, function CFG, Micro-C, structured C, and validation; record each stage's evidence level.
-4. Compile the generated C fixture with a real C toolchain before expanding the supported control-flow subset.
+1. Complete semantic integration for remaining VR4300 families; CP0/TLB/exception state, SYNC and CACHE remain explicitly unsupported.
+2. Expand independent execution/differential fixtures beyond state-shape comparison to selected instruction sequences.
+3. Extend synthetic ROM vertical slices from returns, conditional branches and simple preheader loops to nested loops and jump-table patterns.
+4. Reconstruct real O32/N64 ABI signatures and validate them against known compiler-generated fixtures.
 
 These milestones prioritize a verified vertical slice over broad but disconnected feature additions.
 
