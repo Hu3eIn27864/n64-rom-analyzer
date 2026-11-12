@@ -536,7 +536,11 @@ test('keeps a loop-carried value live-in when the loop may execute zero times', 
     functionAddress: 0x80001318,
     blocks: [
       {
-        id: 0, predecessors: [1], successors: [1, 2],
+        id: 3, predecessors: [], successors: [0],
+        operations: [{ kind: 'jump', target: 0 }],
+      },
+      {
+        id: 0, predecessors: [1, 3], successors: [1, 2],
         operations: [{
           kind: 'branch',
           condition: { kind: 'value', name: 'rcond' },
