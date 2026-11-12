@@ -329,3 +329,37 @@ test('structured decompilation refuses IR with unsupported instruction diagnosti
     /refuses 1 unsupported instruction diagnostic.*0x00001004 MFC0.*privilege checks/,
   );
 });
+
+
+test('lowers a return-address-only function to a valid void C signature', () => {
+  const returnOnlyIr: FunctionIR = {
+    functionAddress: 0x80001200,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [{ kind: 'return' }],
+    }],
+  };
+  const fn = decompileStructuredFunctionIR(returnOnlyIr);
+  assert.equal(fn.returnType, 'void');
+  assert.equal(renderFunction(fn), [
+    'void func_80001200(void)',
+    '{',
+    '    return;',
+    '}',
+  ].join('\\n'));
+});
+
+test('keeps value-returning functions on the integer C return type', () => {
+  const valueReturnIr: FunctionIR = {
+    functionAddress: 0x80001204,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [{ kind: 'return', value: { kind: 'const', value: 7 } }],
+    }],
+  };
+  assert.equal(decompileStructuredFunctionIR(valueReturnIr).returnType, 'uint32_t');
+});
