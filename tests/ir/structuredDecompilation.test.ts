@@ -496,3 +496,68 @@ test('rejects mixed value and void return paths instead of emitting invalid C', 
     /cannot mix value and void returns/,
   );
 });
+
+
+test('keeps a register live-in when only one branch arm defines it', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80001314,
+    blocks: [
+      {
+        id: 0, predecessors: [], successors: [1, 2],
+        operations: [{
+          kind: 'branch',
+          condition: { kind: 'value', name: 'rcond' },
+          trueTarget: 1,
+          falseTarget: 2,
+        }],
+      },
+      {
+        id: 1, predecessors: [0], successors: [],
+        operations: [
+          { kind: 'assign', target: 'rt0', value: { kind: 'const', value: 1 } },
+          { kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } },
+        ],
+      },
+      {
+        id: 2, predecessors: [0], successors: [],
+        operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } }],
+      },
+    ],
+  };
+  const fn = decompileStructuredFunctionIR(ir, { parameterizeLiveIns: true });
+  assert.deepEqual(fn.parameters, [
+    { name: 'rcond', type: 'uint64_t' },
+    { name: 'rt0', type: 'uint64_t' },
+  ]);
+});
+
+test('keeps a loop-carried value live-in when the loop may execute zero times', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80001318,
+    blocks: [
+      {
+        id: 0, predecessors: [1], successors: [1, 2],
+        operations: [{
+          kind: 'branch',
+          condition: { kind: 'value', name: 'rcond' },
+          trueTarget: 1,
+          falseTarget: 2,
+        }],
+      },
+      {
+        id: 1, predecessors: [0], successors: [0],
+        operations: [
+          { kind: 'assign', target: 'rt0', value: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt0', width: 64 }, right: { kind: 'const', value: 1 }, width: 64 } },
+          { kind: 'jump', target: 0 },
+        ],
+      },
+      {
+        id: 2, predecessors: [0], successors: [],
+        operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } }],
+      },
+    ],
+  };
+  const fn = decompileStructuredFunctionIR(ir, { parameterizeLiveIns: true });
+  assert.ok(fn.parameters.some(parameter => parameter.name === 'rt0'));
+  assert.ok(fn.parameters.some(parameter => parameter.name === 'rcond'));
+});
