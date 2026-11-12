@@ -208,6 +208,7 @@ test('compiles a preheader natural loop recovered from a synthetic ROM', (t) => 
   assert.deepEqual(cfg.blocks.map(block => block.successors), [
     [0x80001008], [0x8000101c, 0x80001010], [0x80001008], [],
   ]);
+  assert.equal(cfg.instructionCount, 9);
   const result = validateDecodedRomFunction(cfg);
 
   assert.equal(result.validation.cfg, 'pass');
