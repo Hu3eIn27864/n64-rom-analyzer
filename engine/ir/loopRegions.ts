@@ -77,18 +77,45 @@ export function analyzeLoopRegions(ir: FunctionIR): LoopRegion[] {
   const ids = new Set(ir.blocks.map(block => block.id));
   if (ids.size !== ir.blocks.length) throw new Error('loop-region analysis requires unique block ids');
 
+  const byId = new Map(ir.blocks.map(block => [block.id, block]));
   for (const block of ir.blocks) {
+    if (new Set(block.successors).size !== block.successors.length) {
+      throw new Error(`loop-region analysis requires unique successors for block ${block.id}`);
+    }
+    if (new Set(block.predecessors).size !== block.predecessors.length) {
+      throw new Error(`loop-region analysis requires unique predecessors for block ${block.id}`);
+    }
     for (const successor of block.successors) {
       if (!ids.has(successor)) throw new Error(`loop-region analysis references missing successor ${successor}`);
+      if (!byId.get(successor)!.predecessors.includes(block.id)) {
+        throw new Error(`loop-region analysis has non-reciprocal edge ${block.id} -> ${successor}`);
+      }
     }
     for (const predecessor of block.predecessors) {
       if (!ids.has(predecessor)) throw new Error(`loop-region analysis references missing predecessor ${predecessor}`);
+      if (!byId.get(predecessor)!.successors.includes(block.id)) {
+        throw new Error(`loop-region analysis has non-reciprocal predecessor ${predecessor} -> ${block.id}`);
+      }
     }
   }
 
   const entries = ir.blocks.filter(block => block.predecessors.length === 0);
   if (entries.length !== 1) throw new Error(`loop-region analysis requires one entry block; received ${entries.length}`);
   const entryId = entries[0].id;
+  const reachable = new Set<number>([entryId]);
+  const pending = [entryId];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    for (const successor of byId.get(current)!.successors) {
+      if (reachable.has(successor)) continue;
+      reachable.add(successor);
+      pending.push(successor);
+    }
+  }
+  if (reachable.size !== ir.blocks.length) {
+    const unreachable = ir.blocks.map(block => block.id).filter(id => !reachable.has(id)).sort((a, b) => a - b);
+    throw new Error(`loop-region analysis rejects unreachable blocks: ${unreachable.join(', ')}`);
+  }
   const dom = dominators(ir, entryId);
 
   const grouped = new Map<number, { tails: Set<number>; nodes: Set<number> }>();
