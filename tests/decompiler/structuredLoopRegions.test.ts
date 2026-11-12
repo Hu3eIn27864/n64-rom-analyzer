@@ -21,10 +21,10 @@ test('structured loop admission consumes the canonical loop proof', () => {
   const plans = planStructuredLoopRegions(ir);
   assert.equal(plans.length, 1);
   assert.equal(plans[0].region.headerId, 1);
-  assert.equal(plans[0].lowering, 'unsupported');
+  assert.equal(plans[0].lowering, 'supported');
 });
 
-test('proven compact loop remains non-lowerable until the renderer supports explicit preheaders', () => {
+test('proven compact loop with an explicit preheader is lowered by the structured renderer', () => {
   const ir: FunctionIR = {
     functionAddress: 0xa100,
     blocks: [
