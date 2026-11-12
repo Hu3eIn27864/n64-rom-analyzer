@@ -75,3 +75,44 @@ test('rejects a function whose lift omitted unsupported instruction semantics', 
   assert.equal(report.confidence, 'rejected');
   assert.match(report.reasons.join(' '), /BLEZ at 0x80001004 has no complete Micro-C semantics/);
 });
+
+
+test('rejects CFG edges whose predecessor and successor lists disagree', () => {
+  const inconsistent: FunctionIR = {
+    functionAddress: 0x80005000,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [] },
+      { id: 1, predecessors: [], successors: [], operations: [] },
+    ],
+  };
+  const report = validateRomFunction(inconsistent);
+  assert.equal(report.cfg, 'fail');
+  assert.match(report.reasons.join(' '), /exactly one CFG entry block|predecessor backlink/);
+});
+
+test('rejects duplicate block identifiers', () => {
+  const duplicate: FunctionIR = {
+    functionAddress: 0x80006000,
+    blocks: [
+      { id: 0, predecessors: [], successors: [], operations: [] },
+      { id: 0, predecessors: [], successors: [], operations: [] },
+    ],
+  };
+  const report = validateRomFunction(duplicate);
+  assert.equal(report.cfg, 'fail');
+  assert.match(report.reasons.join(' '), /duplicate CFG block id/);
+});
+
+test('rejects unreachable blocks even when all edge references exist', () => {
+  const disconnected: FunctionIR = {
+    functionAddress: 0x80007000,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [] },
+      { id: 1, predecessors: [0], successors: [], operations: [] },
+      { id: 2, predecessors: [], successors: [], operations: [] },
+    ],
+  };
+  const report = validateRomFunction(disconnected);
+  assert.equal(report.cfg, 'fail');
+  assert.match(report.reasons.join(' '), /exactly one CFG entry block/);
+});
