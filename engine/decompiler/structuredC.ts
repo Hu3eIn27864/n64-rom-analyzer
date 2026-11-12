@@ -842,54 +842,99 @@ function collectExpressionRegisters(value: unknown, registers: Set<string>): voi
   for (const child of Object.values(record)) collectExpressionRegisters(child, registers);
 }
 
-function registerLiveInParameters(operations: readonly MicroCOperation[]): CFunction['parameters'] {
-  const reads = new Set<string>();
-  const writes = new Set<string>();
+function operationDefinitions(operation: MicroCOperation): { definite: string[]; readModifyWrite: string[] } {
+  switch (operation.kind) {
+    case 'assign':
+    case 'signedArithmetic':
+    case 'load':
+    case 'linkedLoad':
+    case 'phi':
+      return { definite: [operation.target], readModifyWrite: [] };
+    case 'mergeLoad':
+    case 'mergeLoadWord':
+    case 'conditionalStore':
+      return { definite: [operation.target], readModifyWrite: [operation.target] };
+    case 'call':
+      return { definite: operation.result ? [operation.result] : [], readModifyWrite: [] };
+    case 'hiloTransfer':
+      return operation.direction === 'to-hi' || operation.direction === 'to-lo'
+        ? { definite: [], readModifyWrite: [operation.register] }
+        : { definite: [operation.register], readModifyWrite: [] };
+    case 'fpuTransfer':
+      return operation.direction === 'to-fpu'
+        ? { definite: [], readModifyWrite: [operation.gpr] }
+        : { definite: [operation.gpr], readModifyWrite: [] };
+    case 'fpuControlRead':
+      return { definite: [operation.gpr], readModifyWrite: [] };
+    default:
+      return { definite: [], readModifyWrite: [] };
+  }
+}
 
-  for (const operation of operations) {
-    // Every Micro-C value expression is a real GPR use, except FCC values,
-    // which lower through FCSR and are supplied by the FPU state object.
-    collectExpressionRegisters(operation, reads);
+export function inferRegisterLiveInParameters(blocks: FunctionIR['blocks']): CFunction['parameters'] {
+  const blockIds = new Set(blocks.map(block => block.id));
+  const useByBlock = new Map<number, Set<string>>();
+  const defByBlock = new Map<number, Set<string>>();
 
-    switch (operation.kind) {
-      case 'assign':
-      case 'signedArithmetic':
-      case 'load':
-      case 'linkedLoad':
-      case 'mergeLoad':
-      case 'mergeLoadWord':
-      case 'phi':
-        writes.add(operation.target);
-        if (operation.kind === 'mergeLoad' || operation.kind === 'mergeLoadWord') reads.add(operation.target);
-        break;
-      case 'conditionalStore':
-        reads.add(operation.target);
-        writes.add(operation.target);
-        break;
-      case 'call':
-        if (operation.result) writes.add(operation.result);
-        break;
-      case 'branch':
-        if (operation.linkOnTaken) writes.add(operation.linkOnTaken.target);
-        break;
-      case 'hiloTransfer':
-        if (operation.direction === 'to-hi' || operation.direction === 'to-lo') reads.add(operation.register);
-        else writes.add(operation.register);
-        break;
-      case 'fpuTransfer':
-        if (operation.direction === 'to-fpu') reads.add(operation.gpr);
-        else writes.add(operation.gpr);
-        break;
-      case 'fpuControlRead':
-        writes.add(operation.gpr);
-        break;
-      default:
-        break;
+  for (const block of blocks) {
+    const uses = new Set<string>();
+    const definitions = new Set<string>();
+    for (const operation of block.operations) {
+      const operationUses = new Set<string>();
+      collectExpressionRegisters(operation, operationUses);
+      const { definite, readModifyWrite } = operationDefinitions(operation);
+      for (const register of [...operationUses, ...readModifyWrite]) {
+        if (!definitions.has(register)) uses.add(register);
+      }
+      for (const register of definite) definitions.add(register);
+    }
+    useByBlock.set(block.id, uses);
+    defByBlock.set(block.id, definitions);
+    for (const successor of block.successors) {
+      if (!blockIds.has(successor)) {
+        throw new Error(`live-in analysis references missing successor ${successor} from block ${block.id}`);
+      }
     }
   }
 
-  return [...reads]
-    .filter(register => !writes.has(register))
+  const liveIn = new Map<number, Set<string>>(blocks.map(block => [block.id, new Set()]));
+  const liveOut = new Map<number, Set<string>>(blocks.map(block => [block.id, new Set()]));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const block of [...blocks].reverse()) {
+      const nextOut = new Set<string>();
+      for (const successor of block.successors) {
+        for (const register of liveIn.get(successor)!) nextOut.add(register);
+      }
+      const nextIn = new Set(useByBlock.get(block.id)!);
+      for (const register of nextOut) {
+        if (!defByBlock.get(block.id)!.has(register)) nextIn.add(register);
+      }
+      const previousIn = liveIn.get(block.id)!;
+      const previousOut = liveOut.get(block.id)!;
+      const inChanged = nextIn.size !== previousIn.size || [...nextIn].some(value => !previousIn.has(value));
+      const outChanged = nextOut.size !== previousOut.size || [...nextOut].some(value => !previousOut.has(value));
+      if (inChanged || outChanged) {
+        liveIn.set(block.id, nextIn);
+        liveOut.set(block.id, nextOut);
+        changed = true;
+      }
+    }
+  }
+
+  const incoming = new Set<number>();
+  for (const block of blocks) {
+    for (const successor of block.successors) incoming.add(successor);
+  }
+  const entries = blocks.filter(block => !incoming.has(block.id));
+  const roots = entries.length > 0 ? entries : blocks;
+  const parameters = new Set<string>();
+  for (const root of roots) {
+    for (const register of liveIn.get(root.id)!) parameters.add(register);
+  }
+  return [...parameters]
+    .filter(register => register !== 'rzero' && register !== 'zero' && !/^fcc[0-7]$/.test(register))
     .sort((left, right) => left.localeCompare(right))
     .map(name => ({ name, type: 'uint64_t' as const }));
 }
@@ -930,7 +975,7 @@ export function decompileStructuredFunctionIR(
   const operations = ir.blocks.flatMap(block => block.operations);
   const inferredReturnType = structuredReturnType(operations);
   const registerParameters = options.parameterizeLiveIns
-    ? registerLiveInParameters(operations)
+    ? inferRegisterLiveInParameters(ir.blocks)
     : [];
   const fpuOperations = operations.filter(operation => operation.kind === 'fpuLoad'
     || operation.kind === 'fpuStore'

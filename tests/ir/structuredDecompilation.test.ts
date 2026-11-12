@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decompileLinearFunctionIR, decompileStructuredFunctionIR } from '../../engine/decompiler/structuredC';
+import { decompileLinearFunctionIR, decompileStructuredFunctionIR, inferRegisterLiveInParameters } from '../../engine/decompiler/structuredC';
 import { renderFunction } from '../../engine/ir/cAst';
 import type { FunctionIR } from '../../engine/ir/microC';
 
@@ -495,4 +495,73 @@ test('rejects mixed value and void return paths instead of emitting invalid C', 
     () => decompileStructuredFunctionIR(mixed),
     /cannot mix value and void returns/,
   );
+});
+
+
+test('keeps a register live-in when only one branch arm defines it', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80001314,
+    blocks: [
+      {
+        id: 0, predecessors: [], successors: [1, 2],
+        operations: [{
+          kind: 'branch',
+          condition: { kind: 'value', name: 'rcond' },
+          trueTarget: 1,
+          falseTarget: 2,
+        }],
+      },
+      {
+        id: 1, predecessors: [0], successors: [],
+        operations: [
+          { kind: 'assign', target: 'rt0', value: { kind: 'const', value: 1 } },
+          { kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } },
+        ],
+      },
+      {
+        id: 2, predecessors: [0], successors: [],
+        operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } }],
+      },
+    ],
+  };
+  const fn = decompileStructuredFunctionIR(ir, { parameterizeLiveIns: true });
+  assert.deepEqual(fn.parameters, [
+    { name: 'rcond', type: 'uint64_t' },
+    { name: 'rt0', type: 'uint64_t' },
+  ]);
+});
+
+test('keeps a loop-carried value live-in when the loop may execute zero times', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80001318,
+    blocks: [
+      {
+        id: 3, predecessors: [], successors: [0],
+        operations: [{ kind: 'jump', target: 0 }],
+      },
+      {
+        id: 0, predecessors: [1, 3], successors: [1, 2],
+        operations: [{
+          kind: 'branch',
+          condition: { kind: 'value', name: 'rcond' },
+          trueTarget: 1,
+          falseTarget: 2,
+        }],
+      },
+      {
+        id: 1, predecessors: [0], successors: [0],
+        operations: [
+          { kind: 'assign', target: 'rt0', value: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt0', width: 64 }, right: { kind: 'const', value: 1 }, width: 64 } },
+          { kind: 'jump', target: 0 },
+        ],
+      },
+      {
+        id: 2, predecessors: [0], successors: [],
+        operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } }],
+      },
+    ],
+  };
+  const parameters = inferRegisterLiveInParameters(ir.blocks);
+  assert.ok(parameters.some(parameter => parameter.name === 'rt0'));
+  assert.ok(parameters.some(parameter => parameter.name === 'rcond'));
 });
