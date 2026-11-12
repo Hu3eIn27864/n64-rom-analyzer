@@ -114,3 +114,48 @@ test('does not conflate bigint GPR state with a rounded JavaScript number', () =
   assert.equal(result.differences[0].expected, 9007199254740993n);
   assert.equal(result.differences[0].actual, 9007199254740992);
 });
+
+
+test('compares VR4300 HI and LO special-register state exactly', () => {
+  const initial: MachineState = {
+    registers: [0n],
+    memory: new Uint8Array(0),
+    hi: 0x7ffffffffffffffen,
+    lo: 0xffffffffffffffffn,
+  };
+  const result = runDifferentialTest(
+    initial,
+    s => s,
+    s => ({ ...s, hi: 0x7fffffffffffffffn, lo: 0xfffffffffffffffen }),
+  );
+
+  assert.equal(result.status, 'fail');
+  assert.deepEqual(result.differences, [
+    {
+      kind: 'special-register',
+      location: 'hi',
+      expected: 0x7ffffffffffffffen,
+      actual: 0x7fffffffffffffffn,
+    },
+    {
+      kind: 'special-register',
+      location: 'lo',
+      expected: 0xffffffffffffffffn,
+      actual: 0xfffffffffffffffen,
+    },
+  ]);
+});
+
+test('distinguishes absent HI/LO state from explicit zero values', () => {
+  const initial: MachineState = { registers: [0], memory: new Uint8Array(0) };
+  const result = runDifferentialTest(
+    initial,
+    s => s,
+    s => ({ ...s, hi: 0n, lo: 0n }),
+  );
+  assert.equal(result.status, 'fail');
+  assert.deepEqual(result.differences.map(difference => difference.location), [
+    'hi.presence',
+    'lo.presence',
+  ]);
+});
