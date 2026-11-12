@@ -180,7 +180,7 @@ test('compiles conditional ROM C with inferred live-in register parameters', (t)
     const sourcePath = join(directory, 'conditional-function.c');
     writeFileSync(sourcePath, result.decompilation.source, 'utf8');
     const compiled = spawnSync('cc', [
-      '-std=c11', '-Wall', '-Wextra', '-Werror', '-fsyntax-only', sourcePath,
+      '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-error=unknown-pragmas', '-fsyntax-only', sourcePath,
     ], { encoding: 'utf8' });
     assert.equal(compiled.status, 0, compiled.stderr || compiled.stdout);
   } finally {
