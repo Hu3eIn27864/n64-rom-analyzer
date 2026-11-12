@@ -229,7 +229,7 @@ test('compiles a preheader natural loop recovered from a synthetic ROM', (t) => 
     const sourcePath = join(directory, 'preheader-loop.c');
     writeFileSync(sourcePath, result.decompilation.source, 'utf8');
     const compiled = spawnSync('cc', [
-      '-std=c11', '-Wall', '-Wextra', '-Werror', '-fsyntax-only', sourcePath,
+      '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-error=unknown-pragmas', '-fsyntax-only', sourcePath,
     ], { encoding: 'utf8' });
     assert.equal(compiled.status, 0, compiled.stderr || compiled.stdout);
   } finally {
