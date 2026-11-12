@@ -50,3 +50,30 @@ test('runs reference and candidate against independent copies of the initial sta
   assert.equal(initial.registers[1], 10);
   assert.equal(initial.memory[0], 10);
 });
+
+
+test('reports register and memory shape mismatches even when missing lanes would be zero', () => {
+  const initial = state(0);
+  const result = runDifferentialTest(
+    initial,
+    s => s,
+    s => ({ ...s, registers: [0, 0], memory: new Uint8Array([0, 2, 3]) }),
+  );
+  assert.equal(result.status, 'fail');
+  assert.deepEqual(result.differences.map(difference => difference.location), [
+    'registers.length',
+    'memory.length',
+  ]);
+});
+
+test('distinguishes an omitted program counter from an explicit zero PC', () => {
+  const initial = { registers: [0], memory: new Uint8Array(0) };
+  const result = runDifferentialTest(initial, s => s, s => ({ ...s, pc: 0 }));
+  assert.equal(result.status, 'fail');
+  assert.deepEqual(result.differences, [{
+    kind: 'shape',
+    location: 'pc.presence',
+    expected: 0,
+    actual: 1,
+  }]);
+});
