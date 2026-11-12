@@ -826,6 +826,9 @@ function isLoopWithPreheader(ir: FunctionIR): boolean {
   return body.predecessors.length === 1
     && body.predecessors[0] === header.id
     && header.predecessors.includes(body.id)
+    && (body.successors.length === 1
+      ? body.successors[0] === header.id
+      : body.successors.length === 2 && body.successors.includes(header.id) && body.successors.includes(exit.id))
     && exit.predecessors.includes(header.id)
     && exit.successors.length === 0;
 }
@@ -847,7 +850,12 @@ function lowerWhileWithPreheader(ir: FunctionIR): CFunction {
   const bodyStatements = bodyBlock.operations.slice(0, -1)
     .map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
   const bodyTerminator = bodyBlock.operations.at(-1);
-  if (bodyTerminator?.kind === 'jump' && bodyTerminator.target === header.id) {
+  if (bodyBlock.successors.length === 1 && bodyBlock.successors[0] === header.id
+    && (bodyTerminator === undefined || bodyTerminator.kind !== 'branch')) {
+    // ROM CFG lowering keeps direct jumps in successor metadata and removes
+    // the synthetic Micro-C jump operation. The edge itself proves continue.
+    bodyStatements.push({ kind: 'continue' });
+  } else if (bodyTerminator?.kind === 'jump' && bodyTerminator.target === header.id) {
     bodyStatements.push({ kind: 'continue' });
   } else if (bodyTerminator?.kind === 'branch' && bodyTerminator.falseTarget !== undefined) {
     const targets = [bodyTerminator.trueTarget, bodyTerminator.falseTarget];

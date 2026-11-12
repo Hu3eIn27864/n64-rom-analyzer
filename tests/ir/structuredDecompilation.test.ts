@@ -721,3 +721,42 @@ test('executes header computations on every iteration of a preheader loop', () =
   assert.equal(loop.body[0].kind, 'expr');
   assert.equal(loop.body[1].kind, 'if');
 });
+
+
+test('lowers a ROM-style preheader loop whose direct backedge exists only in CFG metadata', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80001324,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [] },
+      {
+        id: 1, predecessors: [0, 2], successors: [2, 3],
+        operations: [{
+          kind: 'branch',
+          condition: { kind: 'value', name: 'rcond' },
+          trueTarget: 2,
+          falseTarget: 3,
+        }],
+      },
+      {
+        id: 2, predecessors: [1], successors: [1],
+        operations: [{
+          kind: 'assign',
+          target: 'rt0',
+          value: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt0', width: 64 }, right: { kind: 'const', value: 1 }, width: 64 },
+        }],
+      },
+      { id: 3, predecessors: [1], successors: [], operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } }] },
+    ],
+  };
+  const fn = decompileStructuredFunctionIR(ir, { parameterizeLiveIns: true });
+  assert.ok(fn.body.some(statement => statement.kind === 'while'));
+  const loop = fn.body.find(statement => statement.kind === 'while');
+  assert.ok(loop && loop.kind === 'while');
+  assert.equal(loop.body[0].kind, 'if');
+  if (loop.body[0].kind === 'if') {
+    assert.equal(loop.body[0].thenBranch?.kind, 'block');
+    if (loop.body[0].thenBranch?.kind === 'block') {
+      assert.equal(loop.body[0].thenBranch.body.at(-1)?.kind, 'continue');
+    }
+  }
+});
