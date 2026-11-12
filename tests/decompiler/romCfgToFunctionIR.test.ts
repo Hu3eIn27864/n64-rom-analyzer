@@ -35,8 +35,10 @@ test('lowers recovered ROM CFG blocks into FunctionIR with preserved edges', () 
     assert.equal(branch.falseTarget, 1);
     assert.deepEqual(branch.condition, { kind: 'binary', op: '==', left: { kind: 'value', name: 'ra0', width: 64 }, right: { kind: 'value', name: 'ra1', width: 64 }, width: 64 });
   }
-  assert.equal(result.functionIR.blocks[1].operations.length, 1);
-  assert.equal(result.functionIR.blocks[2].operations.length, 1);
+  assert.equal(result.functionIR.blocks[1].operations.length, 2);
+  assert.equal(result.functionIR.blocks[1].operations[1]?.kind, 'return');
+  assert.equal(result.functionIR.blocks[2].operations.length, 2);
+  assert.equal(result.functionIR.blocks[2].operations[1]?.kind, 'return');
 });
 
 test('retains direct call boundaries without importing the callee into the FunctionIR CFG', () => {

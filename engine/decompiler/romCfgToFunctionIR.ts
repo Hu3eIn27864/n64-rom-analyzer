@@ -62,7 +62,7 @@ export function lowerRomCfgToFunctionIR(cfg: DecodedRomFunctionCfg): RomCfgFunct
   const functionIR: FunctionIR = {
     ...lifted,
     blocks: lifted.blocks.map((block, id) => {
-      const operations = block.operations.filter(operation => operation.kind !== 'branch' && operation.kind !== 'jump' && operation.kind !== 'return');
+      const operations = block.operations.filter(operation => operation.kind !== 'branch' && operation.kind !== 'jump');
       const branch = block.operations.find((operation): operation is Extract<typeof operation, { kind: 'branch' }> => operation.kind === 'branch');
       if (!branch) return { ...block, operations };
       const branchInstruction = cfg.blocks[id].instructions.find(instruction => instruction.isConditionalBranch);
