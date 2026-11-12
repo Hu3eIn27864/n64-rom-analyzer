@@ -11,15 +11,16 @@ test('structured loop admission consumes the canonical loop proof', () => {
   const ir: FunctionIR = {
     functionAddress: 0xa000,
     blocks: [
-      block(0, [], [1, 2], [{ kind: 'branch', condition: { kind: 'value', name: 'cond' }, trueTarget: 1, falseTarget: 2 }]),
-      block(1, [0], [0], [{ kind: 'jump', target: 0 }]),
-      block(2, [0], []),
+      block(0, [], [1], [{ kind: 'jump', target: 1 }]),
+      block(1, [0, 2], [2, 3], [{ kind: 'branch', condition: { kind: 'value', name: 'cond' }, trueTarget: 2, falseTarget: 3 }]),
+      block(2, [1], [1], [{ kind: 'jump', target: 1 }]),
+      block(3, [1], []),
     ],
   };
 
   const plans = planStructuredLoopRegions(ir);
   assert.equal(plans.length, 1);
-  assert.equal(plans[0].region.headerId, 0);
+  assert.equal(plans[0].region.headerId, 1);
   assert.equal(plans[0].lowering, 'supported');
 });
 
