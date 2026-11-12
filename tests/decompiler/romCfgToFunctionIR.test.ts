@@ -63,7 +63,7 @@ test('rejects a CFG edge that cannot be represented by a recovered block', () =>
 });
 
 
-test('keeps a direct jump represented by its CFG terminator without inventing a target block', () => {
+test('recovers the target block of a direct intra-function jump', () => {
   const rom = words([
     0x08000402, 0x00000000,
     0x03e00008, 0x00000000,
@@ -71,9 +71,11 @@ test('keeps a direct jump represented by its CFG terminator without inventing a 
   const cfg = decodeRomFunctionCfg(rom, entry);
   const result = lowerRomCfgToFunctionIR(cfg);
 
-  assert.equal(result.functionIR.blocks.length, 1);
-  assert.deepEqual(result.functionIR.blocks[0].successors, []);
+  assert.equal(result.functionIR.blocks.length, 2);
+  assert.deepEqual(result.functionIR.blocks[0].successors, [1]);
   assert.deepEqual(result.functionIR.blocks[0].operations, []);
+  assert.deepEqual(result.functionIR.blocks[1].successors, []);
+  assert.equal(result.functionIR.blocks[1].operations[0]?.kind, 'return');
   assert.equal(result.functionIR.unsupportedInstructions, undefined);
 });
 
