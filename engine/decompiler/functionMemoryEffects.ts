@@ -212,9 +212,16 @@ export function inferProgramMemoryEffects(
   return summaries;
 }
 
-/** Return whether a call summary proves that a memory range is preserved. */
+/**
+ * Return whether a call summary proves that a memory range is preserved.
+ * Different symbolic bases (SP, FP, or absolute) are not assumed disjoint:
+ * their runtime addresses may overlap unless a separate relation proves otherwise.
+ */
 export function preservesMemoryRange(summary: FunctionMemoryEffectSummary, range: MemoryEffectRange): boolean {
   if (summary.unknown) return false;
-  return !summary.writes.some(write => write.base === range.base
-    && write.address < range.address + range.size && range.address < write.address + write.size);
+  return !summary.writes.some(write => {
+    if (write.base !== range.base) return true;
+    return write.address < range.address + range.size
+      && range.address < write.address + write.size;
+  });
 }
