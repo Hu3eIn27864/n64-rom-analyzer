@@ -1,4 +1,4 @@
-import { analyzeInstructionSemantics, type MipsInstructionSemantics } from '../mips/formalSemantics';
+import { analyzeDecodedInstructionSemantics, type MipsInstructionSemantics } from '../mips/formalSemantics';
 import type { MipsInstruction } from '../model/instruction';
 
 export interface SemanticallyAnnotatedInstruction {
@@ -11,6 +11,6 @@ export function annotateInstructions(
 ): SemanticallyAnnotatedInstruction[] {
   return instructions.map((instruction) => ({
     instruction,
-    semantics: analyzeInstructionSemantics(instruction.mnemonic, instruction.operands),
+    semantics: analyzeDecodedInstructionSemantics(instruction),
   }));
 }
