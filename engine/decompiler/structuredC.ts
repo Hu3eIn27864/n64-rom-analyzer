@@ -13,6 +13,9 @@ function lowerExpr(expr: MicroCExpr, inheritedWidth: 32 | 64 = 32): CExpr {
     case 'const':
       return { kind: 'literal', value: expr.value, type: integerType };
     case 'value': {
+      if (expr.name === 'rzero' || expr.name === 'zero') {
+        return { kind: 'literal', value: 0, type: integerType };
+      }
       const fcc = expr.name.match(/^fcc([0-7])$/);
       if (fcc) {
         const conditionCode = Number(fcc[1]);
@@ -781,6 +784,85 @@ function isLoopWithPhi(ir: FunctionIR): boolean {
   return phiOperations(header).length > 0;
 }
 
+
+export interface StructuredCOptions {
+  /**
+   * Treat read-before-write GPR values as explicit uint64_t machine-state
+   * parameters. The ROM pipeline enables this; direct IR callers may keep
+   * the legacy parameter-free rendering until they supply ABI metadata.
+   */
+  readonly parameterizeLiveIns?: boolean;
+}
+
+function collectExpressionRegisters(value: unknown, registers: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectExpressionRegisters(item, registers);
+    return;
+  }
+  if (value === null || typeof value !== 'object') return;
+
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'value' && typeof record.name === 'string') {
+    if (!/^fcc[0-7]$/.test(record.name) && record.name !== 'rzero' && record.name !== 'zero') {
+      registers.add(record.name);
+    }
+    return;
+  }
+  for (const child of Object.values(record)) collectExpressionRegisters(child, registers);
+}
+
+function registerLiveInParameters(operations: readonly MicroCOperation[]): CFunction['parameters'] {
+  const reads = new Set<string>();
+  const writes = new Set<string>();
+
+  for (const operation of operations) {
+    // Every Micro-C value expression is a real GPR use, except FCC values,
+    // which lower through FCSR and are supplied by the FPU state object.
+    collectExpressionRegisters(operation, reads);
+
+    switch (operation.kind) {
+      case 'assign':
+      case 'signedArithmetic':
+      case 'load':
+      case 'linkedLoad':
+      case 'mergeLoad':
+      case 'mergeLoadWord':
+      case 'phi':
+        writes.add(operation.target);
+        if (operation.kind === 'mergeLoad' || operation.kind === 'mergeLoadWord') reads.add(operation.target);
+        break;
+      case 'conditionalStore':
+        reads.add(operation.target);
+        writes.add(operation.target);
+        break;
+      case 'call':
+        if (operation.result) writes.add(operation.result);
+        break;
+      case 'branch':
+        if (operation.linkOnTaken) writes.add(operation.linkOnTaken.target);
+        break;
+      case 'hiloTransfer':
+        if (operation.direction === 'to-hi' || operation.direction === 'to-lo') reads.add(operation.register);
+        else writes.add(operation.register);
+        break;
+      case 'fpuTransfer':
+        if (operation.direction === 'to-fpu') reads.add(operation.gpr);
+        else writes.add(operation.gpr);
+        break;
+      case 'fpuControlRead':
+        writes.add(operation.gpr);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return [...reads]
+    .filter(register => !writes.has(register))
+    .sort((left, right) => left.localeCompare(right))
+    .map(name => ({ name, type: 'uint64_t' as const }));
+}
+
 /**
  * Conservative structured-decompilation boundary.
  *
@@ -793,7 +875,10 @@ function isLoopWithPhi(ir: FunctionIR): boolean {
  * canonical loop header and exit. Other CFG shapes are rejected rather than
  * guessed; all function identity still comes from FunctionIR.functionAddress.
  */
-export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
+export function decompileStructuredFunctionIR(
+  ir: FunctionIR,
+  options: StructuredCOptions = {},
+): CFunction {
   // COP1 FCC provenance is an informational analysis diagnostic when the
   // branch operation itself is present: the runtime branch reads the selected
   // FCSR condition-code bit directly. All diagnostics for omitted semantics
@@ -812,6 +897,9 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     );
   }
   const operations = ir.blocks.flatMap(block => block.operations);
+  const registerParameters = options.parameterizeLiveIns
+    ? registerLiveInParameters(operations)
+    : [];
   const fpuOperations = operations.filter(operation => operation.kind === 'fpuLoad'
     || operation.kind === 'fpuStore'
     || operation.kind === 'fpuTransfer'
@@ -854,12 +942,20 @@ export function decompileStructuredFunctionIR(ir: FunctionIR): CFunction {
     const hasValueReturn = operations.some(operation => operation.kind === 'return' && operation.value !== undefined);
     // JR $ra carries control-flow semantics but no explicit C return expression.
     // Do not emit `uint32_t f(void) { return; }`, which is invalid C.
-    return hasReturn && !hasValueReturn ? { ...lowered, returnType: 'void' } : lowered;
+    return {
+      ...lowered,
+      ...(hasReturn && !hasValueReturn ? { returnType: 'void' as const } : {}),
+      parameters: registerParameters,
+      useVoidForEmptyParameters: registerParameters.length === 0,
+    };
   }
   return {
     ...lowered,
-    parameters: usesFpuState ? [{ name: 'fpu', type: 'vr4300_fpu_state *' }] : [],
-    useVoidForEmptyParameters: !usesFpuState,
+    parameters: [
+      ...(usesFpuState ? [{ name: 'fpu', type: 'vr4300_fpu_state *' as const }] : []),
+      ...registerParameters,
+    ],
+    useVoidForEmptyParameters: !usesFpuState && registerParameters.length === 0,
     body: hasFccBranch
       ? [returnIfFalse(cCall('vr4300_fpu_check_cop1', [cVariable('fpu')], 'uint32_t')), ...lowered.body]
       : lowered.body,
