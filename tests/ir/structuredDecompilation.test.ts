@@ -557,7 +557,7 @@ test('keeps a loop-carried value live-in when the loop may execute zero times', 
       },
     ],
   };
-  const fn = decompileStructuredFunctionIR(ir, { parameterizeLiveIns: true });
-  assert.ok(fn.parameters.some(parameter => parameter.name === 'rt0'));
-  assert.ok(fn.parameters.some(parameter => parameter.name === 'rcond'));
+  const parameters = inferRegisterLiveInParameters(ir.blocks);
+  assert.ok(parameters.some(parameter => parameter.name === 'rt0'));
+  assert.ok(parameters.some(parameter => parameter.name === 'rcond'));
 });
