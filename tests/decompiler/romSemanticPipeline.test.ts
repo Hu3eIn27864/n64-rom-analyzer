@@ -66,12 +66,12 @@ test('emits structured C from a semantically validated synthetic ROM return func
   assert.equal(result.validation.confidence, 'proven');
   assert.equal(result.decompilation.status, 'generated');
   if (result.decompilation.status !== 'generated') return;
-  assert.equal(result.decompilation.source, [
+  assert.deepEqual(result.decompilation.source.split(String.fromCharCode(10)), [
     'void func_80001000(void)',
     '{',
     '    return;',
     '}',
-  ].join('\\n'));
+  ]);
 });
 
 test('does not generate C when semantic validation rejects a function', () => {
