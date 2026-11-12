@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { VR4300_FPU_C_RUNTIME } from '../../engine/decompiler/vr4300FpuRuntimeC';
 
 test('uses compiler-specific floating-environment controls', () => {
-  assert.match(VR4300_FPU_C_RUNTIME, /#if defined\\(__clang__\\)[\\s\\S]*#pragma STDC FENV_ACCESS ON/);
-  assert.match(VR4300_FPU_C_RUNTIME, /#elif defined\\(__GNUC__\\)[\\s\\S]*#pragma GCC optimize \\("rounding-math"\\)/);
+  assert.match(VR4300_FPU_C_RUNTIME, /#if defined\(__clang__\)[\s\S]*#pragma STDC FENV_ACCESS ON/);
+  assert.match(VR4300_FPU_C_RUNTIME, /#elif defined\(__GNUC__\)[\s\S]*#pragma GCC optimize \("rounding-math"\)/);
   assert.doesNotMatch(VR4300_FPU_C_RUNTIME, /^#pragma STDC FENV_ACCESS ON$/m);
 });
 
