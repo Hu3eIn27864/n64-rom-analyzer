@@ -5,7 +5,7 @@ export interface MachineState {
 }
 
 export interface StateDifference {
-  kind: 'register' | 'memory' | 'pc' | 'special-register' | 'shape';
+  kind: 'register' | 'memory' | 'pc' | 'special-register' | 'fpu-register' | 'fpu-control' | 'shape';
   location: string;
   expected: number;
   actual: number;
@@ -79,6 +79,50 @@ export function compareMachineStates(expected: MachineState, actual: MachineStat
     }
   }
 
+  if ((expected.fprRegisters === undefined) !== (actual.fprRegisters === undefined)) {
+    differences.push({
+      kind: 'shape',
+      location: 'fprRegisters.presence',
+      expected: expected.fprRegisters === undefined ? 0 : 1,
+      actual: actual.fprRegisters === undefined ? 0 : 1,
+    });
+  } else if (expected.fprRegisters && actual.fprRegisters) {
+    if (expected.fprRegisters.length !== actual.fprRegisters.length) {
+      differences.push({
+        kind: 'shape',
+        location: 'fprRegisters.length',
+        expected: expected.fprRegisters.length,
+        actual: actual.fprRegisters.length,
+      });
+    }
+    for (let i = 0; i < Math.min(expected.fprRegisters.length, actual.fprRegisters.length); i += 1) {
+      const e = expected.fprRegisters[i];
+      const a = actual.fprRegisters[i];
+      if (e !== a) differences.push({
+        kind: 'fpu-register',
+        location: 'f' + i,
+        expected: e,
+        actual: a,
+      });
+    }
+  }
+
+  if ((expected.fcsr === undefined) !== (actual.fcsr === undefined)) {
+    differences.push({
+      kind: 'shape',
+      location: 'fcsr.presence',
+      expected: expected.fcsr === undefined ? 0 : 1,
+      actual: actual.fcsr === undefined ? 0 : 1,
+    });
+  } else if (expected.fcsr !== undefined && actual.fcsr !== undefined && expected.fcsr !== actual.fcsr) {
+    differences.push({
+      kind: 'fpu-control',
+      location: 'fcsr',
+      expected: expected.fcsr,
+      actual: actual.fcsr,
+    });
+  }
+
   return { status: differences.length === 0 ? 'pass' : 'fail', differences };
 }
 
@@ -89,6 +133,8 @@ function cloneMachineState(state: MachineState): MachineState {
     ...(state.pc === undefined ? {} : { pc: state.pc }),
     ...(state.hi === undefined ? {} : { hi: state.hi }),
     ...(state.lo === undefined ? {} : { lo: state.lo }),
+    ...(state.fprRegisters === undefined ? {} : { fprRegisters: [...state.fprRegisters] }),
+    ...(state.fcsr === undefined ? {} : { fcsr: state.fcsr }),
   };
 }
 
