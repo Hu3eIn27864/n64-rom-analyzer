@@ -211,6 +211,7 @@ test('compiles a preheader natural loop recovered from a synthetic ROM', (t) => 
   assert.equal(cfg.instructionCount, 9);
   const result = validateDecodedRomFunction(cfg);
 
+  assert.equal(result.blockCount, 4);
   assert.equal(result.validation.cfg, 'pass');
   assert.equal(result.decompilation.status, 'generated');
   if (result.decompilation.status !== 'generated') return;
