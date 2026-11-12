@@ -94,12 +94,33 @@ test('TEST_13: UNKNOWN spelling is preserved', () => {
   assert.equal(result.parameters[0].cType, 'UNKNOWN');
 });
 
-test('TEST_14: duplicate indices remain deterministic', () => {
-  const result = FunctionSignatureProjector.project([
+test('TEST_14: duplicate parameter indices are rejected', () => {
+  assert.throws(() => FunctionSignatureProjector.project([
     parameter(1, 'UNKNOWN', false),
     parameter(1, 'void*', true),
-  ]);
-  assert.deepEqual(result.parameters.map((item) => item.index), [1, 1]);
+  ]), /duplicate parameter index 1/);
+});
+
+test('rejects negative, fractional and unsafe parameter indices', () => {
+  for (const index of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, Number.NaN]) {
+    assert.throws(
+      () => FunctionSignatureProjector.project([parameter(index, 'UNKNOWN', false)]),
+      /invalid parameter index/,
+    );
+  }
+});
+
+test('rejects parameters accidentally combined from different callees', () => {
+  assert.throws(() => FunctionSignatureProjector.project([
+    parameter(0, 'void*', true, 'first'),
+    parameter(1, 'UNKNOWN', false, 'second'),
+  ]), /exactly one non-empty callee symbol/);
+});
+
+test('rejects inconsistent authoritative type metadata', () => {
+  assert.throws(() => FunctionSignatureProjector.project([
+    { ...parameter(0, 'UNKNOWN', false), authoritative: true },
+  ]), /inconsistent authority/);
 });
 
 test('TEST_15: high parameter indices remain exact', () => {
