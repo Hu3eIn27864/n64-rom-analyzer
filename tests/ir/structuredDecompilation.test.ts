@@ -433,3 +433,66 @@ test('does not expose a defined register or the architectural zero register as a
     '}',
   ].join(String.fromCharCode(10)));
 });
+
+
+test('uses uint64_t for structured functions that return a 64-bit Micro-C value', () => {
+  const ir64: FunctionIR = {
+    functionAddress: 0x80001308,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } }],
+    }],
+  };
+  const fn = decompileStructuredFunctionIR(ir64, { parameterizeLiveIns: true });
+  assert.equal(fn.returnType, 'uint64_t');
+  assert.deepEqual(fn.parameters, [{ name: 'rt0', type: 'uint64_t' }]);
+  assert.match(renderFunction(fn), /^uint64_t func_80001308\(uint64_t rt0\)/);
+});
+
+test('uses uint64_t for sign-extended 32-bit expressions that produce GPR-width results', () => {
+  const ir64: FunctionIR = {
+    functionAddress: 0x8000130c,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [{
+        kind: 'return',
+        value: {
+          kind: 'cast',
+          type: 'sext32',
+          width: 64,
+          value: { kind: 'const', value: 0xffffffff, width: 32 },
+        },
+      }],
+    }],
+  };
+  assert.equal(decompileStructuredFunctionIR(ir64).returnType, 'uint64_t');
+});
+
+test('rejects mixed value and void return paths instead of emitting invalid C', () => {
+  const mixed: FunctionIR = {
+    functionAddress: 0x80001310,
+    blocks: [
+      {
+        id: 0,
+        predecessors: [],
+        successors: [1, 2],
+        operations: [{
+          kind: 'branch',
+          condition: { kind: 'value', name: 'r1' },
+          trueTarget: 1,
+          falseTarget: 2,
+        }],
+      },
+      { id: 1, predecessors: [0], successors: [], operations: [{ kind: 'return', value: { kind: 'const', value: 1 } }] },
+      { id: 2, predecessors: [0], successors: [], operations: [{ kind: 'return' }] },
+    ],
+  };
+  assert.throws(
+    () => decompileStructuredFunctionIR(mixed),
+    /cannot mix value and void returns/,
+  );
+});
