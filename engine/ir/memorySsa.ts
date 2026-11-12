@@ -298,6 +298,9 @@ export function buildMemorySSAForCFG(
 ): MemorySSA {
   const byId = new Map<number, MemoryBasicBlock>();
   for (const block of blocks) {
+    if (!Number.isSafeInteger(block.id) || block.id < 0) {
+      throw new Error('memory CFG block id must be a non-negative safe integer: ' + block.id);
+    }
     if (byId.has(block.id)) throw new Error('duplicate memory CFG block ' + block.id);
     byId.set(block.id, block);
   }
@@ -308,6 +311,9 @@ export function buildMemorySSAForCFG(
       throw new Error('duplicate predecessor for memory CFG block ' + block.id);
     }
     for (const predecessor of block.predecessors) {
+      if (!Number.isSafeInteger(predecessor) || predecessor < 0) {
+        throw new Error('memory CFG predecessor id must be a non-negative safe integer: ' + predecessor);
+      }
       if (!byId.has(predecessor)) {
         throw new Error('unknown predecessor ' + predecessor + ' for memory CFG block ' + block.id);
       }
@@ -315,6 +321,9 @@ export function buildMemorySSAForCFG(
   }
 
   const normalized: MemoryAccess[] = accesses.map((access, index) => {
+    if (!Number.isSafeInteger(access.blockId) || access.blockId < 0) {
+      throw new Error('memory access block id must be a non-negative safe integer: ' + access.blockId);
+    }
     if (!byId.has(access.blockId)) throw new Error('unknown memory CFG block ' + access.blockId);
     return { ...access, id: index, confidence: classifyAddress(access.address) };
   });
