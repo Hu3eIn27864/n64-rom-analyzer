@@ -2,8 +2,8 @@ import type { MipsInstruction } from '../model/instruction';
 import type { BasicBlock, TerminatorKind } from '../model/basicBlock';
 import type { FunctionCFG } from '../model/cfg';
 
-const CONDITIONAL = new Set(['BEQ', 'BNE', 'BLEZ', 'BGTZ', 'BEQL', 'BNEL', 'BLEZL', 'BGTZL']);
-const LIKELY = new Set(['BEQL', 'BNEL', 'BLEZL', 'BGTZL']);
+const CONDITIONAL = new Set(['BEQ', 'BNE', 'BLEZ', 'BGTZ', 'BLTZ', 'BGEZ', 'BLTZAL', 'BGEZAL', 'BEQL', 'BNEL', 'BLEZL', 'BGTZL', 'BLTZL', 'BGEZL', 'BLTZALL', 'BGEZALL', 'BC1F', 'BC1T', 'BC1FL', 'BC1TL']);
+const LIKELY = new Set(['BEQL', 'BNEL', 'BLEZL', 'BGTZL', 'BLTZL', 'BGEZL', 'BLTZALL', 'BGEZALL', 'BC1FL', 'BC1TL']);
 
 function numeric(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -13,7 +13,13 @@ function numeric(value: string | undefined): number | undefined {
 
 function branchTarget(i: MipsInstruction): number | undefined {
   if (i.targetAddress !== undefined) return i.targetAddress >>> 0;
-  return numeric(i.operands[i.mnemonic.startsWith('B') ? 2 : 0]);
+  if (i.isConditionalBranch || CONDITIONAL.has(i.mnemonic)) {
+    // All supported branch forms place their encoded target last. This covers
+    // two-GPR branches, one-GPR REGIMM branches and BC1 branches with optional FCC.
+    return numeric(i.operands.at(-1));
+  }
+  if (i.mnemonic === 'J' || i.mnemonic === 'JAL') return numeric(i.operands[0]);
+  return undefined;
 }
 
 function classify(i: MipsInstruction): TerminatorKind {
@@ -21,7 +27,7 @@ function classify(i: MipsInstruction): TerminatorKind {
   if (i.isCall && i.mnemonic === 'JAL') return 'call';
   if (i.mnemonic === 'J') return 'jump';
   if (i.isReturn || (i.mnemonic === 'JR' && i.operands[0] === '$ra')) return 'return';
-  if (i.isCall || i.mnemonic === 'JALR') return 'indirect-call';
+  if (i.isCall || (i.mnemonic === 'JALR' && i.operands[0] !== '$zero')) return 'indirect-call';
   if (i.isJump || i.mnemonic === 'JR') return 'indirect-jump';
   return 'fallthrough';
 }
