@@ -127,3 +127,26 @@ test('compiles generated C from a validated synthetic ROM when a C compiler is a
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test('lowers a conditional ROM CFG into structured if/else C', () => {
+  const rom = new Uint8Array([
+    ...bigEndianWord(0x10850003), // BEQ $a0, $a1, 0x80001010
+    ...bigEndianWord(0x00000000), // branch delay slot
+    ...bigEndianWord(0x03e00008), // fallthrough: JR $ra
+    ...bigEndianWord(0x00000000), // return delay slot
+    ...bigEndianWord(0x03e00008), // branch target: JR $ra
+    ...bigEndianWord(0x00000000), // return delay slot
+  ]);
+
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  const result = validateDecodedRomFunction(cfg);
+
+  assert.equal(result.blockCount, 3);
+  assert.equal(result.validation.cfg, 'pass');
+  assert.equal(result.validation.confidence, 'proven');
+  assert.equal(result.decompilation.status, 'generated');
+  if (result.decompilation.status !== 'generated') return;
+  assert.match(result.decompilation.source, /if \(\(ra0 == ra1\)\)/);
+  assert.equal((result.decompilation.source.match(/return;/g) ?? []).length, 2);
+});
