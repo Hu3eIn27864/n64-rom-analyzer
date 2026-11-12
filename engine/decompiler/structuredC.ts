@@ -875,13 +875,28 @@ export function inferRegisterLiveInParameters(blocks: FunctionIR['blocks']): CFu
   const blockIds = new Set(blocks.map(block => block.id));
   const useByBlock = new Map<number, Set<string>>();
   const defByBlock = new Map<number, Set<string>>();
+  const phiUsesByEdge = new Map<string, Set<string>>();
 
   for (const block of blocks) {
     const uses = new Set<string>();
     const definitions = new Set<string>();
     for (const operation of block.operations) {
       const operationUses = new Set<string>();
-      collectExpressionRegisters(operation, operationUses);
+      if (operation.kind === 'phi') {
+        for (const [predecessorText, expression] of Object.entries(operation.inputs)) {
+          const predecessor = Number(predecessorText);
+          if (!Number.isSafeInteger(predecessor) || !blockIds.has(predecessor)
+            || !block.predecessors.includes(predecessor)) {
+            throw new Error(`live-in analysis found a Phi input for non-predecessor ${predecessorText} in block ${block.id}`);
+          }
+          const edgeKey = `${predecessor}->${block.id}`;
+          const edgeUses = phiUsesByEdge.get(edgeKey) ?? new Set<string>();
+          collectExpressionRegisters(expression, edgeUses);
+          phiUsesByEdge.set(edgeKey, edgeUses);
+        }
+      } else {
+        collectExpressionRegisters(operation, operationUses);
+      }
       const { definite, readModifyWrite } = operationDefinitions(operation);
       for (const register of [...operationUses, ...readModifyWrite]) {
         if (!definitions.has(register)) uses.add(register);
@@ -906,6 +921,9 @@ export function inferRegisterLiveInParameters(blocks: FunctionIR['blocks']): CFu
       const nextOut = new Set<string>();
       for (const successor of block.successors) {
         for (const register of liveIn.get(successor)!) nextOut.add(register);
+        for (const register of phiUsesByEdge.get(`${block.id}->${successor}`) ?? []) {
+          nextOut.add(register);
+        }
       }
       const nextIn = new Set(useByBlock.get(block.id)!);
       for (const register of nextOut) {
