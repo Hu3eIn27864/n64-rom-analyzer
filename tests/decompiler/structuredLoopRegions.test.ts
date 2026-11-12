@@ -37,8 +37,10 @@ test('proven compact loop with an explicit preheader is lowered by the structure
 
   const plans = planStructuredLoopRegions(ir);
   assert.equal(plans.length, 1);
-  assert.equal(plans[0].lowering, 'unsupported');
-  assert.throws(() => decompileProvenLoopFunctionIR(ir), /requires composed lowering/);
+  assert.equal(plans[0].lowering, 'supported');
+  const lowered = decompileProvenLoopFunctionIR(ir);
+  assert.equal(lowered.kind, 'function');
+  assert.equal(lowered.body.some(statement => statement.kind === 'while'), true);
 });
 
 test('nested/composed regions are admitted as evidence but rejected from guessing', () => {
