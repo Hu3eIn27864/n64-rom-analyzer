@@ -156,8 +156,10 @@ export function decodeRomFunctionCfgFromReader(
           successors = [fallthrough];
           pending.push(fallthrough);
         } else if (instruction.targetAddress !== undefined) {
-          decodeAt(instruction.targetAddress >>> 0);
-          successors = [];
+          const target = instruction.targetAddress >>> 0;
+          decodeAt(target);
+          successors = [target];
+          pending.push(target);
         } else {
           unresolvedIndirectJumps.add(address);
           successors = [];
