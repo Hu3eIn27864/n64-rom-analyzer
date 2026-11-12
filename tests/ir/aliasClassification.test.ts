@@ -39,3 +39,15 @@ test('ignores unresolved expressions when building classes', () => {
     ptr('sp', 0),
   ]), [{ key: 'sp+0', members: ['sp+0'] }]);
 });
+
+
+test('does not claim disjointness for different symbolic pointer bases', () => {
+  assert.equal(classifyAlias(ptr('a0', 4), ptr('sp', 4)), 'unknown');
+  assert.equal(classifyAlias(ptr('gp', 12), ptr('t9', 12)), 'unknown');
+  assert.equal(classifyAlias(ptr('bufferA', 0), ptr('bufferB', 0)), 'unknown');
+});
+
+test('requires safe offsets before making an alias decision', () => {
+  assert.equal(classifyAlias(ptr('sp', Number.MAX_SAFE_INTEGER + 1), ptr('sp', 4)), 'unknown');
+  assert.equal(classifyAlias(ptr('sp', 4), ptr('', 4)), 'unknown');
+});
