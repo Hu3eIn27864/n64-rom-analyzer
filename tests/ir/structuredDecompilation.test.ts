@@ -565,3 +565,68 @@ test('keeps a loop-carried value live-in when the loop may execute zero times', 
   assert.ok(parameters.some(parameter => parameter.name === 'rt0'));
   assert.ok(parameters.some(parameter => parameter.name === 'rcond'));
 });
+
+
+test('uses Phi inputs only on their matching predecessor edges during live-in analysis', () => {
+  const blocks: FunctionIR['blocks'] = [
+    {
+      id: 0, predecessors: [], successors: [1, 2],
+      operations: [{
+        kind: 'branch',
+        condition: { kind: 'value', name: 'rcond' },
+        trueTarget: 1,
+        falseTarget: 2,
+      }],
+    },
+    {
+      id: 1, predecessors: [0], successors: [3],
+      operations: [
+        { kind: 'assign', target: 'rthen', value: { kind: 'const', value: 1 } },
+        { kind: 'jump', target: 3 },
+      ],
+    },
+    {
+      id: 2, predecessors: [0], successors: [3],
+      operations: [
+        { kind: 'assign', target: 'relse', value: { kind: 'const', value: 2 } },
+        { kind: 'jump', target: 3 },
+      ],
+    },
+    {
+      id: 3, predecessors: [1, 2], successors: [],
+      operations: [
+        {
+          kind: 'phi',
+          target: 'rjoined',
+          inputs: {
+            1: { kind: 'value', name: 'rthen' },
+            2: { kind: 'value', name: 'relse' },
+          },
+        },
+        { kind: 'return', value: { kind: 'value', name: 'rjoined' } },
+      ],
+    },
+  ];
+
+  assert.deepEqual(inferRegisterLiveInParameters(blocks), [
+    { name: 'rcond', type: 'uint64_t' },
+  ]);
+});
+
+test('rejects Phi inputs that do not correspond to a CFG predecessor', () => {
+  const blocks: FunctionIR['blocks'] = [
+    { id: 0, predecessors: [], successors: [1], operations: [{ kind: 'jump', target: 1 }] },
+    {
+      id: 1, predecessors: [0], successors: [],
+      operations: [{
+        kind: 'phi',
+        target: 'rjoined',
+        inputs: { 2: { kind: 'value', name: 'rghost' } },
+      }],
+    },
+  ];
+  assert.throws(
+    () => inferRegisterLiveInParameters(blocks),
+    /Phi input for non-predecessor 2 in block 1/,
+  );
+});
