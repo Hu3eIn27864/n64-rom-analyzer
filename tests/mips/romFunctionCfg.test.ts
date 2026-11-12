@@ -153,3 +153,29 @@ test('counts delay-slot instructions against the CFG instruction bound', () => {
     );
   }
 });
+
+
+test('preserves unresolved indirect jump addresses as explicit CFG diagnostics', () => {
+  const rom = words([
+    0x03200008, // jr $t9
+    0x00000000, // delay slot
+  ]);
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  assert.deepEqual(cfg.unresolvedIndirectJumps, [entry.address]);
+  assert.deepEqual(cfg.unresolvedIndirectCalls, []);
+  assert.deepEqual(cfg.blocks[0].successors, []);
+});
+
+test('preserves unresolved indirect call addresses while following the return path', () => {
+  const jalrRaT9 = ((25 << 21) | (31 << 11) | 0x09) >>> 0;
+  const rom = words([
+    jalrRaT9, // jalr $ra, $t9
+    0x00000000, // delay slot
+    0x03e00008, // continuation: jr $ra
+    0x00000000,
+  ]);
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  assert.deepEqual(cfg.unresolvedIndirectJumps, []);
+  assert.deepEqual(cfg.unresolvedIndirectCalls, [entry.address]);
+  assert.ok(cfg.blocks.some(block => block.startAddress === 0x80001008));
+});
