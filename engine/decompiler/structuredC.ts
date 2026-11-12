@@ -2,6 +2,37 @@ import type { CExpr, CFunction, CStmt } from '../ir/cAst';
 import type { FunctionIR, MicroCExpr, MicroCOperation } from '../ir/microC';
 import { VR4300_FPU_C_RUNTIME } from './vr4300FpuRuntimeC';
 
+
+function microExpressionWidth(expression: MicroCExpr): 32 | 64 {
+  if (expression.width !== undefined) return expression.width;
+  switch (expression.kind) {
+    case 'cast':
+      if (expression.type === 'sext32' || /64/.test(expression.type)) return 64;
+      return microExpressionWidth(expression.value);
+    case 'binary':
+      return microExpressionWidth(expression.left) === 64 || microExpressionWidth(expression.right) === 64 ? 64 : 32;
+    case 'unary':
+      return microExpressionWidth(expression.value);
+    case 'const':
+    case 'value':
+      return 32;
+  }
+}
+
+function structuredReturnType(operations: readonly MicroCOperation[]): 'void' | 'uint32_t' | 'uint64_t' | undefined {
+  const returns = operations.filter((operation): operation is Extract<MicroCOperation, { kind: 'return' }> =>
+    operation.kind === 'return');
+  if (returns.length === 0) return undefined;
+  const valueReturns = returns.filter(operation => operation.value !== undefined);
+  if (valueReturns.length === 0) return 'void';
+  if (valueReturns.length !== returns.length) {
+    throw new Error('structured decompilation cannot mix value and void returns');
+  }
+  return valueReturns.some(operation => microExpressionWidth(operation.value!) === 64)
+    ? 'uint64_t'
+    : 'uint32_t';
+}
+
 function hexAddress(address: number): string {
   return `func_${(address >>> 0).toString(16).padStart(8, '0')}`;
 }
@@ -897,6 +928,7 @@ export function decompileStructuredFunctionIR(
     );
   }
   const operations = ir.blocks.flatMap(block => block.operations);
+  const inferredReturnType = structuredReturnType(operations);
   const registerParameters = options.parameterizeLiveIns
     ? registerLiveInParameters(operations)
     : [];
@@ -938,19 +970,18 @@ export function decompileStructuredFunctionIR(
     throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
   }
   if (!usesRuntime) {
-    const hasReturn = operations.some(operation => operation.kind === 'return');
-    const hasValueReturn = operations.some(operation => operation.kind === 'return' && operation.value !== undefined);
     // JR $ra carries control-flow semantics but no explicit C return expression.
     // Do not emit `uint32_t f(void) { return; }`, which is invalid C.
     return {
       ...lowered,
-      ...(hasReturn && !hasValueReturn ? { returnType: 'void' as const } : {}),
+      ...(inferredReturnType ? { returnType: inferredReturnType } : {}),
       parameters: registerParameters,
       useVoidForEmptyParameters: registerParameters.length === 0,
     };
   }
   return {
     ...lowered,
+    ...(inferredReturnType ? { returnType: inferredReturnType } : {}),
     parameters: [
       ...(usesFpuState ? [{ name: 'fpu', type: 'vr4300_fpu_state *' as const }] : []),
       ...registerParameters,
