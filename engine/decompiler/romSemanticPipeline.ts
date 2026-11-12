@@ -3,7 +3,7 @@ import type { FunctionMemoryEffectSummary } from './functionMemoryEffects';
 import { lowerRomCfgToFunctionIR } from './romCfgToFunctionIR';
 import { validateRomFunction, type RomFunctionValidationReport } from './romValidation';
 import { decompileStructuredFunctionIR } from './structuredC';
-import { renderFunction } from '../ir/cAst';
+import { renderProgram } from '../ir/cAst';
 
 export type RomFunctionCDecompilation =
   | { readonly status: 'generated'; readonly source: string }
@@ -37,7 +37,7 @@ export function validateDecodedRomFunction(
   } else {
     try {
       const cFunction = decompileStructuredFunctionIR(lowered.functionIR);
-      decompilation = { status: 'generated', source: renderFunction(cFunction) };
+      decompilation = { status: 'generated', source: renderProgram({ functions: [cFunction] }) };
     } catch (error) {
       decompilation = {
         status: 'unsupported',

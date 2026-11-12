@@ -70,7 +70,9 @@ test('emits structured C from a semantically validated synthetic ROM return func
   assert.equal(result.validation.confidence, 'proven');
   assert.equal(result.decompilation.status, 'generated');
   if (result.decompilation.status !== 'generated') return;
-  assert.deepEqual(result.decompilation.source.split(String.fromCharCode(10)), [
+  assert.deepEqual(result.decompilation.source.trimEnd().split(String.fromCharCode(10)), [
+    '#include <stdint.h>',
+    '',
     'void func_80001000(void)',
     '{',
     '    return;',
