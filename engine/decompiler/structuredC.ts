@@ -871,7 +871,7 @@ function operationDefinitions(operation: MicroCOperation): { definite: string[];
   }
 }
 
-function registerLiveInParameters(blocks: FunctionIR['blocks']): CFunction['parameters'] {
+export function inferRegisterLiveInParameters(blocks: FunctionIR['blocks']): CFunction['parameters'] {
   const blockIds = new Set(blocks.map(block => block.id));
   const useByBlock = new Map<number, Set<string>>();
   const defByBlock = new Map<number, Set<string>>();
@@ -975,7 +975,7 @@ export function decompileStructuredFunctionIR(
   const operations = ir.blocks.flatMap(block => block.operations);
   const inferredReturnType = structuredReturnType(operations);
   const registerParameters = options.parameterizeLiveIns
-    ? registerLiveInParameters(ir.blocks)
+    ? inferRegisterLiveInParameters(ir.blocks)
     : [];
   const fpuOperations = operations.filter(operation => operation.kind === 'fpuLoad'
     || operation.kind === 'fpuStore'
