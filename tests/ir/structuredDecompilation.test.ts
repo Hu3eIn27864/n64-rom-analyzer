@@ -630,3 +630,94 @@ test('rejects Phi inputs that do not correspond to a CFG predecessor', () => {
     /Phi input for non-predecessor 2 in block 1/,
   );
 });
+
+
+test('lowers a natural loop with an explicit preheader and preserves zero-iteration inputs', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x8000131c,
+    blocks: [
+      {
+        id: 0, predecessors: [], successors: [1],
+        operations: [{ kind: 'jump', target: 1 }],
+      },
+      {
+        id: 1, predecessors: [0, 2], successors: [2, 3],
+        operations: [{
+          kind: 'branch',
+          condition: { kind: 'value', name: 'rcond' },
+          trueTarget: 2,
+          falseTarget: 3,
+        }],
+      },
+      {
+        id: 2, predecessors: [1], successors: [1],
+        operations: [
+          {
+            kind: 'assign',
+            target: 'rt0',
+            value: {
+              kind: 'binary',
+              op: '+',
+              left: { kind: 'value', name: 'rt0', width: 64 },
+              right: { kind: 'const', value: 1 },
+              width: 64,
+            },
+          },
+          { kind: 'jump', target: 1 },
+        ],
+      },
+      {
+        id: 3, predecessors: [1], successors: [],
+        operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0', width: 64 } }],
+      },
+    ],
+  };
+
+  const fn = decompileStructuredFunctionIR(ir, { parameterizeLiveIns: true });
+  assert.equal(fn.returnType, 'uint64_t');
+  assert.deepEqual(fn.parameters, [
+    { name: 'rcond', type: 'uint64_t' },
+    { name: 'rt0', type: 'uint64_t' },
+  ]);
+  assert.equal(renderFunction(fn), [
+    'uint64_t func_8000131c(uint64_t rcond, uint64_t rt0)',
+    '{',
+    '    while (1)',
+    '    {',
+    '        if (rcond)',
+    '        {',
+    '            (rt0 = (rt0 + 1));',
+    '            continue;',
+    '        } else',
+    '        {',
+    '            break;',
+    '        }',
+    '    }',
+    '    return rt0;',
+    '}',
+  ].join(String.fromCharCode(10)));
+});
+
+test('executes header computations on every iteration of a preheader loop', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80001320,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [{ kind: 'jump', target: 1 }] },
+      {
+        id: 1, predecessors: [0, 2], successors: [2, 3],
+        operations: [
+          { kind: 'assign', target: 'rcheck', value: { kind: 'binary', op: '!=', left: { kind: 'value', name: 'rt0' }, right: { kind: 'const', value: 0 } } },
+          { kind: 'branch', condition: { kind: 'value', name: 'rcheck' }, trueTarget: 2, falseTarget: 3 },
+        ],
+      },
+      { id: 2, predecessors: [1], successors: [1], operations: [{ kind: 'jump', target: 1 }] },
+      { id: 3, predecessors: [1], successors: [], operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0' } }] },
+    ],
+  };
+  const fn = decompileStructuredFunctionIR(ir);
+  const loop = fn.body.find(statement => statement.kind === 'while');
+  assert.ok(loop && loop.kind === 'while');
+  assert.equal(loop.condition.kind, 'literal');
+  assert.equal(loop.body[0].kind, 'expr');
+  assert.equal(loop.body[1].kind, 'if');
+});

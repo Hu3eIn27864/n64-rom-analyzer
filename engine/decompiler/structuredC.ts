@@ -806,6 +806,93 @@ function lowerLoopWithPhi(ir: FunctionIR): CFunction {
   return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], useVoidForEmptyParameters: true, body };
 }
 
+
+function isLoopWithPreheader(ir: FunctionIR): boolean {
+  if (ir.blocks.length !== 4) return false;
+  const entries = ir.blocks.filter(block => block.predecessors.length === 0);
+  if (entries.length !== 1 || entries[0].successors.length !== 1) return false;
+  const entry = entries[0];
+  const header = ir.blocks.find(block => block.id === entry.successors[0]);
+  if (!header || header.predecessors.length !== 2 || !header.predecessors.includes(entry.id)) return false;
+  const branch = header.operations.at(-1);
+  if (!branch || branch.kind !== 'branch' || branch.falseTarget === undefined || phiOperations(header).length > 0) return false;
+  const trueBlock = ir.blocks.find(block => block.id === branch.trueTarget);
+  const falseBlock = ir.blocks.find(block => block.id === branch.falseTarget);
+  if (!trueBlock || !falseBlock || trueBlock.id === falseBlock.id) return false;
+  const bodyBlocks = [trueBlock, falseBlock].filter(block => block.successors.includes(header.id));
+  if (bodyBlocks.length !== 1) return false;
+  const body = bodyBlocks[0];
+  const exit = body.id === trueBlock.id ? falseBlock : trueBlock;
+  return body.predecessors.length === 1
+    && body.predecessors[0] === header.id
+    && header.predecessors.includes(body.id)
+    && exit.predecessors.includes(header.id)
+    && exit.successors.length === 0;
+}
+
+function lowerWhileWithPreheader(ir: FunctionIR): CFunction {
+  if (!isLoopWithPreheader(ir)) throw new Error('structured preheader loop lowering requires one proven header/body/exit shape');
+  const entry = entryBlock(ir);
+  const header = blockById(ir, entry.successors[0]);
+  const branch = header.operations.at(-1);
+  if (!branch || branch.kind !== 'branch' || branch.falseTarget === undefined) {
+    throw new Error('structured preheader loop lowering requires a two-way header branch');
+  }
+  const trueBlock = blockById(ir, branch.trueTarget);
+  const falseBlock = blockById(ir, branch.falseTarget);
+  const bodyBlock = trueBlock.successors.includes(header.id) ? trueBlock : falseBlock;
+  const exitBlock = bodyBlock.id === trueBlock.id ? falseBlock : trueBlock;
+  if (branch.linkOnTaken) throw new Error('structured preheader loop lowering does not yet support branch-and-link headers');
+
+  const bodyStatements = bodyBlock.operations.slice(0, -1)
+    .map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
+  const bodyTerminator = bodyBlock.operations.at(-1);
+  if (bodyTerminator?.kind === 'jump' && bodyTerminator.target === header.id) {
+    bodyStatements.push({ kind: 'continue' });
+  } else if (bodyTerminator?.kind === 'branch' && bodyTerminator.falseTarget !== undefined) {
+    const targets = [bodyTerminator.trueTarget, bodyTerminator.falseTarget];
+    if (!targets.includes(header.id) || !targets.includes(exitBlock.id)) {
+      throw new Error('structured preheader loop body branch must target exactly the header and exit');
+    }
+    bodyStatements.push(...loopControlStatements(
+      lowerExpr(bodyTerminator.condition),
+      bodyTerminator.trueTarget,
+      bodyTerminator.falseTarget,
+      header.id,
+      exitBlock.id,
+    ));
+  } else {
+    throw new Error('structured preheader loop body must end with a jump or header/exit branch');
+  }
+
+  const condition = lowerExpr(branch.condition);
+  const bodyCondition = bodyBlock.id === branch.trueTarget
+    ? condition
+    : { kind: 'unary' as const, op: '!', operand: condition, type: 'uint32_t' as const };
+  const headerStatements = header.operations.slice(0, -1)
+    .filter(operation => operation.kind !== 'phi')
+    .map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined);
+  const body: CStmt[] = [
+    ...entry.operations.filter(operation => operation.kind !== 'jump')
+      .map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined),
+    {
+      kind: 'while',
+      condition: { kind: 'literal', value: 1, type: 'uint32_t' },
+      body: [
+        ...headerStatements,
+        {
+          kind: 'if',
+          condition: bodyCondition,
+          thenBranch: { kind: 'block', body: bodyStatements },
+          elseBranch: { kind: 'block', body: [{ kind: 'break' }] },
+        },
+      ],
+    },
+    ...exitBlock.operations.map(lowerOperation).filter((statement): statement is CStmt => statement !== undefined),
+  ];
+  return { kind: 'function', name: hexAddress(ir.functionAddress), returnType: 'uint32_t', parameters: [], useVoidForEmptyParameters: true, body };
+}
+
 function isLoopWithPhi(ir: FunctionIR): boolean {
   if (ir.blocks.length !== 4) return false;
   const entry = ir.blocks.find(block => block.predecessors.length === 0);
@@ -1028,7 +1115,11 @@ export function decompileStructuredFunctionIR(
       || targetBlocks.some(block => block.successors.length === 2 && block.successors.includes(entry.id));
     lowered = hasBackEdge ? lowerWhile(ir) : lowerTwoWayBranch(ir);
   } else if (ir.blocks.length === 4) {
-    lowered = isLoopWithPhi(ir) ? lowerLoopWithPhi(ir) : lowerDiamond(ir);
+    lowered = isLoopWithPhi(ir)
+      ? lowerLoopWithPhi(ir)
+      : isLoopWithPreheader(ir)
+        ? lowerWhileWithPreheader(ir)
+        : lowerDiamond(ir);
   } else {
     throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
   }
