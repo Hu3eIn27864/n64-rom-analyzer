@@ -152,3 +152,38 @@ test('lowers a conditional ROM CFG into structured if/else C', () => {
   assert.match(result.decompilation.source, /if \(\(ra0 == ra1\)\)/);
   assert.equal((result.decompilation.source.match(/return;/g) ?? []).length, 2);
 });
+
+
+test('compiles conditional ROM C with inferred live-in register parameters', (t) => {
+  const rom = new Uint8Array([
+    ...bigEndianWord(0x10850003), // BEQ $a0, $a1, 0x80001010
+    ...bigEndianWord(0x00000000), // branch delay slot
+    ...bigEndianWord(0x03e00008), // fallthrough: JR $ra
+    ...bigEndianWord(0x00000000), // return delay slot
+    ...bigEndianWord(0x03e00008), // branch target: JR $ra
+    ...bigEndianWord(0x00000000), // return delay slot
+  ]);
+  const result = validateDecodedRomFunction(decodeRomFunctionCfg(rom, entry));
+  assert.equal(result.decompilation.status, 'generated');
+  if (result.decompilation.status !== 'generated') return;
+  assert.match(result.decompilation.source, /void func_80001000\(uint64_t ra0, uint64_t ra1\)/);
+
+  const compilerProbe = spawnSync('cc', ['--version'], { encoding: 'utf8' });
+  if (compilerProbe.error?.code === 'ENOENT') {
+    t.skip('C compiler cc is not installed in this environment');
+    return;
+  }
+  assert.equal(compilerProbe.status, 0, compilerProbe.stderr);
+
+  const directory = mkdtempSync(join(tmpdir(), 'n64-rom-analyzer-branch-c-'));
+  try {
+    const sourcePath = join(directory, 'conditional-function.c');
+    writeFileSync(sourcePath, result.decompilation.source, 'utf8');
+    const compiled = spawnSync('cc', [
+      '-std=c11', '-Wall', '-Wextra', '-Werror', '-fsyntax-only', sourcePath,
+    ], { encoding: 'utf8' });
+    assert.equal(compiled.status, 0, compiled.stderr || compiled.stdout);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

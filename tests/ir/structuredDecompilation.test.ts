@@ -363,3 +363,73 @@ test('keeps value-returning functions on the integer C return type', () => {
   };
   assert.equal(decompileStructuredFunctionIR(valueReturnIr).returnType, 'uint32_t');
 });
+
+
+test('parameterizes GPR values that are read before any definition', () => {
+  const liveInIr: FunctionIR = {
+    functionAddress: 0x80001300,
+    blocks: [
+      {
+        id: 0,
+        predecessors: [],
+        successors: [1, 2],
+        operations: [
+          { kind: 'assign', target: 'rt2', value: { kind: 'const', value: 7 } },
+          {
+            kind: 'branch',
+            condition: {
+              kind: 'binary',
+              op: '==',
+              left: { kind: 'value', name: 'ra1', width: 64 },
+              right: { kind: 'value', name: 'ra0', width: 64 },
+              width: 64,
+            },
+            trueTarget: 1,
+            falseTarget: 2,
+          },
+        ],
+      },
+      { id: 1, predecessors: [0], successors: [], operations: [{ kind: 'return' }] },
+      { id: 2, predecessors: [0], successors: [], operations: [{ kind: 'return' }] },
+    ],
+  };
+
+  const fn = decompileStructuredFunctionIR(liveInIr, { parameterizeLiveIns: true });
+  assert.deepEqual(fn.parameters, [
+    { name: 'ra0', type: 'uint64_t' },
+    { name: 'ra1', type: 'uint64_t' },
+  ]);
+  assert.equal(fn.useVoidForEmptyParameters, false);
+});
+
+test('does not expose a defined register or the architectural zero register as a C parameter', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80001304,
+    blocks: [{
+      id: 0,
+      predecessors: [],
+      successors: [],
+      operations: [
+        { kind: 'assign', target: 'rt0', value: { kind: 'const', value: 1 } },
+        {
+          kind: 'return',
+          value: {
+            kind: 'binary',
+            op: '+',
+            left: { kind: 'value', name: 'rt0' },
+            right: { kind: 'value', name: 'rzero' },
+          },
+        },
+      ],
+    }],
+  };
+  const fn = decompileStructuredFunctionIR(ir, { parameterizeLiveIns: true });
+  assert.deepEqual(fn.parameters, []);
+  assert.equal(renderFunction(fn), [
+    'uint32_t func_80001304(void)',
+    '{',
+    '    (rt0 = 1);',
+    '    return (rt0 + 0);',
+    '}',
+  ].join(String.fromCharCode(10)));
+});

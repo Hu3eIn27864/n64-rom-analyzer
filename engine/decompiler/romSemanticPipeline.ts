@@ -36,7 +36,7 @@ export function validateDecodedRomFunction(
     };
   } else {
     try {
-      const cFunction = decompileStructuredFunctionIR(lowered.functionIR);
+      const cFunction = decompileStructuredFunctionIR(lowered.functionIR, { parameterizeLiveIns: true });
       decompilation = { status: 'generated', source: renderProgram({ functions: [cFunction] }) };
     } catch (error) {
       decompilation = {
