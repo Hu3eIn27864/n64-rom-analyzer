@@ -970,8 +970,6 @@ export function decompileStructuredFunctionIR(
     throw new Error(`structured decompilation does not support ${ir.blocks.length} IR blocks`);
   }
   if (!usesRuntime) {
-    const hasReturn = operations.some(operation => operation.kind === 'return');
-    const hasValueReturn = operations.some(operation => operation.kind === 'return' && operation.value !== undefined);
     // JR $ra carries control-flow semantics but no explicit C return expression.
     // Do not emit `uint32_t f(void) { return; }`, which is invalid C.
     return {
