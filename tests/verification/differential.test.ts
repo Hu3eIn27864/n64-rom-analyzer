@@ -77,3 +77,40 @@ test('distinguishes an omitted program counter from an explicit zero PC', () => 
     actual: 1,
   }]);
 });
+
+
+test('compares 64-bit GPR values exactly when represented as bigint', () => {
+  const initial: MachineState = {
+    registers: [0n, 0x20000000000001n, 0xffffffffffffffffn],
+    memory: new Uint8Array([0, 1, 2, 3]),
+    pc: 0x80001000,
+  };
+  const result = runDifferentialTest(
+    initial,
+    s => ({ ...s, registers: [...s.registers] }),
+    s => ({
+      ...s,
+      registers: [0n, 0x20000000000002n, 0xffffffffffffffffn],
+    }),
+  );
+
+  assert.equal(result.status, 'fail');
+  assert.deepEqual(result.differences, [{
+    kind: 'register',
+    location: 'r1',
+    expected: 0x20000000000001n,
+    actual: 0x20000000000002n,
+  }]);
+});
+
+test('does not conflate bigint GPR state with a rounded JavaScript number', () => {
+  const result = runDifferentialTest(
+    { registers: [9007199254740993n], memory: new Uint8Array(0) },
+    s => s,
+    s => ({ ...s, registers: [Number(9007199254740993n)] }),
+  );
+  assert.equal(result.status, 'fail');
+  assert.equal(result.differences[0].location, 'r0');
+  assert.equal(result.differences[0].expected, 9007199254740993n);
+  assert.equal(result.differences[0].actual, 9007199254740992);
+});
