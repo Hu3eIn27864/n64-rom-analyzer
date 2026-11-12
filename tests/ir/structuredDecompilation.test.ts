@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decompileLinearFunctionIR, decompileStructuredFunctionIR } from '../../engine/decompiler/structuredC';
+import { decompileLinearFunctionIR, decompileStructuredFunctionIR, inferRegisterLiveInParameters } from '../../engine/decompiler/structuredC';
 import { renderFunction } from '../../engine/ir/cAst';
 import type { FunctionIR } from '../../engine/ir/microC';
 
