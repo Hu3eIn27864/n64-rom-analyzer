@@ -760,3 +760,33 @@ test('lowers a ROM-style preheader loop whose direct backedge exists only in CFG
     }
   }
 });
+
+
+test('rejects Phi nodes in loop bodies instead of silently dropping them', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x80001328,
+    blocks: [
+      { id: 0, predecessors: [], successors: [1], operations: [{ kind: 'jump', target: 1 }] },
+      {
+        id: 1, predecessors: [0, 2], successors: [2, 3],
+        operations: [
+          { kind: 'phi', target: 'rt0', inputs: { 0: { kind: 'const', value: 0 }, 2: { kind: 'value', name: 'rt0' } } },
+          { kind: 'branch', condition: { kind: 'value', name: 'rcond' }, trueTarget: 2, falseTarget: 3 },
+        ],
+      },
+      {
+        id: 2, predecessors: [1], successors: [1],
+        operations: [
+          { kind: 'phi', target: 'rbody', inputs: { 1: { kind: 'value', name: 'rt0' } } },
+          { kind: 'assign', target: 'rt0', value: { kind: 'binary', op: '+', left: { kind: 'value', name: 'rt0' }, right: { kind: 'const', value: 1 } } },
+          { kind: 'jump', target: 1 },
+        ],
+      },
+      { id: 3, predecessors: [1], successors: [], operations: [{ kind: 'return', value: { kind: 'value', name: 'rt0' } }] },
+    ],
+  };
+  assert.throws(
+    () => decompileStructuredFunctionIR(ir),
+    /only supports Phi nodes in the loop header/,
+  );
+});
