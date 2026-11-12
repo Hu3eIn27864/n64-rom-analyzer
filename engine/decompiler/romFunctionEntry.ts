@@ -22,20 +22,38 @@ export function resolveRomFunctionEntry(
   layout: RomFunctionEntryLayout,
   romLength: number,
 ): RomFunctionEntry {
+  if (!Number.isInteger(address) || address < 0 || address > 0xffffffff || address % 4 !== 0) {
+    throw new Error('ROM function entry address must be a valid 4-byte-aligned VRAM address');
+  }
+  if (!Number.isInteger(layout.textVaddr) || layout.textVaddr < 0
+    || layout.textVaddr > 0xffffffff || layout.textVaddr % 4 !== 0) {
+    throw new Error('ROM text virtual address must be a valid 4-byte-aligned VRAM address');
+  }
+  if (!Number.isSafeInteger(layout.textRomOffset) || layout.textRomOffset < 0 || layout.textRomOffset % 4 !== 0) {
+    throw new Error('ROM function entry requires a non-negative 4-byte-aligned text ROM offset');
+  }
+  if (!Number.isSafeInteger(layout.textSize) || layout.textSize <= 0 || layout.textSize % 4 !== 0) {
+    throw new Error('ROM function entry requires a positive 4-byte-aligned text size');
+  }
+  if (!Number.isSafeInteger(romLength) || romLength < 0) {
+    throw new Error('ROM length must be a non-negative safe integer');
+  }
+
   const vaddr = u32(address);
   const start = u32(layout.textVaddr);
   const end = start + layout.textSize;
-  if (!Number.isSafeInteger(layout.textRomOffset) || layout.textRomOffset < 0) {
-    throw new Error('ROM function entry requires a non-negative text ROM offset');
+  const romEnd = layout.textRomOffset + layout.textSize;
+  if (!Number.isSafeInteger(end) || end > 0x100000000) {
+    throw new Error('configured text virtual segment wraps the 32-bit address space');
   }
-  if (!Number.isSafeInteger(layout.textSize) || layout.textSize <= 0) {
-    throw new Error('ROM function entry requires a positive text size');
+  if (!Number.isSafeInteger(romEnd) || romEnd > romLength) {
+    throw new Error('configured text ROM segment extends outside the ROM');
   }
   if (vaddr < start || vaddr >= end) {
     throw new Error(`function entry 0x${vaddr.toString(16)} is outside the configured text segment`);
   }
   const romOffset = layout.textRomOffset + (vaddr - start);
-  if (!Number.isSafeInteger(romOffset) || romOffset < 0 || romOffset >= romLength) {
+  if (!Number.isSafeInteger(romOffset) || romOffset < 0 || romOffset + 4 > romLength) {
     throw new Error(`function entry 0x${vaddr.toString(16)} resolves outside the ROM`);
   }
   return { address: vaddr, romOffset };
