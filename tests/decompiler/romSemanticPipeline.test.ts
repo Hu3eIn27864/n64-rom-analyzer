@@ -202,6 +202,12 @@ test('compiles a preheader natural loop recovered from a synthetic ROM', (t) => 
     ...bigEndianWord(0x00000000), // return delay slot
   ]);
   const cfg = decodeRomFunctionCfg(rom, entry);
+  assert.deepEqual(cfg.blocks.map(block => block.startAddress), [
+    0x80001000, 0x80001008, 0x80001010, 0x8000101c,
+  ]);
+  assert.deepEqual(cfg.blocks.map(block => block.successors), [
+    [0x80001008], [0x8000101c, 0x80001010], [0x80001008], [],
+  ]);
   const result = validateDecodedRomFunction(cfg);
 
   assert.equal(result.validation.cfg, 'pass');
