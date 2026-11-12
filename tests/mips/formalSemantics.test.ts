@@ -198,3 +198,13 @@ test('register trap instructions read both compared operands without defining GP
     assert.match(result.description, /may raise a trap/);
   }
 });
+
+
+test('immediate trap instructions read their source register without defining GPRs', () => {
+  for (const mnemonic of ['TGEI', 'TGEIU', 'TLTI', 'TLTIU', 'TEQI', 'TNEI']) {
+    const result = analyzeInstructionSemantics(mnemonic, ['$t0', '-2']);
+    assert.deepEqual(result.reads, ['t0'], mnemonic);
+    assert.deepEqual(result.writes, [], mnemonic);
+    assert.match(result.description, /may raise a trap/);
+  }
+});
