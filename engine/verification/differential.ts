@@ -5,7 +5,7 @@ export interface MachineState {
 }
 
 export interface StateDifference {
-  kind: 'register' | 'memory' | 'pc' | 'shape';
+  kind: 'register' | 'memory' | 'pc' | 'special-register' | 'shape';
   location: string;
   expected: number;
   actual: number;
@@ -59,6 +59,26 @@ export function compareMachineStates(expected: MachineState, actual: MachineStat
     differences.push({ kind: 'pc', location: 'pc', expected: expected.pc, actual: actual.pc });
   }
 
+  for (const register of ['hi', 'lo'] as const) {
+    const e = expected[register];
+    const a = actual[register];
+    if ((e === undefined) !== (a === undefined)) {
+      differences.push({
+        kind: 'shape',
+        location: register + '.presence',
+        expected: e === undefined ? 0 : 1,
+        actual: a === undefined ? 0 : 1,
+      });
+    } else if (e !== undefined && a !== undefined && e !== a) {
+      differences.push({
+        kind: 'special-register',
+        location: register,
+        expected: e,
+        actual: a,
+      });
+    }
+  }
+
   return { status: differences.length === 0 ? 'pass' : 'fail', differences };
 }
 
@@ -67,6 +87,8 @@ function cloneMachineState(state: MachineState): MachineState {
     registers: [...state.registers],
     memory: new Uint8Array(state.memory),
     ...(state.pc === undefined ? {} : { pc: state.pc }),
+    ...(state.hi === undefined ? {} : { hi: state.hi }),
+    ...(state.lo === undefined ? {} : { lo: state.lo }),
   };
 }
 
