@@ -76,3 +76,23 @@ test('keeps a direct jump represented by its CFG terminator without inventing a 
   assert.deepEqual(result.functionIR.blocks[0].operations, []);
   assert.equal(result.functionIR.unsupportedInstructions, undefined);
 });
+
+
+test('marks unresolved indirect jumps as fatal semantic diagnostics', () => {
+  const rom = words([0x03200008, 0x00000000]); // jr $t9; nop
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  const result = lowerRomCfgToFunctionIR(cfg);
+  assert.ok(result.functionIR.unsupportedInstructions?.some(item =>
+    item.address === entry.address && item.mnemonic === 'JR' && /indirect jump target is unresolved/.test(item.reason),
+  ));
+});
+
+test('marks unresolved indirect call contracts as fatal semantic diagnostics', () => {
+  const jalrRaT9 = ((25 << 21) | (31 << 11) | 0x09) >>> 0;
+  const rom = words([jalrRaT9, 0x00000000, 0x03e00008, 0x00000000]);
+  const cfg = decodeRomFunctionCfg(rom, entry);
+  const result = lowerRomCfgToFunctionIR(cfg);
+  assert.ok(result.functionIR.unsupportedInstructions?.some(item =>
+    item.address === entry.address && item.mnemonic === 'JALR' && /callee memory effects and call contract are unknown/.test(item.reason),
+  ));
+});

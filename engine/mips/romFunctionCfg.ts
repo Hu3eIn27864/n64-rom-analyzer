@@ -19,6 +19,10 @@ export type DecodedRomFunctionCfg = {
   entry: RomFunctionEntry;
   blocks: RomFunctionBasicBlock[];
   instructionCount: number;
+  /** Indirect jumps whose runtime target could not be resolved from ROM evidence. */
+  unresolvedIndirectJumps: number[];
+  /** Indirect calls whose callee target could not be resolved from ROM evidence. */
+  unresolvedIndirectCalls: number[];
 };
 
 function readWord(bytes: Uint8Array, offset: number, order: 'big' | 'little'): number {
@@ -62,6 +66,8 @@ export function decodeRomFunctionCfgFromReader(
   const visited = new Set<number>();
   const blocks = new Map<number, RomFunctionBasicBlock>();
   let instructionCount = 0;
+  const unresolvedIndirectJumps = new Set<number>();
+  const unresolvedIndirectCalls = new Set<number>();
 
   const decodeDelaySlot = (address: number): MipsInstruction => {
     if (instructionCount >= maxInstructions) {
@@ -145,6 +151,7 @@ export function decodeRomFunctionCfgFromReader(
         }
         instructions.push(delay);
         if (instruction.isCall) {
+          if (instruction.targetAddress === undefined) unresolvedIndirectCalls.add(address);
           const fallthrough = nextAddress(after);
           successors = [fallthrough];
           pending.push(fallthrough);
@@ -152,6 +159,7 @@ export function decodeRomFunctionCfgFromReader(
           decodeAt(instruction.targetAddress >>> 0);
           successors = [];
         } else {
+          unresolvedIndirectJumps.add(address);
           successors = [];
         }
         break;
@@ -163,7 +171,13 @@ export function decodeRomFunctionCfgFromReader(
     blocks.set(start, { startAddress: start, instructions, successors: [...new Set(successors)] });
   }
 
-  return { entry, blocks: [...blocks.values()].sort((a, b) => a.startAddress - b.startAddress), instructionCount };
+  return {
+    entry,
+    blocks: [...blocks.values()].sort((a, b) => a.startAddress - b.startAddress),
+    instructionCount,
+    unresolvedIndirectJumps: [...unresolvedIndirectJumps].sort((a, b) => a - b),
+    unresolvedIndirectCalls: [...unresolvedIndirectCalls].sort((a, b) => a - b),
+  };
 }
 
 /** Decode a function using the legacy explicit linear ROM-offset mapping. */
