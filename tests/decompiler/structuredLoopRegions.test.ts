@@ -24,20 +24,21 @@ test('structured loop admission consumes the canonical loop proof', () => {
   assert.equal(plans[0].lowering, 'supported');
 });
 
-test('proven compact loop is lowered through the existing structured renderer', () => {
+test('proven compact loop remains non-lowerable until the renderer supports explicit preheaders', () => {
   const ir: FunctionIR = {
     functionAddress: 0xa100,
     blocks: [
-      block(0, [], [1, 2], [{ kind: 'branch', condition: { kind: 'value', name: 'cond' }, trueTarget: 1, falseTarget: 2 }]),
-      block(1, [0], [0], [{ kind: 'jump', target: 0 }]),
-      block(2, [0], []),
+      block(0, [], [1], [{ kind: 'jump', target: 1 }]),
+      block(1, [0, 2], [2, 3], [{ kind: 'branch', condition: { kind: 'value', name: 'cond' }, trueTarget: 2, falseTarget: 3 }]),
+      block(2, [1], [1], [{ kind: 'jump', target: 1 }]),
+      block(3, [1], []),
     ],
   };
 
-  const lowered = decompileProvenLoopFunctionIR(ir);
-  assert.equal(lowered.kind, 'function');
-  assert.equal(lowered.name, 'func_0000a100');
-  assert.equal(lowered.body.some(statement => statement.kind === 'while'), true);
+  const plans = planStructuredLoopRegions(ir);
+  assert.equal(plans.length, 1);
+  assert.equal(plans[0].lowering, 'unsupported');
+  assert.throws(() => decompileProvenLoopFunctionIR(ir), /requires composed lowering/);
 });
 
 test('nested/composed regions are admitted as evidence but rejected from guessing', () => {
