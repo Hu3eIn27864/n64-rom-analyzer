@@ -62,7 +62,16 @@ This roadmap reflects the current implementation checklist and verification mode
 - [ ] Regression corpus with documented ROM provenance and legal test status.
 **Estimate:** 3–9 months initially; ongoing thereafter.
 
-## Immediate integration milestones\n\n1. Route decoder-enriched instruction metadata through all semantic annotation consumers (including COP1 FPR/FCC effects).\n2. Make differential execution compare independent initial machine-state snapshots so reference-side mutation cannot contaminate candidate execution.\n3. Select a small synthetic ROM function and carry it through decode, function CFG, Micro-C, structured C, and validation; record each stage's evidence level.\n4. Compile the generated C fixture with a real C toolchain before expanding the supported control-flow subset.\n\nThese milestones prioritize a verified vertical slice over broad but disconnected feature additions.\n\n## Near-term schedule
+## Immediate integration milestones
+
+1. Route decoder-enriched instruction metadata through all semantic annotation consumers (including COP1 FPR/FCC effects).
+2. Make differential execution compare independent initial machine-state snapshots so reference-side mutation cannot contaminate candidate execution.
+3. Select a small synthetic ROM function and carry it through decode, function CFG, Micro-C, structured C, and validation; record each stage's evidence level.
+4. Compile the generated C fixture with a real C toolchain before expanding the supported control-flow subset.
+
+These milestones prioritize a verified vertical slice over broad but disconnected feature additions.
+
+## Near-term schedule
 
 | Period | Focus | Deliverable |
 |---|---|---|
