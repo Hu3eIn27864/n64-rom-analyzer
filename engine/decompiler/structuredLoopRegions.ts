@@ -29,8 +29,11 @@ function validateRegion(ir: FunctionIR, region: LoopRegion): void {
   }
 }
 
-function compactLoopShape(ir: FunctionIR, region: LoopRegion): boolean {
-  if (ir.blocks.length === 3) return region.nodeIds.length === 2 && region.exitIds.length === 1;
+function compactLoopShape(_ir: FunctionIR, _region: LoopRegion): boolean {
+  // The current renderer expects the loop header itself to be the CFG entry.
+  // It cannot yet preserve an explicit preheader in a reciprocal CFG, so
+  // these regions remain proven-but-not-lowerable rather than accepting
+  // malformed predecessor metadata as a shortcut.
   return false;
 }
 

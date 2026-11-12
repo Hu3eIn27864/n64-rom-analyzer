@@ -105,3 +105,41 @@ test('loop-region analysis leaves an irreducible cycle unstructured', () => {
 
   assert.deepEqual(analyzeLoopRegions(ir), []);
 });
+
+
+test('loop-region analysis rejects non-reciprocal successor edges', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x9500,
+    blocks: [block(0, [], [1]), block(1, [], [])],
+  };
+  assert.throws(() => analyzeLoopRegions(ir), /non-reciprocal edge 0 -> 1/);
+});
+
+test('loop-region analysis rejects non-reciprocal predecessor metadata', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x9510,
+    blocks: [block(0, [], []), block(1, [0], [])],
+  };
+  assert.throws(() => analyzeLoopRegions(ir), /non-reciprocal predecessor 0 -> 1/);
+});
+
+test('loop-region analysis rejects duplicate CFG edges', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x9520,
+    blocks: [block(0, [], [1, 1]), block(1, [0], [])],
+  };
+  assert.throws(() => analyzeLoopRegions(ir), /unique successors for block 0/);
+});
+
+test('loop-region analysis rejects unreachable cyclic components', () => {
+  const ir: FunctionIR = {
+    functionAddress: 0x9530,
+    blocks: [
+      block(0, [], [1]),
+      block(1, [0], []),
+      block(2, [3], [3]),
+      block(3, [2], [2]),
+    ],
+  };
+  assert.throws(() => analyzeLoopRegions(ir), /unreachable blocks: 2, 3/);
+});
