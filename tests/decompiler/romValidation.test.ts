@@ -109,10 +109,11 @@ test('rejects unreachable blocks even when all edge references exist', () => {
     blocks: [
       { id: 0, predecessors: [], successors: [1], operations: [] },
       { id: 1, predecessors: [0], successors: [], operations: [] },
-      { id: 2, predecessors: [], successors: [], operations: [] },
+      { id: 2, predecessors: [3], successors: [3], operations: [] },
+      { id: 3, predecessors: [2], successors: [2], operations: [] },
     ],
   };
   const report = validateRomFunction(disconnected);
   assert.equal(report.cfg, 'fail');
-  assert.match(report.reasons.join(' '), /exactly one CFG entry block/);
+  assert.match(report.reasons.join(' '), /block 2 is unreachable from the CFG entry/);
 });
