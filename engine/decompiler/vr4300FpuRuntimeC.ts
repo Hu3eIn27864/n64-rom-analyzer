@@ -17,7 +17,11 @@ export const VR4300_FPU_C_RUNTIME = `#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
+#if defined(__clang__)
 #pragma STDC FENV_ACCESS ON
+#elif defined(__GNUC__)
+#pragma GCC optimize ("rounding-math")
+#endif
 
 typedef struct vr4300_fpu_state {
     uint32_t words[32];
