@@ -137,14 +137,25 @@ test('summarizes stack and frame relative accesses in distinct address spaces', 
   assert.equal(summary.unknown, false);
 });
 
-test('does not conflate stack-relative and frame-relative ranges', () => {
+test('does not claim preservation across different symbolic memory bases', () => {
   const summary = {
     reads: [],
     writes: [{ base: 'sp' as const, address: -16, size: 4 as const }],
     unknown: false,
   };
-  assert.equal(preservesMemoryRange(summary, { base: 'fp', address: -16, size: 4 }), true);
+  assert.equal(preservesMemoryRange(summary, { base: 'fp', address: -16, size: 4 }), false);
+  assert.equal(preservesMemoryRange(summary, { address: 0x8000fff0, size: 4 }), false);
+  assert.equal(preservesMemoryRange(summary, { base: 'sp', address: -8, size: 4 }), true);
   assert.equal(preservesMemoryRange(summary, { base: 'sp', address: -14, size: 2 }), false);
+});
+
+test('does not claim stack memory is preserved across a known absolute write', () => {
+  const summary = {
+    reads: [],
+    writes: [{ address: 0x8000fff0, size: 4 as const }],
+    unknown: false,
+  };
+  assert.equal(preservesMemoryRange(summary, { base: 'sp', address: -16, size: 4 }), false);
 });
 
 
