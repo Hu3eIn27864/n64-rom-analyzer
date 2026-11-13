@@ -80,3 +80,82 @@ The existing analyzer is an experimental implementation and validation environme
 - Implement trace/state differential verification with documented observable-state boundaries.
 - Compare against established disassemblers/decompilers using reproducible versions and settings.
 - Conduct a focused literature review on binary lifting, CFG recovery, SSA construction, type inference, and semantics-based validation.
+
+
+## Formal invariant: predecessor-indexed Phi semantics
+
+Let a basic block \\(B\\) have predecessor set \\(Pred(B)\\). A Phi definition for variable \\(x\\) is a finite mapping
+
+\\[
+\\phi_x : Pred(B) \\rightarrow Values.
+\\]
+
+For every control-flow edge \\(P \\rightarrow B\\), the value selected at entry to \\(B\\) is exactly \\(\\phi_x(P)\\). Consequently, the key set of the Phi mapping must equal the predecessor set of the block:
+
+\\[
+\\operatorname{dom}(\\phi_x) = Pred(B).
+\\]
+
+A positional list of values is insufficient unless a separately maintained, immutable ordering establishes a bijection with predecessor edges. This project therefore uses predecessor block identifiers as explicit keys. The invariant is checked independently of value identity: two predecessors may legitimately supply the same value, but neither edge may be omitted or invented.
+
+For loop headers, the preheader is an ordinary incoming edge and its initial value must be represented alongside every backedge value. Whether a Phi is required is determined by the complete set of incoming values, not merely by whether the backedges disagree. If the preheader supplies \\(v_0\\) and every backedge supplies \\(v_1\\), then \\(v_0 \\ne v_1\\) still requires a Phi even if all backedges agree with one another.
+
+A validator should additionally check:
+- every predecessor and successor identifier resolves to a block;
+- predecessor/successor relationships are reciprocal;
+- every Phi has exactly one operand for each predecessor and no other operands;
+- Phi operations occur before ordinary operations in their block;
+- a block does not define the same Phi target more than once.
+
+These are structural preconditions for later transformations, not a proof of whole-program semantic equivalence.
+
+## Verification levels and claims
+
+The implementation and paper should report verification as a ladder rather than one binary label:
+
+| Level | Evidence | What it does not establish |
+|---|---|---|
+| V0 — decoded | Bytes decode under a stated ISA/mode | Correct code/data classification |
+| V1 — structurally valid | CFG and IR invariants pass | Correct instruction semantics |
+| V2 — semantically lifted | Supported instruction effects are represented | Correctness of unsupported effects |
+| V3 — source emitted | A source representation is generated | That it preserves behavior |
+| V4 — compiler accepted | Generated source compiles under stated flags | Behavioral equivalence |
+| V5 — differential agreement | Original and output agree on documented tests/traces | Equivalence for all inputs |
+| V6 — formal/complete proof | A sound proof covers the stated model and assumptions | Behavior outside that model |
+
+A system must never silently promote a result to a higher level. For example, successful C compilation is V4 evidence only. Differential testing is valuable V5 evidence over its tested domain, but it is not a universal proof.
+
+## Prototype evidence added during development
+
+The current prototype now includes:
+- predecessor-keyed register Phi construction rather than positional operands;
+- loop-header Phi construction that includes the explicit initial/preheader edge;
+- rejection of malformed predecessor identifiers, duplicate targets, empty values, and inconsistent merge metadata;
+- a standalone CFG/Phi validator checking exact predecessor coverage, reciprocal edges, Phi placement, and duplicate definitions.
+
+These additions are architecture-independent IR invariants. They do not yet provide a complete SSA construction algorithm, dominance-frontier placement, general loop fixed-point solution, alias-aware memory SSA, or a proof of semantic equivalence. The paper should describe them as implemented prototype checks, not as a complete SSA solution.
+
+## Research methodology: falsifiable claims
+
+Each proposed contribution should be stated as a falsifiable hypothesis with:
+1. a precisely defined input population and executable format/ISA;
+2. a ground-truth source/build pipeline where available;
+3. an explicit output and correctness criterion;
+4. a baseline tool or ablation setting;
+5. reproducible versions, flags, fixtures, and scripts;
+6. separate reporting of unsupported cases and analysis failures.
+
+Useful ablations include removing relocation/symbol evidence, disabling recursive traversal, replacing edge-indexed Phi inputs with positional inputs, disabling memory-effect summaries, and allowing versus forbidding speculative structuring. The edge-indexed Phi ablation should measure both false acceptance of invalid merges and missed valid merges.
+
+## Bibliography work still required
+
+The paper is not submission-ready. A literature review must be conducted and verified against primary publications and project documentation. At minimum, cover:
+- classic compiler data-flow analysis and SSA construction;
+- binary lifting and intermediate representations;
+- static disassembly and code/data classification;
+- control-flow recovery for indirect branches and jump tables;
+- type recovery and ABI inference;
+- semantics-based and differential validation;
+- established decompilers and their evaluation methodologies.
+
+Do not add unverified citations or claim novelty until this review and a comparison against prior work are complete.
