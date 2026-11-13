@@ -65,6 +65,10 @@ The scripts are defined in package.json. Tests include a deterministic synthetic
 
 See [architecture](docs/architecture.md), [analysis pipeline](docs/analysis-pipeline.md) and [baseline fixture](docs/baseline.md).
 
+## Research direction
+
+A general, architecture- and executable-format-independent research outline for evidence-grounded executable-to-source reconstruction is maintained in [research/executable-to-source-reconstruction.md](research/executable-to-source-reconstruction.md). It is a working outline, not a claim that the current N64-focused prototype already supports other formats or architectures.
+
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone status, acceptance criteria and a provisional schedule. The schedule assumes one developer working approximately 10–15 focused hours per week and should be revised after each major pipeline gate.

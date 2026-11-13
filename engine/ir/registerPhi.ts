@@ -34,7 +34,7 @@ export function materializeRegisterPhi(
   const values: string[] = [];
   for (const [predecessorText, value] of entries) {
     const predecessorId = Number(predecessorText);
-    if (!Number.isSafeInteger(predecessorId) || predecessorId < 0) {
+    if (!Number.isSafeInteger(predecessorId) || predecessorId < 0 || String(predecessorId) !== predecessorText) {
       throw new Error(`phi for ${candidate.register} has invalid predecessor id ${predecessorText}`);
     }
     if (typeof value !== 'string' || value.trim().length === 0) {
