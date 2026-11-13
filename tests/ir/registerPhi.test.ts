@@ -30,6 +30,7 @@ test('rejects empty targets and incoming values', () => {
 test('rejects invalid predecessor identifiers', () => {
   assert.throws(() => materializeRegisterPhi({ register: 't0', incoming: { '-1': 'a', 7: 'b' } }), /invalid predecessor id/);
   assert.throws(() => materializeRegisterPhi({ register: 't0', incoming: { '1.5': 'a', 7: 'b' } }), /invalid predecessor id/);
+  assert.throws(() => materializeRegisterPhi({ register: 't0', incoming: Object.fromEntries([['01', 'a'], ['7', 'b']]) }), /invalid predecessor id/);
 });
 
 test('rejects duplicate phi targets', () => {
