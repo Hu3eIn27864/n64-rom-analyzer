@@ -45,7 +45,7 @@ export function materializeLoopBackedgePhis(
     };
     for (const [predecessorText, rawValue] of Object.entries(input.merge.inputs)) {
       const predecessorId = Number(predecessorText);
-      if (!Number.isSafeInteger(predecessorId) || predecessorId < 0) {
+      if (!Number.isSafeInteger(predecessorId) || predecessorId < 0 || String(predecessorId) !== predecessorText) {
         throw new Error(`loop backedge merge for ${register} has invalid predecessor id`);
       }
       if (typeof rawValue !== 'string' || rawValue.trim().length === 0) {
