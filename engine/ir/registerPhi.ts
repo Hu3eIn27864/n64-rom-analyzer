@@ -2,41 +2,60 @@ import type { MicroCExpr, MicroCOperation } from './microC';
 
 export interface RegisterPhiCandidate {
   readonly register: string;
-  readonly incoming: readonly string[];
+  /** One value per incoming CFG edge, keyed by predecessor block id. */
+  readonly incoming: Readonly<Record<number, string>>;
 }
 
 export interface MaterializedPhi {
   readonly register: string;
-  readonly operation: MicroCOperation;
+  readonly operation: Extract<MicroCOperation, { kind: 'phi' }>;
 }
 
-/** Materialize only proven conflicting incoming register definitions. */
+/**
+ * Materialize a register merge without losing predecessor identity.
+ *
+ * A Phi operand is selected by the edge entering the block, not by its
+ * position in an arbitrary list. Keeping that identity is essential for
+ * branch-sensitive data-flow and later SSA destruction.
+ */
 export function materializeRegisterPhi(
   candidate: RegisterPhiCandidate,
 ): MaterializedPhi {
-  if (candidate.incoming.length < 2) {
-    throw new Error(`phi for ${candidate.register} requires at least two incoming values`);
-  }
-  const incoming = [...new Set(candidate.incoming)];
-  if (incoming.length < 2) {
-    throw new Error(`phi for ${candidate.register} has no real merge`);
-  }
-  if (incoming.some((value) => value.trim().length === 0)) {
-    throw new Error(`phi for ${candidate.register} contains an empty incoming value`);
+  if (!candidate.register.trim()) {
+    throw new Error('phi requires a non-empty register target');
   }
 
-  const args: MicroCExpr[] = incoming.map((value) => ({
-    kind: 'variable',
-    name: value,
-  }));
+  const entries = Object.entries(candidate.incoming);
+  if (entries.length < 2) {
+    throw new Error(`phi for ${candidate.register} requires at least two incoming edges`);
+  }
+
+  const inputs: Record<number, MicroCExpr> = {};
+  const values: string[] = [];
+  for (const [predecessorText, value] of entries) {
+    const predecessorId = Number(predecessorText);
+    if (!Number.isSafeInteger(predecessorId) || predecessorId < 0) {
+      throw new Error(`phi for ${candidate.register} has invalid predecessor id ${predecessorText}`);
+    }
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      throw new Error(`phi for ${candidate.register} contains an empty incoming value`);
+    }
+    inputs[predecessorId] = { kind: 'value', name: value };
+    values.push(value);
+  }
+
+  if (new Set(values).size < 2) {
+    throw new Error(`phi for ${candidate.register} has no distinct incoming definitions`);
+  }
+
   return {
     register: candidate.register,
     operation: {
       kind: 'phi',
       target: candidate.register,
-      args,
+      inputs,
     },
-  } as MaterializedPhi;
+  };
 }
 
 export function materializeRegisterPhis(

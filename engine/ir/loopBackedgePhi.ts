@@ -4,13 +4,14 @@ import { materializeRegisterPhis, type MaterializedPhi, type RegisterPhiCandidat
 export interface LoopBackedgePhiInput {
   readonly register: string;
   readonly initial: string;
+  readonly initialPredecessorId: number;
   readonly merge: LoopBackedgeMerge;
 }
 
 /**
- * Materialize loop-header Phis from a proven preheader value plus every
- * proven backedge definition. Stable backedge values do not require a Phi;
- * conflicting values become a real Micro-C Phi with all incoming states.
+ * Materialize loop-header Phis from the preheader edge and all backedges.
+ * Whether a Phi is needed is decided from the complete set of incoming
+ * definitions, including the initial value (not only backedge disagreement).
  */
 export function materializeLoopBackedgePhis(
   inputs: readonly LoopBackedgePhiInput[],
@@ -32,23 +33,34 @@ export function materializeLoopBackedgePhis(
     }
     seen.add(register);
 
-    const values = input.merge.values.map(value => value.trim());
-    if (values.some(value => value.length === 0)) {
-      throw new Error(`loop backedge merge for ${register} contains an empty state`);
+    if (!Number.isSafeInteger(input.initialPredecessorId) || input.initialPredecessorId < 0) {
+      throw new Error(`loop backedge Phi for ${register} has invalid initial predecessor id`);
     }
-    const uniqueValues = [...new Set(values)];
-    if (input.merge.requiresPhi && uniqueValues.length < 2) {
-      throw new Error(`loop backedge Phi for ${register} requires conflicting backedge states`);
+    if (Object.hasOwn(input.merge.inputs, input.initialPredecessorId)) {
+      throw new Error(`loop backedge Phi for ${register} repeats its initial predecessor`);
     }
-    if (!input.merge.requiresPhi && uniqueValues.length > 1) {
-      throw new Error(`loop backedge merge for ${register} has conflicting states without a Phi`);
-    }
-    if (!input.merge.requiresPhi) continue;
 
-    candidates.push({
-      register,
-      incoming: [initial, ...uniqueValues],
-    });
+    const edgeInputs: Record<number, string> = {
+      [input.initialPredecessorId]: initial,
+    };
+    for (const [predecessorText, rawValue] of Object.entries(input.merge.inputs)) {
+      const predecessorId = Number(predecessorText);
+      if (!Number.isSafeInteger(predecessorId) || predecessorId < 0) {
+        throw new Error(`loop backedge merge for ${register} has invalid predecessor id`);
+      }
+      if (typeof rawValue !== 'string' || rawValue.trim().length === 0) {
+        throw new Error(`loop backedge merge for ${register} contains an empty state`);
+      }
+      edgeInputs[predecessorId] = rawValue.trim();
+    }
+
+    const backedgeRequiresPhi = new Set(Object.values(input.merge.inputs)).size > 1;
+    if (backedgeRequiresPhi !== input.merge.requiresPhi) {
+      throw new Error(`loop backedge merge metadata is inconsistent for ${register}`);
+    }
+    const requiresPhi = new Set(Object.values(edgeInputs)).size > 1;
+    if (!requiresPhi) continue;
+    candidates.push({ register, incoming: edgeInputs });
   }
 
   return materializeRegisterPhis(candidates);
