@@ -54,10 +54,11 @@ export function materializeLoopBackedgePhis(
       edgeInputs[predecessorId] = rawValue.trim();
     }
 
-    const requiresPhi = new Set(Object.values(edgeInputs)).size > 1;
-    if (requiresPhi !== input.merge.requiresPhi && new Set(Object.values(input.merge.inputs)).size > 1) {
+    const backedgeRequiresPhi = new Set(Object.values(input.merge.inputs)).size > 1;
+    if (backedgeRequiresPhi !== input.merge.requiresPhi) {
       throw new Error(`loop backedge merge metadata is inconsistent for ${register}`);
     }
+    const requiresPhi = new Set(Object.values(edgeInputs)).size > 1;
     if (!requiresPhi) continue;
     candidates.push({ register, incoming: edgeInputs });
   }
