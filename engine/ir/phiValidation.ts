@@ -27,6 +27,15 @@ export function validatePhiPredecessorInputs(
   }
 
   for (const block of blocks) {
+    for (const successorId of block.successors) {
+      const successor = blocksById.get(successorId);
+      if (!successor) {
+        errors.push(`block ${block.id} references missing successor ${successorId}`);
+      } else if (!successor.predecessors.includes(block.id)) {
+        errors.push(`CFG edge ${block.id}->${successorId} is not reciprocal`);
+      }
+    }
+
     const predecessorIds = new Set<number>();
     for (const predecessorId of block.predecessors) {
       if (!Number.isSafeInteger(predecessorId) || predecessorId < 0) {
@@ -63,7 +72,10 @@ export function validatePhiPredecessorInputs(
 
       const inputIds = Object.keys(operation.inputs).map(Number);
       const inputIdSet = new Set(inputIds);
-      if (inputIds.some((id) => !Number.isSafeInteger(id) || id < 0)) {
+      if (inputIds.length === 0) {
+        errors.push(`block ${block.id} Phi ${operation.target} has no incoming edge inputs`);
+      }
+      if (Object.keys(operation.inputs).some((key) => !Number.isSafeInteger(Number(key)) || Number(key) < 0 || String(Number(key)) !== key)) {
         errors.push(`block ${block.id} Phi ${operation.target} has an invalid predecessor key`);
         continue;
       }
