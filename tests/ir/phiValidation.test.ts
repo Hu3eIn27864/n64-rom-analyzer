@@ -74,3 +74,8 @@ test('reports duplicate predecessor ids', () => {
   const blocks = [block(0, [], [1]), block(1, [0, 0], [])];
   assert.ok(validatePhiPredecessorInputs(blocks).some(error => /duplicate predecessor 0/.test(error)));
 });
+
+test('rejects Phi nodes without incoming edge operands', () => {
+  const blocks = [block(0, [], [], [{ kind: 'phi', target: 't0', inputs: {} }])];
+  assert.ok(validatePhiPredecessorInputs(blocks).some(error => /has no incoming edge inputs/.test(error)));
+});
